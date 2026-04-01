@@ -47,12 +47,12 @@ const REPORT_CARDS: ReportCard[] = [
     outputType: "excel",
   },
   {
-    id: "scenario-summary",
-    title: "Scenario Cost Summary",
-    desc: "District-wide year-by-year cost summary for the active scenario including benefits breakdown.",
+    id: "board-presentation",
+    title: "Board Presentation PDF",
+    desc: "Board-ready multi-year cost projection with per-unit breakdown, increase methodology, and 5-year fiscal impact. Formatted for presentation.",
     icon: FileText,
-    badge: "Excel",
-    outputType: "excel",
+    badge: "PDF",
+    outputType: "pdf",
   },
   {
     id: "negotiation-summary",
@@ -213,6 +213,123 @@ export default function Reports() {
       wb,
       `District21_Scenario_${(scenario?.name ?? "Summary").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`
     );
+  };
+
+  const generateBoardPresentationPdf = () => {
+    const distName = districtName ?? "District 21";
+    const scenarioName = scenario?.name ?? "Active Scenario";
+    const yearConfigs = scenario?.yearConfigs ?? [];
+    const years = [...new Set(yearConfigs.map(yc => yc.contractYear))].sort();
+
+    const unitMap: Record<string, { payroll: number; count: number }> = {};
+    for (const emp of employees?.employees ?? []) {
+      const uname = emp.bargainingUnitName ?? "Unknown";
+      if (!unitMap[uname]) unitMap[uname] = { payroll: 0, count: 0 };
+      unitMap[uname].payroll += parseFloat(emp.currentAnnualSalary) || 0;
+      unitMap[uname].count++;
+    }
+    const totalPayroll = Object.values(unitMap).reduce((s, u) => s + u.payroll, 0);
+
+    const unitRows = Object.entries(unitMap).map(([unit, data]) => `
+      <tr>
+        <td>${unit}</td>
+        <td class="num">${data.count}</td>
+        <td class="num">$${Math.round(data.payroll).toLocaleString()}</td>
+        <td class="num">$${data.count > 0 ? Math.round(data.payroll / data.count).toLocaleString() : "—"}</td>
+      </tr>`).join("");
+
+    const yearRows = years.map(y => {
+      const cfgs = yearConfigs.filter(yc => yc.contractYear === y);
+      return cfgs.map(yc => {
+        const inc = (yc.increaseType as string) === "cpi_formula" ? "CPI Formula" : (yc.increaseType as string) === "fixed_percentage" ? "Fixed %" : String(yc.increaseType);
+        const rate = (yc.increaseType as string) === "cpi_formula"
+          ? `${yc.cpiFloor ?? "—"}%–${yc.cpiCap ?? "—"}%`
+          : yc.fixedPercentage ? `${yc.fixedPercentage}%` : "—";
+        return `<tr>
+          <td>${yc.yearLabel ?? `${y}–${y+1}`}</td>
+          <td>${yc.bargainingUnitId.slice(0, 8)}…</td>
+          <td>${inc}</td>
+          <td class="num">${rate}</td>
+          <td class="num">${yc.stepAdvancement ? "Yes" : "No"}</td>
+        </tr>`;
+      }).join("");
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Board Presentation — ${distName}</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 40px; color: #1a202c; background: #fff; }
+    .header { border-bottom: 3px solid #2563eb; margin-bottom: 32px; padding-bottom: 16px; }
+    h1 { font-size: 28px; margin: 0 0 4px; color: #1e40af; }
+    .subtitle { color: #64748b; font-size: 14px; }
+    h2 { font-size: 16px; color: #1e40af; margin: 28px 0 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+    th { background: #eff6ff; color: #1e40af; font-weight: 600; padding: 8px 12px; text-align: left; }
+    td { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; }
+    .num { text-align: right; font-family: monospace; }
+    .total { font-weight: 600; background: #f8fafc; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .kpi { background: #eff6ff; border-radius: 8px; padding: 16px; }
+    .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-value { font-size: 22px; font-weight: 700; color: #1e40af; margin-top: 4px; }
+    .footer { margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 11px; color: #94a3b8; text-align: center; }
+    @media print { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${distName} — Board Presentation</h1>
+    <div class="subtitle">Collective Bargaining Compensation Forecast · Scenario: ${scenarioName} · ${new Date().toLocaleDateString()}</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">Total Current Payroll</div>
+      <div class="kpi-value">$${Math.round(totalPayroll / 1_000_000 * 10) / 10}M</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total Employees</div>
+      <div class="kpi-value">${(employees?.employees ?? []).length}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Contract Years Modeled</div>
+      <div class="kpi-value">${years.length}</div>
+    </div>
+  </div>
+
+  <h2>Bargaining Unit Summary</h2>
+  <table>
+    <thead><tr><th>Unit</th><th>Employees</th><th>Total Payroll</th><th>Avg Salary</th></tr></thead>
+    <tbody>${unitRows}</tbody>
+    <tr class="total"><td>District Total</td><td class="num">${(employees?.employees ?? []).length}</td><td class="num">$${Math.round(totalPayroll).toLocaleString()}</td><td class="num">—</td></tr>
+  </table>
+
+  <h2>Year-by-Year Configuration</h2>
+  <table>
+    <thead><tr><th>Year</th><th>Unit</th><th>Increase Type</th><th>Rate / Range</th><th>Step Adv.</th></tr></thead>
+    <tbody>${yearRows}</tbody>
+  </table>
+
+  <h2>5-Year Cost Projection</h2>
+  <p style="color:#64748b;font-size:13px;">Run "Calculate" on the Scenario Detail page to generate year-by-year projections. Once calculated, the 5-year total cost will appear in the Scenario Compare view.</p>
+
+  <div class="footer">
+    CollBar — Collective Bargaining Compensation and Labor Forecasting Platform &nbsp;|&nbsp; ${distName}
+  </div>
+</body>
+</html>`;
+
+    const w = window.open("", "_blank", "width=1000,height=750");
+    if (!w) {
+      toast({ title: "Popup blocked", description: "Allow popups and try again.", variant: "destructive" });
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 600);
   };
 
   const generateBudgetImpact = () => {
@@ -424,8 +541,8 @@ export default function Reports() {
         case "employee-detail":
           generateEmployeeDetail();
           break;
-        case "scenario-summary":
-          generateScenarioSummary();
+        case "board-presentation":
+          generateBoardPresentationPdf();
           break;
         case "budget-impact":
           generateBudgetImpact();
@@ -438,9 +555,10 @@ export default function Reports() {
           break;
       }
       setGenerated((prev) => new Set(prev).add(id));
+      const isPdfReport = id.endsWith("-pdf") || id === "negotiation-summary" || id === "board-presentation";
       toast({
-        title: id.endsWith("-pdf") || id === "negotiation-summary" ? "PDF opened" : "Report generated",
-        description: id.endsWith("-pdf") || id === "negotiation-summary"
+        title: isPdfReport ? "PDF opened" : "Report generated",
+        description: isPdfReport
           ? "A print dialog has opened. Save as PDF from there."
           : "Your Excel file is downloading now.",
       });

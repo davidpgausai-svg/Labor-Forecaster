@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Play,
   Pause,
@@ -30,6 +31,27 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { motion } from "framer-motion";
 import { toPng } from "html-to-image";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+
+const UNIT_COLORS: Record<string, string> = {
+  Licensed: "hsl(217,91%,60%)",
+  ESP: "hsl(258,90%,66%)",
+  CM: "hsl(38,92%,50%)",
+};
+const COLOR_FALLBACKS = ["hsl(217,91%,60%)", "hsl(258,90%,66%)", "hsl(38,92%,50%)"];
+function unitColor(name: string, idx: number) {
+  return UNIT_COLORS[name] ?? COLOR_FALLBACKS[idx % COLOR_FALLBACKS.length];
+}
 
 export default function HeatmapPage() {
   const { districtId } = useDistrictContext();
@@ -44,9 +66,10 @@ export default function HeatmapPage() {
   );
 
   const salaryUnits = units?.filter((u) => u.compensationType === "salary") || [];
+  const hourlyUnits = units?.filter((u) => u.compensationType !== "salary") || [];
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <div className="space-y-8 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
@@ -67,24 +90,40 @@ export default function HeatmapPage() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue={salaryUnits[0]?.id} className="w-full">
-          <TabsList className="bg-muted border-border">
+        <>
+          <Tabs defaultValue={salaryUnits[0]?.id} className="w-full">
+            <TabsList className="bg-muted border-border">
+              {salaryUnits.map((unit) => (
+                <TabsTrigger
+                  key={unit.id}
+                  value={unit.id}
+                  className="data-[state=active]:bg-background"
+                >
+                  {unit.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
             {salaryUnits.map((unit) => (
-              <TabsTrigger
-                key={unit.id}
-                value={unit.id}
-                className="data-[state=active]:bg-background"
-              >
-                {unit.name}
-              </TabsTrigger>
+              <TabsContent key={unit.id} value={unit.id} className="mt-6">
+                <HeatmapViewer unitId={unit.id} unitName={unit.name} />
+              </TabsContent>
             ))}
-          </TabsList>
-          {salaryUnits.map((unit) => (
-            <TabsContent key={unit.id} value={unit.id} className="mt-6">
-              <HeatmapViewer unitId={unit.id} unitName={unit.name} />
-            </TabsContent>
-          ))}
-        </Tabs>
+          </Tabs>
+
+          {hourlyUnits.length > 0 && (
+            <div className="space-y-4">
+              <div className="border-t border-border pt-6">
+                <h2 className="text-lg font-semibold tracking-tight mb-1">
+                  ESP / CM Distribution by Step
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Grouped bar chart showing employee count per step across hourly bargaining units.
+                </p>
+              </div>
+              <HourlyUnitBarChart units={hourlyUnits} />
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -421,5 +460,133 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
         </div>
       </div>
     </div>
+  );
+}
+
+type HourlyUnitData = {
+  unitId: string;
+  unitName: string;
+  stepCounts: Record<number, number>;
+  isLoading: boolean;
+};
+
+function HourlyUnitDataFetcher({
+  unit,
+  selectedYear,
+  onData,
+}: {
+  unit: { id: string; name: string };
+  selectedYear: number;
+  onData: (d: HourlyUnitData) => void;
+}) {
+  const { scenarioId } = useDistrictContext();
+  const { data, isLoading } = useGetHeatmapData(
+    scenarioId!,
+    { bargainingUnitId: unit.id },
+    {
+      query: {
+        enabled: !!scenarioId && !!unit.id,
+        queryKey: getGetHeatmapDataQueryKey(scenarioId!, { bargainingUnitId: unit.id }),
+      },
+    }
+  );
+
+  useEffect(() => {
+    const yearData = data?.years.find((y) => y.contractYear === selectedYear) ?? data?.years[0];
+    const stepCounts: Record<number, number> = {};
+    yearData?.cells.forEach((cell) => {
+      const s = cell.stepNumber ?? 0;
+      stepCounts[s] = (stepCounts[s] ?? 0) + (cell.employeeCount ?? 0);
+    });
+    onData({ unitId: unit.id, unitName: unit.name, stepCounts, isLoading });
+  }, [data, isLoading, selectedYear, unit.id, unit.name]);
+
+  return null;
+}
+
+function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }) {
+  const CONTRACT_YEARS = [2025, 2026, 2027, 2028, 2029];
+  const [selectedYear, setSelectedYear] = useState<number>(CONTRACT_YEARS[0]);
+  const [unitDataMap, setUnitDataMap] = useState<Record<string, HourlyUnitData>>({});
+
+  const handleUnitData = (d: HourlyUnitData) => {
+    setUnitDataMap((prev) => ({ ...prev, [d.unitId]: d }));
+  };
+
+  const isLoading = Object.values(unitDataMap).some((d) => d.isLoading) || units.length > Object.keys(unitDataMap).length;
+
+  const allSteps = new Set<number>();
+  Object.values(unitDataMap).forEach((d) => Object.keys(d.stepCounts).forEach((s) => allSteps.add(Number(s))));
+  const chartData = [...allSteps]
+    .sort((a, b) => a - b)
+    .map((step) => {
+      const row: Record<string, number | string> = { step: `Step ${step}` };
+      units.forEach((u) => {
+        row[u.name] = unitDataMap[u.id]?.stepCounts[step] ?? 0;
+      });
+      return row;
+    });
+
+  const hasData = chartData.some((row) =>
+    units.some((u) => typeof row[u.name] === "number" && (row[u.name] as number) > 0)
+  );
+
+  return (
+    <>
+      {units.map((unit) => (
+        <HourlyUnitDataFetcher key={unit.id} unit={unit} selectedYear={selectedYear} onData={handleUnitData} />
+      ))}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Employee Distribution by Step
+            </CardTitle>
+            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+              <SelectTrigger className="w-36 bg-background/50 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONTRACT_YEARS.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}–{y + 1}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : !hasData ? (
+            <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+              No step data for {selectedYear}–{selectedYear + 1}. Run scenario calculation to populate.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData} barCategoryGap="20%" barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="step" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "6px",
+                    color: "hsl(var(--foreground))",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }} />
+                {units.map((unit, idx) => (
+                  <Bar key={unit.id} dataKey={unit.name} fill={unitColor(unit.name, idx)} radius={[3, 3, 0, 0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }

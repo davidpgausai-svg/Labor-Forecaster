@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import {
   useGetScenario,
@@ -407,28 +407,19 @@ function YearConfigCard({
 
         {config.increaseType === "flat_dollar" && (
           <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">High Earner Threshold</label>
-              <Input
-                type="number"
-                value={config.highEarnerThreshold ?? ""}
-                onChange={e => onChange({ highEarnerThreshold: e.target.value })}
-                className="font-mono text-right bg-background/50"
-                placeholder="e.g. 100000"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">High Earner Flat Increase $</label>
-              <Input
-                type="number"
-                value={config.highEarnerFlatIncrease ?? ""}
-                onChange={e => onChange({ highEarnerFlatIncrease: e.target.value })}
-                className="font-mono text-right bg-background/50"
-                placeholder="e.g. 3000"
-              />
-            </div>
+            <RangeWithInput
+              label="Flat Dollar Increase $"
+              value={config.highEarnerFlatIncrease ?? ""}
+              onChange={v => onChange({ highEarnerFlatIncrease: v })}
+              min={0}
+              max={10000}
+              step={100}
+              suffix="$"
+            />
           </div>
         )}
+
+        <HighEarnerSection config={config} onChange={onChange} />
 
         <div className="border-t border-border pt-4">
           <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Educational Advancement Rates</div>
@@ -469,32 +460,10 @@ function YearConfigCard({
           </div>
         </div>
 
-        <div className="border-t border-border pt-4">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Health Insurance</div>
-          <div className="grid grid-cols-2 gap-3">
-            <RangeWithInput
-              label="Premium Increase Rate"
-              value={config.healthPremiumIncreaseRate ?? ""}
-              onChange={v => onChange({ healthPremiumIncreaseRate: v })}
-              min={0}
-              max={20}
-              step={0.5}
-            />
-            <RangeWithInput
-              label="Employer Cap Rate"
-              value={config.healthEmployerCapRate ?? ""}
-              onChange={v => onChange({ healthEmployerCapRate: v })}
-              min={0}
-              max={100}
-              step={1}
-            />
-          </div>
-        </div>
-
         <div className="border-t border-border pt-4 flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Step Advancement</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Eligible employees advance one step</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Eligible employees advance one step this year</div>
           </div>
           <button
             type="button"
@@ -505,19 +474,147 @@ function YearConfigCard({
           </button>
         </div>
 
-        {config.notes !== undefined && (
-          <div className="border-t border-border pt-4">
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Notes</div>
-            <textarea
-              value={config.notes ?? ""}
-              onChange={e => onChange({ notes: e.target.value })}
-              className="w-full bg-background/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-              rows={2}
-              placeholder="Negotiation notes for this year..."
-            />
-          </div>
-        )}
+        <RetirementModelingSection config={config} onChange={onChange} />
+
+        <div className="border-t border-border pt-4">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Notes</div>
+          <textarea
+            value={config.notes ?? ""}
+            onChange={e => onChange({ notes: e.target.value })}
+            className="w-full bg-background/50 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            rows={2}
+            placeholder="Negotiation notes for this year..."
+          />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function HighEarnerSection({
+  config,
+  onChange,
+}: {
+  config: ScenarioYearConfig;
+  onChange: (patch: Partial<ScenarioYearConfig>) => void;
+}) {
+  const hasThreshold = !!config.highEarnerThreshold && config.highEarnerThreshold !== "";
+  const [enabled, setEnabled] = useState(hasThreshold);
+
+  const toggle = useCallback(() => {
+    const next = !enabled;
+    setEnabled(next);
+    if (!next) onChange({ highEarnerThreshold: null, highEarnerFlatIncrease: null });
+  }, [enabled, onChange]);
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">High-Earner Override</div>
+          <div className="text-xs text-muted-foreground mt-0.5">Employees above threshold receive a separate flat increase</div>
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? "bg-amber-500" : "bg-muted"}`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-4" : "translate-x-1"}`} />
+        </button>
+      </div>
+      {enabled && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Salary Threshold $</label>
+            <Input
+              type="number"
+              value={config.highEarnerThreshold ?? ""}
+              onChange={e => onChange({ highEarnerThreshold: e.target.value })}
+              className="font-mono text-right bg-background/50"
+              placeholder="e.g. 100,000"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Flat Increase $ (High Earner)</label>
+            <Input
+              type="number"
+              value={config.highEarnerFlatIncrease ?? ""}
+              onChange={e => onChange({ highEarnerFlatIncrease: e.target.value })}
+              className="font-mono text-right bg-background/50"
+              placeholder="e.g. 3,000"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RetirementModelingSection({
+  config,
+  onChange,
+}: {
+  config: ScenarioYearConfig;
+  onChange: (patch: Partial<ScenarioYearConfig>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Retirement Modeling
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            TRS / IMRF / FICA rates and replacement assumptions for this year
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${expanded ? "bg-primary" : "bg-muted"}`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${expanded ? "translate-x-4" : "translate-x-1"}`} />
+        </button>
+      </div>
+      {expanded && (
+        <div className="space-y-4 pt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <RangeWithInput
+              label="Health Premium Increase Rate"
+              value={config.healthPremiumIncreaseRate ?? ""}
+              onChange={v => onChange({ healthPremiumIncreaseRate: v })}
+              min={0}
+              max={20}
+              step={0.5}
+            />
+            <RangeWithInput
+              label="Employer Health Cap Rate"
+              value={config.healthEmployerCapRate ?? ""}
+              onChange={v => onChange({ healthEmployerCapRate: v })}
+              min={0}
+              max={100}
+              step={1}
+            />
+          </div>
+          <div className="p-3 rounded-md bg-muted/30 border border-border/40 text-xs text-muted-foreground space-y-1">
+            <div className="font-medium text-foreground/70 mb-2">Statutory Contribution Rates (Reference)</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <span>TRS Employer (Licensed):</span><span className="font-mono text-right">9.00%</span>
+              <span>IMRF Employer (ESP/CM):</span><span className="font-mono text-right">variable</span>
+              <span>FICA / Medicare:</span><span className="font-mono text-right">7.65%</span>
+              <span>Workers' Comp (est.):</span><span className="font-mono text-right">~1.50%</span>
+              <span>Dental / Vision (annual):</span><span className="font-mono text-right">~$650</span>
+              <span>Life Insurance (annual):</span><span className="font-mono text-right">~$300</span>
+              <span>LTD / Disability:</span><span className="font-mono text-right">~0.50%</span>
+            </div>
+            <div className="mt-2 text-[10px] text-muted-foreground/70 italic">
+              These reference rates are applied by the calculation engine. Use the Health Premium and Cap fields above to model year-over-year benefit cost changes.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
