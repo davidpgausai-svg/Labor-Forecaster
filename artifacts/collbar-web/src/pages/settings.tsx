@@ -16,6 +16,8 @@ import {
   EmployeeGroupWithSchedules,
   CompensationSchedule,
   CreateCompensationScheduleRequestScheduleType,
+  CreateEmployeeGroupRequest,
+  UpdateEmployeeGroupRequest,
 } from "@workspace/api-client-react";
 import {
   Card,
@@ -210,44 +212,61 @@ function groupToForm(g: EmployeeGroupWithSchedules): GroupFormState {
   };
 }
 
-function buildGroupPayload(
+function buildOptionalRates(form: GroupFormState) {
+  return {
+    retirementEmployeeRate: form.retirementEmployeeRate || undefined,
+    retirementEmployerRate: form.retirementEmployerRate || undefined,
+    retirementGrossUpRate: form.retirementGrossUpRate || undefined,
+    ficaRate: form.ficaRate || undefined,
+    healthInsuranceSingleAnnual: form.healthInsuranceSingleAnnual || undefined,
+    healthInsuranceFamilyAnnual: form.healthInsuranceFamilyAnnual || undefined,
+    healthInsuranceEmployerCapRate:
+      form.healthInsuranceEmployerCapRate || undefined,
+    hsaContributionSingle: form.hsaContributionSingle || undefined,
+    hsaContributionFamily: form.hsaContributionFamily || undefined,
+    dentalAnnual: form.dentalAnnual || undefined,
+    lifeInsuranceAnnual: form.lifeInsuranceAnnual || undefined,
+    disabilityInsuranceAnnual: form.disabilityInsuranceAnnual || undefined,
+    workersCompRate: form.workersCompRate || undefined,
+  };
+}
+
+function buildCreatePayload(
   form: GroupFormState,
-  districtId?: string
-): Record<string, string | boolean | number | null | undefined> {
-  const payload: Record<string, string | boolean | number | null | undefined> =
-    {
-      name: form.name,
-      code: form.code,
-      contractDays: form.contractDays ? Number(form.contractDays) : null,
-      isUnionized: form.isUnionized,
-      bargainingUnitName: form.bargainingUnitName || null,
-      contractStartDate: form.contractStartDate || null,
-      contractEndDate: form.contractEndDate || null,
-      contractYears: form.contractYears ? Number(form.contractYears) : 5,
-      retirementSystem: form.retirementSystem,
-      ficaExempt: form.ficaExempt,
-      notes: form.notes || null,
-    };
-  if (districtId) payload.districtId = districtId;
-  const numFields = [
-    "retirementEmployeeRate",
-    "retirementEmployerRate",
-    "retirementGrossUpRate",
-    "ficaRate",
-    "healthInsuranceSingleAnnual",
-    "healthInsuranceFamilyAnnual",
-    "healthInsuranceEmployerCapRate",
-    "hsaContributionSingle",
-    "hsaContributionFamily",
-    "dentalAnnual",
-    "lifeInsuranceAnnual",
-    "disabilityInsuranceAnnual",
-    "workersCompRate",
-  ] as const;
-  for (const f of numFields) {
-    if (form[f] !== "") payload[f] = form[f];
-  }
-  return payload;
+  districtId: string
+): CreateEmployeeGroupRequest {
+  return {
+    districtId,
+    name: form.name,
+    code: form.code,
+    contractDays: form.contractDays ? Number(form.contractDays) : null,
+    isUnionized: form.isUnionized,
+    bargainingUnitName: form.bargainingUnitName || null,
+    contractStartDate: form.contractStartDate || null,
+    contractEndDate: form.contractEndDate || null,
+    contractYears: form.contractYears ? Number(form.contractYears) : 5,
+    retirementSystem: form.retirementSystem,
+    ficaExempt: form.ficaExempt,
+    notes: form.notes || null,
+    ...buildOptionalRates(form),
+  };
+}
+
+function buildUpdatePayload(form: GroupFormState): UpdateEmployeeGroupRequest {
+  return {
+    name: form.name,
+    code: form.code,
+    contractDays: form.contractDays ? Number(form.contractDays) : null,
+    isUnionized: form.isUnionized,
+    bargainingUnitName: form.bargainingUnitName || null,
+    contractStartDate: form.contractStartDate || null,
+    contractEndDate: form.contractEndDate || null,
+    contractYears: form.contractYears ? Number(form.contractYears) : 5,
+    retirementSystem: form.retirementSystem,
+    ficaExempt: form.ficaExempt,
+    notes: form.notes || null,
+    ...buildOptionalRates(form),
+  };
 }
 
 type SectionConfig = {
@@ -354,11 +373,10 @@ function GroupEditDialog({
   const handleSave = () => {
     if (!form.name || !form.code) return;
     if (isEdit) {
-      const payload = buildGroupPayload(form);
       updateMutation.mutate(
         {
           id: group!.id,
-          data: payload as Parameters<typeof updateMutation.mutate>[0]["data"],
+          data: buildUpdatePayload(form),
         },
         {
           onSuccess: () => {
@@ -377,11 +395,9 @@ function GroupEditDialog({
         }
       );
     } else {
-      const payload = buildGroupPayload(form, districtId);
       createMutation.mutate(
         {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data: payload as any,
+          data: buildCreatePayload(form, districtId),
         },
         {
           onSuccess: (created) => {
@@ -1411,7 +1427,7 @@ export default function Settings() {
                   onChange={(e) =>
                     setDistrictData((p) => ({
                       ...p,
-                      studentEnrollment: Number(e.target.value),
+                      studentEnrollment: parseInt(e.target.value) || 0,
                     }))
                   }
                 />
