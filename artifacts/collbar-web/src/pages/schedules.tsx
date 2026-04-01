@@ -748,10 +748,3 @@ function CompactSalaryGrid({ unitId, stepDeltaMap }: { unitId: string; stepDelta
   );
 }
 
-function CardHeader2({ children }: { children: React.ReactNode }) {
-  return (
-    <CardHeader>
-      <CardTitle className="text-sm">{children}</CardTitle>
-    </CardHeader>
-  );
-}
