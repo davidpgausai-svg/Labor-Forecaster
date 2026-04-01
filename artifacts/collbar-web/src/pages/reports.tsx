@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useDistrictContext } from "@/context/DistrictContext";
-import { useGetScenario, getGetScenarioQueryKey } from "@workspace/api-client-react";
+import { useGetScenario, getGetScenarioQueryKey, useListScenarios } from "@workspace/api-client-react";
 import {
   Card,
   CardHeader,
@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileText,
@@ -21,6 +23,7 @@ import {
   Table as TableIcon,
   Grid,
   AlertCircle,
+  GitCompare,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL ?? "/collbar-web/";
@@ -63,7 +66,7 @@ const REPORT_CARDS: ReportCard[] = [
   {
     id: "board-presentation",
     title: "Board Presentation PDF",
-    desc: "Board-ready multi-year cost projection with per-unit breakdown, YoY delta columns, cost components, and scenario configuration. Formatted for printing.",
+    desc: "Board-ready multi-year cost projection with per-unit breakdown, YoY delta columns, bar chart visualization, cost components, and scenario configuration. Formatted for printing.",
     icon: FileText,
     badge: "PDF",
     outputType: "pdf",
@@ -79,7 +82,7 @@ const REPORT_CARDS: ReportCard[] = [
   {
     id: "budget-impact",
     title: "Budget Impact Analysis PDF",
-    desc: "Landscape layout with year-over-year cost impact by component (payroll, retirement, FICA, health), delta/% change rows, and per-unit breakdown.",
+    desc: "Landscape layout with cost driver attribution (base rate vs. step advancement vs. benefit changes vs. headcount), year-over-year cost impact by component, and per-unit breakdown.",
     icon: BarChart3,
     badge: "PDF",
     outputType: "pdf",
@@ -95,7 +98,7 @@ const REPORT_CARDS: ReportCard[] = [
   {
     id: "employee-detail",
     title: "Employee Detail Workbook",
-    desc: "Multi-tab Excel: Summary, per-unit employee-by-year cost tabs (every employee × every year), All Employees tab, salary schedule step×lane matrix tabs, and Assumptions tab.",
+    desc: "Multi-tab Excel: Summary, per-unit employee-by-year cost tabs (every employee × every year with Step + Lane), All Employees tab, salary schedule step×lane matrix tabs, and Assumptions tab.",
     icon: TableIcon,
     badge: "Excel",
     outputType: "excel",
@@ -108,9 +111,16 @@ export default function Reports() {
   const [loading, setLoading] = useState<string | null>(null);
   const [generated, setGenerated] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   const { data: scenario } = useGetScenario(scenarioId!, {
     query: { enabled: !!scenarioId, queryKey: getGetScenarioQueryKey(scenarioId!) },
+  });
+
+  const { data: allScenarios } = useListScenarios(undefined, {
+    query: { enabled: true },
   });
 
   const handleGenerate = async (id: string) => {
@@ -153,6 +163,40 @@ export default function Reports() {
       setLoading(null);
     }
   };
+
+  const handleCompareToggle = (id: string) => {
+    setCompareIds(prev =>
+      prev.includes(id)
+        ? prev.filter(x => x !== id)
+        : prev.length >= 3
+          ? prev
+          : [...prev, id]
+    );
+    setCompareError(null);
+  };
+
+  const handleCompareDownload = async () => {
+    if (compareIds.length < 2) {
+      setCompareError("Select at least 2 scenarios to compare.");
+      return;
+    }
+    setCompareLoading(true);
+    setCompareError(null);
+    try {
+      const filename = await downloadFromServer(
+        `${BASE_URL}api/reports/compare/negotiation-pdf?ids=${compareIds.join(",")}`
+      );
+      toast({ title: "Comparison PDF downloaded", description: `Saved as: ${filename}` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Export failed.";
+      setCompareError(msg);
+      toast({ title: "Export failed", description: msg, variant: "destructive" });
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
+  const scenarios = allScenarios ?? [];
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -245,6 +289,85 @@ export default function Reports() {
           );
         })}
       </div>
+
+      <Card className="bg-card border-border border-indigo-500/30">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <GitCompare className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+              Multi-Scenario Negotiation Comparison PDF
+            </CardTitle>
+            <Badge variant="outline" className="text-rose-400 border-rose-500/30 bg-rose-500/10 text-xs">PDF</Badge>
+          </div>
+          <CardDescription className="text-sm">
+            Side-by-side negotiation comparison across 2–3 scenarios. Shows 5-year totals, per-unit cost by year, rate assumptions, and scenario delta analysis. Select 2 or 3 scenarios below.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {scenarios.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No scenarios found. Create at least 2 scenarios to use this report.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {scenarios.map((s) => {
+                const checked = compareIds.includes(s.id);
+                const disabled = !checked && compareIds.length >= 3;
+                return (
+                  <div
+                    key={s.id}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-md border transition-colors cursor-pointer select-none ${
+                      checked
+                        ? "border-indigo-500/50 bg-indigo-500/10"
+                        : disabled
+                          ? "border-border opacity-40 cursor-not-allowed"
+                          : "border-border hover:border-indigo-500/30 hover:bg-indigo-500/5"
+                    }`}
+                    onClick={() => !disabled && handleCompareToggle(s.id)}
+                  >
+                    <Checkbox
+                      id={`cmp-${s.id}`}
+                      checked={checked}
+                      disabled={disabled}
+                      onCheckedChange={() => !disabled && handleCompareToggle(s.id)}
+                      className="pointer-events-none"
+                    />
+                    <Label htmlFor={`cmp-${s.id}`} className="flex-1 text-sm cursor-pointer pointer-events-none">
+                      <span className="font-medium">{s.name}</span>
+                      <Badge variant="outline" className="ml-1.5 text-[10px] px-1.5 py-0">{s.status}</Badge>
+                    </Label>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {compareError && (
+            <div className="flex items-start gap-2 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded px-3 py-2">
+              <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              {compareError.includes("calculated") ? "Run 'Calculate' on each selected scenario first." : compareError}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleCompareDownload}
+              variant="outline"
+              className="gap-2 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10"
+              disabled={compareIds.length < 2 || compareLoading}
+            >
+              {compareLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+              ) : (
+                <><FileDown className="w-4 h-4" /> Download Comparison PDF</>
+              )}
+            </Button>
+            {compareIds.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {compareIds.length} of 3 scenarios selected
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="px-4 py-3 bg-blue-500/5 border border-blue-500/15 rounded-lg text-xs text-blue-300/80">
         <strong className="font-semibold">Tip:</strong> To capture the live heatmap as a PNG or PDF with your current year/unit selection, go to the <span className="font-semibold">Heatmap</span> page and use the Export dropdown. The Salary Heatmap Report PDF above includes the unit overview and legend.

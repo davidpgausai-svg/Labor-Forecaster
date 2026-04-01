@@ -18,6 +18,7 @@ import Decimal from "decimal.js";
 import {
   generateBoardPdf,
   generateNegotiationPdf,
+  generateNegotiationComparisonPdf,
   generateBudgetImpactPdf,
   generateHeatmapPdf,
   generateEmployeeExcel,
@@ -188,6 +189,32 @@ router.post("/reports/generate", async (req, res) => {
   }
 
   res.json(report);
+});
+
+router.get("/reports/compare/negotiation-pdf", async (req, res) => {
+  const idsRaw = req.query.ids;
+  if (!idsRaw || typeof idsRaw !== "string") {
+    res.status(400).json({ error: "ids query param required (comma-separated scenario UUIDs, 2-3)" });
+    return;
+  }
+  const ids = idsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3);
+  if (ids.length < 2) {
+    res.status(400).json({ error: "At least 2 scenario IDs required for comparison" });
+    return;
+  }
+  try {
+    const details = await Promise.all(ids.map(id => buildReportDetail(id)));
+    const valid = details.filter((d): d is NonNullable<typeof d> => d !== null);
+    if (valid.length < 2) {
+      res.status(422).json({ error: "At least 2 scenarios must have calculated data. Run Calculate on each scenario first." });
+      return;
+    }
+    const buf = generateNegotiationComparisonPdf(valid);
+    const districtName = (valid[0].districtName ?? "District").replace(/\s+/g, "_");
+    const filename = `${districtName}_Negotiation_Comparison_${new Date().toISOString().slice(0, 10)}.pdf`;
+    res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}"`, "Content-Length": buf.length });
+    res.send(buf);
+  } catch (err) { handleReportError(err, res); }
 });
 
 router.get("/reports/:scenarioId", async (req, res) => {
@@ -430,10 +457,12 @@ async function buildReportDetail(scenarioId: string): Promise<ReportDetail | nul
     record: employeeYearRecordsTable,
     employee: employeesTable,
     unit: bargainingUnitsTable,
+    lane: lanesTable,
   })
     .from(employeeYearRecordsTable)
     .leftJoin(employeesTable, eq(employeeYearRecordsTable.employeeId, employeesTable.id))
     .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
+    .leftJoin(lanesTable, eq(employeeYearRecordsTable.projectedLaneId, lanesTable.id))
     .where(eq(employeeYearRecordsTable.scenarioId, scenarioId))
     .orderBy(employeeYearRecordsTable.contractYear);
 
@@ -486,6 +515,7 @@ async function buildReportDetail(scenarioId: string): Promise<ReportDetail | nul
     contractYear: row.record.contractYear,
     yearLabel: yearConfigs.find(yc => yc.contractYear === row.record.contractYear && yc.bargainingUnitId === row.unit?.id)?.yearLabel ?? `Year ${row.record.contractYear}`,
     projectedStep: row.record.projectedStep,
+    projectedLaneName: row.lane?.name ?? null,
     projectedSalary: (row.record.projectedBaseSalaryCents / 100).toFixed(2),
     retirementContribution: (row.record.retirementContributionCents / 100).toFixed(2),
     ficaCost: (row.record.ficaCostCents / 100).toFixed(2),
@@ -585,9 +615,7 @@ router.get("/reports/:scenarioId/download/employee-excel", async (req, res) => {
     const filename = `${(detail.districtName ?? "District").replace(/\s+/g, "_")}_${scenSafe}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     res.set({ "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${filename}"`, "Content-Length": buf.length });
     res.send(buf);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
+  } catch (err) { handleReportError(err, res); }
 });
 
 export default router;

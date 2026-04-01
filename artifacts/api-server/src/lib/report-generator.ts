@@ -72,6 +72,7 @@ export type EmployeeYearRow = {
   contractYear: number;
   yearLabel?: string;
   projectedStep: number | null;
+  projectedLaneName: string | null;
   projectedSalary: string;
   retirementContribution: string;
   ficaCost: string;
@@ -247,6 +248,39 @@ export function generateBoardPdf(detail: ReportDetail): Buffer {
     margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
   });
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  if (y > 180) { doc.addPage(); y = 20; }
+
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 64, 175);
+  doc.text("Annual Total Employer Cost — Bar Chart", MARGIN, y);
+  y += 6;
+
+  {
+    const maxCost = Math.max(...totalByYear);
+    const chartW = COL_W;
+    const barH = 10;
+    const gap = 3;
+    const barColors: [number, number, number][] = [[59, 130, 246], [99, 102, 241], [168, 85, 247], [236, 72, 153], [245, 158, 11]];
+    for (let i = 0; i < detail.yearSet.length; i++) {
+      const yr = detail.yearSet[i];
+      const cost = totalByYear[i];
+      const barW = maxCost > 0 ? (cost / maxCost) * chartW * 0.72 : 0;
+      const [r, g, b] = barColors[i % barColors.length];
+      doc.setFillColor(r, g, b);
+      doc.rect(MARGIN + 35, y, barW, barH, "F");
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      doc.text(yl(detail, yr), MARGIN, y + 7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30);
+      doc.text(fmt$(cost), MARGIN + 35 + barW + 2, y + 7);
+      y += barH + gap;
+    }
+    y += 6;
+  }
 
   if (y > 225) { doc.addPage(); y = 20; }
   doc.setFontSize(11);
@@ -445,6 +479,163 @@ export function generateNegotiationPdf(detail: ReportDetail): Buffer {
   return Buffer.from(doc.output("arraybuffer"));
 }
 
+export function generateNegotiationComparisonPdf(details: ReportDetail[]): Buffer {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+  const PAGE_W = 279.4;
+  const MARGIN = 15;
+  const COL_W = PAGE_W - MARGIN * 2;
+  const districtName = details[0]?.districtName ?? "District";
+  const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  doc.setFillColor(30, 58, 95);
+  doc.rect(0, 0, PAGE_W, 32, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text(districtName, MARGIN, 12);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Collective Bargaining — Multi-Scenario Comparison Report · ${now}`, MARGIN, 20);
+  doc.setFontSize(8);
+  doc.text(`Scenarios: ${details.map(d => d.scenarioName).join(" | ")} (${details.length} compared)`, MARGIN, 28);
+  doc.setTextColor(30, 30, 30);
+  let y = 40;
+
+  const scenarioColors: [number, number, number][] = [[59, 130, 246], [168, 85, 247], [245, 158, 11], [16, 185, 129]];
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 95);
+  doc.text("5-Year Total Employer Cost — Scenario Comparison", MARGIN, y);
+  y += 5;
+
+  const summaryHead = [["Scenario", "Status", ...details[0].yearSet.map(yr => yl(details[0], yr)), "5-Yr Total", "vs Lowest"]];
+  const fiveYrTotals = details.map(d =>
+    d.yearSet.reduce((total, yr) =>
+      total + d.unitSummaries.reduce((s, u) => { const yy = u.years.find(y => y.contractYear === yr); return s + parseFloat(yy?.totalEmployerCost ?? "0"); }, 0)
+    , 0)
+  );
+  const minTotal = Math.min(...fiveYrTotals);
+  const summaryBody = details.map((d, di) => {
+    const yearCosts = d.yearSet.map(yr =>
+      d.unitSummaries.reduce((s, u) => { const yy = u.years.find(y => y.contractYear === yr); return s + parseFloat(yy?.totalEmployerCost ?? "0"); }, 0)
+    );
+    const total = fiveYrTotals[di];
+    const delta = total - minTotal;
+    return [
+      d.scenarioName, d.scenarioStatus,
+      ...yearCosts.map(v => fmt$(v)),
+      fmt$(total),
+      delta === 0 ? "LOWEST" : `+${fmt$(delta)}`,
+    ];
+  });
+  autoTable(doc, {
+    startY: y, head: summaryHead, body: summaryBody, theme: "grid",
+    headStyles: { fillColor: [30, 58, 95], textColor: 255, fontSize: 8, fontStyle: "bold" },
+    bodyStyles: { fontSize: 8 },
+    margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
+    didParseCell: (data) => {
+      if (data.section === "body") {
+        const lastCol = data.row.cells[data.row.cells.length - 1];
+        if (lastCol?.text?.[0] === "LOWEST") { data.cell.styles.textColor = [16, 122, 87]; data.cell.styles.fontStyle = "bold"; }
+        const [r, g, b] = scenarioColors[data.row.index % scenarioColors.length];
+        if (data.column.index === 0) data.cell.styles.textColor = [r, g, b];
+      }
+    },
+  });
+  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  const allUnits = [...new Set(details.flatMap(d => d.unitSummaries.map(u => u.unitName)))];
+  for (const unitName of allUnits) {
+    if (y > 150) { doc.addPage(); y = 20; }
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 58, 95);
+    doc.text(`Bargaining Unit: ${unitName}`, MARGIN, y);
+    y += 4;
+
+    const yearLabels = details[0].yearSet.map(yr => yl(details[0], yr));
+    const unitHead = [["Metric", ...details.map(d => d.scenarioName.slice(0, 20))]];
+    const unitBody: string[][] = [];
+
+    for (const yr of details[0].yearSet) {
+      const yrLabel = yl(details[0], yr);
+      const payrolls = details.map(d => { const u = d.unitSummaries.find(u => u.unitName === unitName); const yy = u?.years.find(y => y.contractYear === yr); return parseFloat(yy?.totalPayroll ?? "0"); });
+      const costs = details.map(d => { const u = d.unitSummaries.find(u => u.unitName === unitName); const yy = u?.years.find(y => y.contractYear === yr); return parseFloat(yy?.totalEmployerCost ?? "0"); });
+      const rateInfo = details.map(d => { const yc = d.yearConfigs.find(c => c.contractYear === yr && c.bargainingUnit === unitName); return yc ? (yc.increaseType === "fixed_percentage" ? fmtPct(yc.fixedPercentage) : yc.increaseType === "cpi_formula" ? `CPI+${fmtPct(yc.cpiAdder)}` : "flat $") : "—"; });
+      unitBody.push([`${yrLabel} Payroll`, ...payrolls.map(v => fmt$(v))]);
+      unitBody.push([`${yrLabel} Rate`, ...rateInfo]);
+      unitBody.push([`${yrLabel} Total Cost`, ...costs.map(v => fmt$(v))]);
+    }
+
+    const unit5yrCosts = details.map(d => { const u = d.unitSummaries.find(u => u.unitName === unitName); return u?.years.reduce((s, yy) => s + parseFloat(yy.totalEmployerCost), 0) ?? 0; });
+    const minUnit = Math.min(...unit5yrCosts);
+    unitBody.push(["5-Yr Total", ...unit5yrCosts.map((v, i) => v === minUnit && details.length > 1 ? `${fmt$(v)} ★` : fmt$(v))]);
+
+    autoTable(doc, {
+      startY: y, head: unitHead, body: unitBody, theme: "striped",
+      headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 7.5, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [245, 248, 255] },
+      margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
+      didParseCell: (data) => {
+        if (data.section === "body" && data.row.index === unitBody.length - 1) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [219, 234, 254];
+        }
+      },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+  }
+
+  if (y > 160) { doc.addPage(); y = 20; }
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 95);
+  doc.text("Scenario Assumptions Comparison", MARGIN, y);
+  y += 4;
+
+  for (const yr of details[0].yearSet) {
+    if (y > 175) { doc.addPage(); y = 20; }
+    const yrLabel = yl(details[0], yr);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Contract Year: ${yrLabel}`, MARGIN, y);
+    y += 3;
+    const assHead = [["Unit", ...details.map(d => d.scenarioName.slice(0, 18))]];
+    const unitsForYr = [...new Set(details.flatMap(d => d.yearConfigs.filter(yc => yc.contractYear === yr).map(yc => yc.bargainingUnit ?? "")))];
+    const assBody = unitsForYr.map(unit => {
+      const rates = details.map(d => {
+        const yc = d.yearConfigs.find(c => c.contractYear === yr && c.bargainingUnit === unit);
+        if (!yc) return "—";
+        if (yc.increaseType === "fixed_percentage") return `Fixed ${fmtPct(yc.fixedPercentage)}${yc.stepAdvancement ? " + Step" : ""}`;
+        if (yc.increaseType === "cpi_formula") return `CPI+${fmtPct(yc.cpiAdder)} [${fmtPct(yc.cpiFloor)}–${fmtPct(yc.cpiCap)}]`;
+        if (yc.increaseType === "flat_dollar") return `Flat ${fmt$(yc.fixedPercentage)}`;
+        return yc.increaseType;
+      });
+      return [unit, ...rates];
+    });
+    autoTable(doc, {
+      startY: y, head: assHead, body: assBody, theme: "grid",
+      headStyles: { fillColor: [30, 58, 95], textColor: 255, fontSize: 7, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7 },
+      margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+  }
+
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(150);
+    doc.text(`CollBar · Negotiation Comparison · ${districtName} · ${details.map(d => d.scenarioName).join(" vs ")} · Page ${i} of ${pageCount}`, PAGE_W / 2, 200, { align: "center" });
+  }
+
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
 export function generateBudgetImpactPdf(detail: ReportDetail): Buffer {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
   const PAGE_W = 279.4;
@@ -535,6 +726,61 @@ export function generateBudgetImpactPdf(detail: ReportDetail): Buffer {
     margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
   });
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
+
+  if (y > 130) { doc.addPage(); y = 20; }
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(16, 122, 87);
+  doc.text("Cost Driver Attribution (Year-Over-Year Payroll Δ)", MARGIN, y);
+  y += 4;
+
+  {
+    const driverHead = [["Transition", "Base Rate Increase", "Step Advancement Effect", "Benefit Changes", "Headcount Change", "Total Δ"]];
+    const driverBody: string[][] = [];
+    const payrollByYear = detail.yearSet.map(yr =>
+      detail.unitSummaries.reduce((s, u) => {
+        const yy = u.years.find(y => y.contractYear === yr);
+        return s + parseFloat(yy?.totalPayroll ?? "0");
+      }, 0)
+    );
+    const benefitsByYear = detail.yearSet.map(yr =>
+      detail.unitSummaries.reduce((s, u) => {
+        const yy = u.years.find(y => y.contractYear === yr);
+        return s + parseFloat(yy?.totalRetirement ?? "0") + parseFloat(yy?.totalFICA ?? "0") + parseFloat(yy?.totalHealth ?? "0") + parseFloat(yy?.totalOther ?? "0");
+      }, 0)
+    );
+    const countByYear = detail.yearSet.map(yr =>
+      detail.unitSummaries.reduce((s, u) => { const yy = u.years.find(y => y.contractYear === yr); return s + (yy?.employeeCount ?? 0); }, 0)
+    );
+    for (let i = 1; i < detail.yearSet.length; i++) {
+      const yr = detail.yearSet[i];
+      const prevYr = detail.yearSet[i - 1];
+      const payrollDelta = payrollByYear[i] - payrollByYear[i - 1];
+      const benefitDelta = benefitsByYear[i] - benefitsByYear[i - 1];
+      const countDelta = countByYear[i] - countByYear[i - 1];
+      const yrCfg = detail.yearConfigs.find(yc => yc.contractYear === yr);
+      const stepAdvUnits = detail.yearConfigs.filter(yc => yc.contractYear === yr && yc.stepAdvancement);
+      const stepPct = stepAdvUnits.length > 0 ? 0.04 : 0;
+      const stepEffect = payrollByYear[i - 1] * stepPct;
+      const baseRateEffect = payrollDelta - stepEffect;
+      const note = countDelta !== 0 ? `${countDelta > 0 ? "+" : ""}${countDelta} FTE` : "stable";
+      driverBody.push([
+        `${yl(detail, prevYr)} → ${yl(detail, yr)}`,
+        `${baseRateEffect >= 0 ? "+" : ""}${fmt$(baseRateEffect)} (${yrCfg ? (yrCfg.increaseType === "fixed_percentage" ? fmtPct(yrCfg.fixedPercentage) : yrCfg.increaseType === "cpi_formula" ? "CPI" : "flat $") : "—"})`,
+        `${stepEffect >= 0 ? "+" : ""}${fmt$(stepEffect)} (${stepAdvUnits.length} units)`,
+        `${benefitDelta >= 0 ? "+" : ""}${fmt$(benefitDelta)}`,
+        note,
+        `${payrollDelta + benefitDelta >= 0 ? "+" : ""}${fmt$(payrollDelta + benefitDelta)}`,
+      ]);
+    }
+    autoTable(doc, {
+      startY: y, head: driverHead, body: driverBody, theme: "grid",
+      headStyles: { fillColor: [16, 122, 87], textColor: 255, fontSize: 7.5, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5 },
+      margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
+  }
 
   if (y > 165) { doc.addPage(); y = 20; }
   doc.setFontSize(9);
@@ -758,10 +1004,10 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
       [],
     ];
 
-    const FIELDS_PER_YEAR = 8;
+    const FIELDS_PER_YEAR = 9;
     const empYearHeader = ["Employee #", "Employee Name", ...yearSet.flatMap(yr => [
-      `${yearLabel(yr)} Step`, `${yearLabel(yr)} Salary`, `${yearLabel(yr)} Retirement`, `${yearLabel(yr)} FICA`,
-      `${yearLabel(yr)} Health`, `${yearLabel(yr)} Other`, `${yearLabel(yr)} Total`, `${yearLabel(yr)} Emp Cost`,
+      `${yearLabel(yr)} Step`, `${yearLabel(yr)} Lane`, `${yearLabel(yr)} Salary`, `${yearLabel(yr)} Retirement`, `${yearLabel(yr)} FICA`,
+      `${yearLabel(yr)} Health`, `${yearLabel(yr)} Other`, `${yearLabel(yr)} Total Cost`, `${yearLabel(yr)} Emp Cost`,
     ])];
     empRows.push(empYearHeader);
 
@@ -779,18 +1025,26 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
       for (const yr of yearSet) {
         const rec = empRecords.find(r => r.contractYear === yr);
         if (rec) {
+          const salary = parseFloat(rec.projectedSalary) || 0;
+          const retirement = parseFloat(rec.retirementContribution) || 0;
+          const fica = parseFloat(rec.ficaCost) || 0;
+          const health = parseFloat(rec.healthInsuranceCost) || 0;
+          const other = parseFloat(rec.otherBenefitsCost) || 0;
+          const totalCost = parseFloat(rec.totalEmployerCost) || 0;
+          const empCost = salary + retirement + fica + health + other;
           row.push(
             rec.projectedStep ?? "",
-            parseFloat(rec.projectedSalary) || 0,
-            parseFloat(rec.retirementContribution) || 0,
-            parseFloat(rec.ficaCost) || 0,
-            parseFloat(rec.healthInsuranceCost) || 0,
-            parseFloat(rec.otherBenefitsCost) || 0,
-            parseFloat(rec.totalEmployerCost) || 0,
-            parseFloat(rec.projectedSalary) + parseFloat(rec.retirementContribution) + parseFloat(rec.ficaCost) + parseFloat(rec.healthInsuranceCost) + parseFloat(rec.otherBenefitsCost) || 0,
+            rec.projectedLaneName ?? "",
+            salary,
+            retirement,
+            fica,
+            health,
+            other,
+            totalCost,
+            empCost,
           );
         } else {
-          row.push("", "", "", "", "", "", "", "");
+          row.push("", "", "", "", "", "", "", "", "");
         }
       }
       empRows.push(row);
@@ -799,7 +1053,7 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
     const unitWs = XLSX.utils.aoa_to_sheet(empRows);
     const cols: XLSX.ColInfo[] = [{ wch: 12 }, { wch: 26 }];
     for (let i = 0; i < yearSet.length; i++) {
-      cols.push({ wch: 8 }, { wch: 14 }, { wch: 13 }, { wch: 12 }, { wch: 13 }, { wch: 12 }, { wch: 15 }, { wch: 15 });
+      cols.push({ wch: 8 }, { wch: 16 }, { wch: 14 }, { wch: 13 }, { wch: 12 }, { wch: 13 }, { wch: 12 }, { wch: 15 }, { wch: 15 });
     }
     unitWs["!cols"] = cols;
 
@@ -807,13 +1061,13 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
     const dataRowEnd = dataRowStart + uniqueEmps.length - 1;
     if (uniqueEmps.length > 0) {
       const totalCols = yearSet.length * FIELDS_PER_YEAR;
-      const alpha26 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       const currencyCols: string[] = [];
       for (let i = 0; i < totalCols; i++) {
         const colIdx = 2 + i;
-        if ((i % FIELDS_PER_YEAR) === 0) continue;
-        if (colIdx < 26) currencyCols.push(alpha26[colIdx]);
-        else currencyCols.push(alpha26[Math.floor(colIdx / 26) - 1] + alpha26[colIdx % 26]);
+        const fieldIdx = i % FIELDS_PER_YEAR;
+        if (fieldIdx === 0 || fieldIdx === 1) continue;
+        if (colIdx < 26) currencyCols.push(String.fromCharCode(65 + colIdx));
+        else currencyCols.push(String.fromCharCode(64 + Math.floor(colIdx / 26)) + String.fromCharCode(65 + (colIdx % 26)));
       }
       applyCurrencyFmt(unitWs, currencyCols, dataRowStart, dataRowEnd, INT_CURR);
     }
