@@ -21,6 +21,16 @@ export interface BenefitResult {
   totalEmployerCost: Decimal;
 }
 
+/**
+ * Calculate employer benefit costs for one employee in one contract year.
+ *
+ * proRateFraction — fraction of the fiscal year the employee was employed (0–1).
+ * Applied to FLAT-dollar benefits (health, dental, disability, HSA) since those
+ * are annual costs that scale with employment time.
+ * Percentage-based costs (retirement/TRS, FICA, workers comp, life insurance)
+ * are computed as a % of salary — the salary itself is already pro-rated before
+ * it arrives here, so no additional proRateFraction is needed on those lines.
+ */
 export function calcBenefits(
   salary: Decimal,
   unit: BargainingUnitConfig,
@@ -31,33 +41,29 @@ export function calcBenefits(
 ): BenefitResult {
   const TWO = Decimal.ROUND_HALF_UP;
 
-  // TRS gross-up on rounded salary, then pro-rated for partial year
+  // TRS/IMRF retirement gross-up — salary is already pro-rated, no double pro-rate
   const grossUpRate = new Decimal(unit.retirementGrossUpRate);
   const retirementContribution = salary
     .times(grossUpRate)
-    .times(proRateFraction)
     .toDecimalPlaces(2, TWO);
 
-  // FICA / Medicare — salary is already pro-rated at this point for yearIdx=0
-  // so FICA naturally reflects the partial-year earnings
+  // FICA / Medicare — computed on pro-rated salary, naturally scaled
   let ficaCost: Decimal;
   if (unit.ficaExempt) {
-    ficaCost = salary
-      .times(MEDICARE_RATE)
-      .toDecimalPlaces(2, TWO);
+    ficaCost = salary.times(MEDICARE_RATE).toDecimalPlaces(2, TWO);
   } else {
     if (salary.lte(SS_WAGE_BASE)) {
-      ficaCost = salary
-        .times(FULL_FICA_RATE)
-        .toDecimalPlaces(2, TWO);
+      ficaCost = salary.times(FULL_FICA_RATE).toDecimalPlaces(2, TWO);
     } else {
-      const ssPart = SS_WAGE_BASE.times(proRateFraction).times(SS_RATE);
+      // SS portion only up to wage base (capped at proRated share of base)
+      const proRatedWageBase = SS_WAGE_BASE.times(proRateFraction);
+      const ssPart = proRatedWageBase.times(SS_RATE);
       const medicarePart = salary.times(MEDICARE_RATE);
       ficaCost = ssPart.plus(medicarePart).toDecimalPlaces(2, TWO);
     }
   }
 
-  // Health insurance: compound annually, then pro-rate for partial year
+  // Health insurance: compound annually for cost growth, then pro-rate for partial year
   const healthIncreaseRate = yearConfig.healthPremiumIncreaseRate
     ? new Decimal(yearConfig.healthPremiumIncreaseRate)
     : new Decimal("0.05");
@@ -74,10 +80,7 @@ export function calcBenefits(
   const election = insuranceElection;
   if (election === "family") {
     healthBase = new Decimal(unit.healthInsuranceFamilyAnnual);
-  } else if (
-    election === "single_plus_spouse" ||
-    election === "single_plus_child"
-  ) {
+  } else if (election === "single_plus_spouse" || election === "single_plus_child") {
     const single = new Decimal(unit.healthInsuranceSingleAnnual);
     const family = new Decimal(unit.healthInsuranceFamilyAnnual);
     healthBase = single.plus(family.minus(single).times("0.5"));
@@ -87,19 +90,19 @@ export function calcBenefits(
     healthBase = new Decimal(unit.healthInsuranceSingleAnnual);
   }
 
+  // Flat annual health cost — pro-rated for partial year
   const healthInsuranceCost = healthBase
     .times(healthMultiplier)
     .times(proRateFraction)
     .toDecimalPlaces(2, TWO);
 
-  // Fixed annual benefits — pro-rated for partial year
+  // Flat annual benefits — pro-rated for partial year
   const dentalCost = new Decimal(unit.dentalAnnual)
     .times(proRateFraction)
     .toDecimalPlaces(2, TWO);
 
-  const lifeCost = salary
-    .times("0.005")
-    .toDecimalPlaces(2, TWO);
+  // Life insurance: % of salary, salary already pro-rated
+  const lifeCost = salary.times("0.005").toDecimalPlaces(2, TWO);
 
   const disabilityCost = new Decimal(unit.disabilityInsuranceAnnual)
     .times(proRateFraction)
@@ -118,10 +121,8 @@ export function calcBenefits(
     hsaCost = new Decimal("0");
   }
 
-  // Workers comp — calculated on (pro-rated) salary
-  const workersCompCost = salary
-    .times(unit.workersCompRate)
-    .toDecimalPlaces(2, TWO);
+  // Workers comp: % of salary, salary already pro-rated
+  const workersCompCost = salary.times(unit.workersCompRate).toDecimalPlaces(2, TWO);
 
   const otherBenefitsCost = dentalCost
     .plus(lifeCost)
@@ -151,6 +152,10 @@ export function calcBenefits(
 
 const FISCAL_YEAR_DAYS = 260;
 
+/**
+ * Compute pro-rate fraction (0–1) based on employment dates within the fiscal year.
+ * Assumes fiscal year starts July 1. Full year → Decimal("1").
+ */
 export function calcProRateFraction(
   effectiveDate?: string | null,
   terminationDate?: string | null
@@ -161,24 +166,20 @@ export function calcProRateFraction(
 
   if (effectiveDate) {
     const startDate = new Date(effectiveDate);
-    const yearStart = new Date(startDate.getFullYear(), 6, 1);
+    const yearStart = new Date(startDate.getFullYear(), 6, 1); // July 1
     const daysSinceYearStart = Math.max(
       0,
-      Math.floor(
-        (startDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
-      )
+      Math.floor((startDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
     );
     workDays = Math.max(0, FISCAL_YEAR_DAYS - daysSinceYearStart);
   }
 
   if (terminationDate) {
     const endDate = new Date(terminationDate);
-    const yearStart = new Date(endDate.getFullYear(), 6, 1);
+    const yearStart = new Date(endDate.getFullYear(), 6, 1); // July 1
     const daysWorked = Math.max(
       0,
-      Math.floor(
-        (endDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
-      )
+      Math.floor((endDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
     );
     workDays = Math.min(workDays, daysWorked);
   }

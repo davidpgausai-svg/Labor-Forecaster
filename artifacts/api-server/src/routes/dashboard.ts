@@ -133,12 +133,12 @@ router.get("/dashboard", async (req, res) => {
         const label = config?.yearLabel ?? `Year ${r.contractYear}`;
         const existing = yearMap.get(r.contractYear);
         if (existing) {
-          existing.totalEmployerCost = existing.totalEmployerCost.plus(r.totalEmployerCost);
+          existing.totalEmployerCost = existing.totalEmployerCost.plus(new Decimal(r.totalEmployerCostCents).dividedBy(100));
         } else {
           yearMap.set(r.contractYear, {
             contractYear: r.contractYear,
             yearLabel: label,
-            totalEmployerCost: new Decimal(r.totalEmployerCost),
+            totalEmployerCost: new Decimal(r.totalEmployerCostCents).dividedBy(100),
           });
         }
       }

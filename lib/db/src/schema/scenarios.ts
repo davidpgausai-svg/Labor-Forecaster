@@ -5,6 +5,7 @@ import {
   numeric,
   boolean,
   integer,
+  bigint,
   timestamp,
   pgEnum,
 } from "drizzle-orm/pg-core";
@@ -110,37 +111,16 @@ export const employeeYearRecordsTable = pgTable("employee_year_records", {
     precision: 10,
     scale: 4,
   }),
-  projectedBaseSalary: numeric("projected_base_salary", {
-    precision: 15,
-    scale: 2,
-  }).notNull(),
-  projectedTotalCompensation: numeric("projected_total_compensation", {
-    precision: 15,
-    scale: 2,
-  }).notNull(),
-  retirementContribution: numeric("retirement_contribution", {
-    precision: 15,
-    scale: 2,
-  }).notNull(),
-  ficaCost: numeric("fica_cost", { precision: 15, scale: 2 }).notNull(),
-  healthInsuranceCost: numeric("health_insurance_cost", {
-    precision: 15,
-    scale: 2,
-  }).notNull(),
-  otherBenefitsCost: numeric("other_benefits_cost", {
-    precision: 15,
-    scale: 2,
-  }).notNull(),
-  totalEmployerCost: numeric("total_employer_cost", {
-    precision: 15,
-    scale: 2,
-  }).notNull(),
+  projectedBaseSalaryCents: bigint("projected_base_salary_cents", { mode: "number" }).notNull(),
+  projectedTotalCompensationCents: bigint("projected_total_compensation_cents", { mode: "number" }).notNull(),
+  retirementContributionCents: bigint("retirement_contribution_cents", { mode: "number" }).notNull(),
+  ficaCostCents: bigint("fica_cost_cents", { mode: "number" }).notNull(),
+  healthInsuranceCostCents: bigint("health_insurance_cost_cents", { mode: "number" }).notNull(),
+  otherBenefitsCostCents: bigint("other_benefits_cost_cents", { mode: "number" }).notNull(),
+  totalEmployerCostCents: bigint("total_employer_cost_cents", { mode: "number" }).notNull(),
   effectiveRate: numeric("effective_rate", { precision: 10, scale: 4 }),
   isRetirementYear: boolean("is_retirement_year").notNull().default(false),
-  retirementIncentiveAmount: numeric("retirement_incentive_amount", {
-    precision: 15,
-    scale: 2,
-  }),
+  retirementIncentiveAmountCents: bigint("retirement_incentive_amount_cents", { mode: "number" }),
 });
 
 export const insertScenarioSchema = createInsertSchema(scenariosTable).omit({

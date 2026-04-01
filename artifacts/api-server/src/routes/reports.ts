@@ -105,13 +105,13 @@ router.post("/reports/generate", async (req, res) => {
       });
     }
     const yData = yearMap.get(yr)!;
-    yData.totalPayroll = yData.totalPayroll.plus(row.record.projectedBaseSalary ?? "0");
-    const benefits = new Decimal(row.record.retirementContribution ?? "0")
-      .plus(row.record.ficaCost ?? "0")
-      .plus(row.record.healthInsuranceCost ?? "0")
-      .plus(row.record.otherBenefitsCost ?? "0");
+    yData.totalPayroll = yData.totalPayroll.plus(new Decimal(row.record.projectedBaseSalaryCents).dividedBy(100));
+    const benefits = new Decimal(row.record.retirementContributionCents).dividedBy(100)
+      .plus(new Decimal(row.record.ficaCostCents).dividedBy(100))
+      .plus(new Decimal(row.record.healthInsuranceCostCents).dividedBy(100))
+      .plus(new Decimal(row.record.otherBenefitsCostCents).dividedBy(100));
     yData.totalBenefits = yData.totalBenefits.plus(benefits);
-    yData.totalEmployerCost = yData.totalEmployerCost.plus(row.record.totalEmployerCost ?? "0");
+    yData.totalEmployerCost = yData.totalEmployerCost.plus(new Decimal(row.record.totalEmployerCostCents).dividedBy(100));
     yData.employeeCount.add(row.record.employeeId);
   }
 
@@ -147,8 +147,8 @@ router.post("/reports/generate", async (req, res) => {
             : "Unknown",
           bargainingUnit: row.unit?.name ?? "Unknown",
           contractYear: row.record.contractYear,
-          projectedBaseSalary: row.record.projectedBaseSalary,
-          totalEmployerCost: row.record.totalEmployerCost,
+          projectedBaseSalary: (row.record.projectedBaseSalaryCents / 100).toFixed(2),
+          totalEmployerCost: (row.record.totalEmployerCostCents / 100).toFixed(2),
         }))
       : undefined,
   };
@@ -208,8 +208,8 @@ router.get("/reports/:scenarioId", async (req, res) => {
     const yr = r.contractYear;
     if (!yearMap.has(yr)) yearMap.set(yr, { totalPayroll: new Decimal("0"), totalEmployerCost: new Decimal("0"), employeeCount: new Set() });
     const d = yearMap.get(yr)!;
-    d.totalPayroll = d.totalPayroll.plus(r.projectedBaseSalary ?? "0");
-    d.totalEmployerCost = d.totalEmployerCost.plus(r.totalEmployerCost ?? "0");
+    d.totalPayroll = d.totalPayroll.plus(new Decimal(r.projectedBaseSalaryCents).dividedBy(100));
+    d.totalEmployerCost = d.totalEmployerCost.plus(new Decimal(r.totalEmployerCostCents).dividedBy(100));
     d.employeeCount.add(r.employeeId);
   }
 

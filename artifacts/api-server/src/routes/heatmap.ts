@@ -105,9 +105,10 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
         cellMap.set(key, cell);
       }
       cell.employeeCount++;
-      cell.totalSalary = cell.totalSalary.plus(record.projectedBaseSalary);
-      cell.employees.push({ id: emp.id, name: `${emp.firstName} ${emp.lastName}`, salary: record.projectedBaseSalary });
-      salaryTotal = salaryTotal.plus(record.projectedBaseSalary);
+      const salaryDollars = (record.projectedBaseSalaryCents / 100).toFixed(2);
+      cell.totalSalary = cell.totalSalary.plus(salaryDollars);
+      cell.employees.push({ id: emp.id, name: `${emp.firstName} ${emp.lastName}`, salary: salaryDollars });
+      salaryTotal = salaryTotal.plus(salaryDollars);
       stepCounts.push(record.projectedStep);
     }
 

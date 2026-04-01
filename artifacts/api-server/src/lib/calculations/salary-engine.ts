@@ -98,7 +98,8 @@ export function calcSalariedEmployeeYear(
     }
   }
 
-  // Step 2: Base salary increase (CPI, fixed %, or flat $)
+  // Step 2: Apply base salary increase (percentage, CPI, or flat dollar)
+  const salaryAfterStep = new Decimal(salary); // salary after step advance, before increase
   const highEarnerThreshold = config.highEarnerThreshold
     ? new Decimal(config.highEarnerThreshold)
     : null;
@@ -106,15 +107,7 @@ export function calcSalariedEmployeeYear(
     ? new Decimal(config.highEarnerFlatIncrease)
     : null;
 
-  // Step 3: High-earner override
   if (
-    highEarnerThreshold &&
-    highEarnerFlat &&
-    salary.gte(highEarnerThreshold)
-  ) {
-    salary = salary.plus(highEarnerFlat);
-    effectiveRate = null;
-  } else if (
     config.increaseType === "fixed_percentage" ||
     config.increaseType === "cpi_formula"
   ) {
@@ -124,6 +117,13 @@ export function calcSalariedEmployeeYear(
   } else if (config.increaseType === "flat_dollar") {
     const flatAmt = new Decimal(config.fixedPercentage ?? "0");
     salary = salary.plus(flatAmt);
+  }
+
+  // Step 3: High-earner override — if pre-increase salary >= threshold,
+  // replace the increase with the flat dollar override instead
+  if (highEarnerThreshold && highEarnerFlat && salaryAfterStep.gte(highEarnerThreshold)) {
+    salary = salaryAfterStep.plus(highEarnerFlat);
+    effectiveRate = null;
   }
 
   // Step 4: Educational advancement stipend based on lane

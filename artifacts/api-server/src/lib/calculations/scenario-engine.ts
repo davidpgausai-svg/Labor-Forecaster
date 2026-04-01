@@ -77,7 +77,7 @@ export function calcEmployeeProjection(
         ...employee,
         currentHourlyRate: currentHourlyRate.toString(),
       };
-      const result = calcHourlyEmployeeYear(tempEmployee, yearIdx, config);
+      const result = calcHourlyEmployeeYear(tempEmployee, yearIdx, config, proRateFraction);
       projectedHourlyRate = result.hourlyRate;
       projectedBaseSalary = result.annualSalary;
       effectiveRate = result.effectiveRate;

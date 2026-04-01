@@ -187,13 +187,14 @@ router.get("/scenarios/compare", async (req, res) => {
   const fiveYearCosts = await Promise.all(
     validResults.map(async (s) => {
       const rows = await db
-        .select({ totalEmployerCost: employeeYearRecordsTable.totalEmployerCost })
+        .select({ totalEmployerCostCents: employeeYearRecordsTable.totalEmployerCostCents })
         .from(employeeYearRecordsTable)
         .where(eq(employeeYearRecordsTable.scenarioId, s.id));
-      const total = rows.reduce(
-        (sum, r) => sum.plus(new Decimal(r.totalEmployerCost ?? "0")),
-        new Decimal("0")
+      const totalCents = rows.reduce(
+        (sum, r) => sum + (r.totalEmployerCostCents ?? 0),
+        0
       );
+      const total = new Decimal(totalCents).dividedBy(100);
       return { id: s.id, name: s.name, cost: total };
     })
   );
@@ -424,6 +425,7 @@ async function runCalculation(scenarioId: string) {
 
       const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId);
       for (const r of yearResults) {
+        const toCents = (s: string | null) => s ? Math.round(parseFloat(s) * 100) : null;
         allYearRecords.push({
           employeeId: r.employeeId,
           scenarioId: r.scenarioId,
@@ -431,16 +433,16 @@ async function runCalculation(scenarioId: string) {
           projectedStep: r.projectedStep,
           projectedLaneId: r.projectedLaneId,
           projectedHourlyRate: r.projectedHourlyRate,
-          projectedBaseSalary: r.projectedBaseSalary,
-          projectedTotalCompensation: r.projectedTotalCompensation,
-          retirementContribution: r.retirementContribution,
-          ficaCost: r.ficaCost,
-          healthInsuranceCost: r.healthInsuranceCost,
-          otherBenefitsCost: r.otherBenefitsCost,
-          totalEmployerCost: r.totalEmployerCost,
+          projectedBaseSalaryCents: toCents(r.projectedBaseSalary)!,
+          projectedTotalCompensationCents: toCents(r.projectedTotalCompensation)!,
+          retirementContributionCents: toCents(r.retirementContribution)!,
+          ficaCostCents: toCents(r.ficaCost)!,
+          healthInsuranceCostCents: toCents(r.healthInsuranceCost)!,
+          otherBenefitsCostCents: toCents(r.otherBenefitsCost)!,
+          totalEmployerCostCents: toCents(r.totalEmployerCost)!,
           effectiveRate: r.effectiveRate,
           isRetirementYear: r.isRetirementYear,
-          retirementIncentiveAmount: r.retirementIncentiveAmount,
+          retirementIncentiveAmountCents: toCents(r.retirementIncentiveAmount),
         });
       }
     }
@@ -479,6 +481,7 @@ async function runCalculation(scenarioId: string) {
     );
     const unitRecords = savedRecords.filter((r) => unitEmployeeIds.has(r.employeeId));
 
+    const fromCents = (c: number | null) => c != null ? (c / 100).toFixed(2) : null;
     const summaries = calcScenarioSummary(
       unitRecords.map((r): EmployeeYearResult => ({
         employeeId: r.employeeId,
@@ -487,16 +490,16 @@ async function runCalculation(scenarioId: string) {
         projectedStep: r.projectedStep,
         projectedLaneId: r.projectedLaneId,
         projectedHourlyRate: r.projectedHourlyRate,
-        projectedBaseSalary: r.projectedBaseSalary,
-        projectedTotalCompensation: r.projectedTotalCompensation,
-        retirementContribution: r.retirementContribution,
-        ficaCost: r.ficaCost,
-        healthInsuranceCost: r.healthInsuranceCost,
-        otherBenefitsCost: r.otherBenefitsCost,
-        totalEmployerCost: r.totalEmployerCost,
+        projectedBaseSalary: (r.projectedBaseSalaryCents / 100).toFixed(2),
+        projectedTotalCompensation: (r.projectedTotalCompensationCents / 100).toFixed(2),
+        retirementContribution: (r.retirementContributionCents / 100).toFixed(2),
+        ficaCost: (r.ficaCostCents / 100).toFixed(2),
+        healthInsuranceCost: (r.healthInsuranceCostCents / 100).toFixed(2),
+        otherBenefitsCost: (r.otherBenefitsCostCents / 100).toFixed(2),
+        totalEmployerCost: (r.totalEmployerCostCents / 100).toFixed(2),
         effectiveRate: r.effectiveRate,
         isRetirementYear: r.isRetirementYear,
-        retirementIncentiveAmount: r.retirementIncentiveAmount,
+        retirementIncentiveAmount: fromCents(r.retirementIncentiveAmountCents),
       })),
       typedConfigs,
       bargainingUnitId
