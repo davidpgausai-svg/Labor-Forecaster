@@ -327,21 +327,21 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
           </div>
           <div className="flex flex-col items-end">
             <span className="text-muted-foreground text-xs uppercase tracking-wider">Modal Lane</span>
-            <span className="font-mono font-bold text-base text-purple-400 truncate max-w-[80px]" title={(yearData as any).avgLane ?? "—"}>
-              {(yearData as any).avgLane ?? "—"}
+            <span className="font-mono font-bold text-base text-purple-400 truncate max-w-[80px]" title={yearData.avgLane ?? "—"}>
+              {yearData.avgLane ?? "—"}
             </span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-muted-foreground text-xs uppercase tracking-wider">Top-3 Steps</span>
             <span className="font-mono font-bold text-base text-amber-500">
-              {(yearData as any).top3StepsPct != null ? `${(yearData as any).top3StepsPct}%` : "—"}
+              {yearData.top3StepsPct != null ? `${yearData.top3StepsPct}%` : "—"}
               <span className="text-xs font-normal text-muted-foreground ml-1">of staff</span>
             </span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-muted-foreground text-xs uppercase tracking-wider">Bot-3 Steps</span>
             <span className="font-mono font-bold text-base text-green-400">
-              {(yearData as any).bottom3StepsPct != null ? `${(yearData as any).bottom3StepsPct}%` : "—"}
+              {yearData.bottom3StepsPct != null ? `${yearData.bottom3StepsPct}%` : "—"}
               <span className="text-xs font-normal text-muted-foreground ml-1">of staff</span>
             </span>
           </div>

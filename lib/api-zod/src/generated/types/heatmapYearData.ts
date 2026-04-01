@@ -18,4 +18,7 @@ export interface HeatmapYearData {
   medianSalary?: string | null;
   avgStep?: number | null;
   employeesAtTopStep: number;
+  avgLane?: string | null;
+  top3StepsPct?: number | null;
+  bottom3StepsPct?: number | null;
 }

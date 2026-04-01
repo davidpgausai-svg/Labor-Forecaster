@@ -9,6 +9,32 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface ReportSummary {
+  scenarioId: string;
+  scenarioName: string;
+  scenarioStatus: string;
+  isFinal: boolean;
+  totalFiveYearCost: string;
+}
+
+export type ReportDataYearSummariesItem = {
+  contractYear?: number;
+  totalPayroll?: string;
+  totalBenefits?: string;
+  totalEmployerCost?: string;
+  employeeCount?: number;
+};
+
+export interface ReportData {
+  reportGeneratedAt?: string | null;
+  scenarioId: string;
+  scenarioName: string;
+  scenarioStatus: string;
+  isFinal: boolean;
+  totalFiveYearCost: string;
+  yearSummaries: ReportDataYearSummariesItem[];
+}
+
 export interface District {
   id: string;
   name: string;
@@ -17,20 +43,6 @@ export interface District {
   studentEnrollment?: number | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface CreateDistrictRequest {
-  name: string;
-  state?: string;
-  fiscalYearStart?: string;
-  studentEnrollment?: number | null;
-}
-
-export interface UpdateDistrictRequest {
-  name?: string;
-  state?: string;
-  fiscalYearStart?: string;
-  studentEnrollment?: number | null;
 }
 
 export type BargainingUnitCompensationType =
@@ -76,6 +88,25 @@ export interface BargainingUnit {
   displayOrder?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DistrictSettings {
+  district: District;
+  bargainingUnits: BargainingUnit[];
+}
+
+export interface CreateDistrictRequest {
+  name: string;
+  state?: string;
+  fiscalYearStart?: string;
+  studentEnrollment?: number | null;
+}
+
+export interface UpdateDistrictRequest {
+  name?: string;
+  state?: string;
+  fiscalYearStart?: string;
+  studentEnrollment?: number | null;
 }
 
 export type CreateBargainingUnitRequestCompensationType =
@@ -515,6 +546,9 @@ export interface HeatmapYearData {
   medianSalary?: string | null;
   avgStep?: number | null;
   employeesAtTopStep: number;
+  avgLane?: string | null;
+  top3StepsPct?: number | null;
+  bottom3StepsPct?: number | null;
 }
 
 export interface HeatmapData {
@@ -599,3 +633,38 @@ export type GetDashboardParams = {
   districtId?: string;
   scenarioId?: string;
 };
+
+export type ExportEmployeesParams = {
+  districtId: string;
+};
+
+export type ListReportsParams = {
+  districtId: string;
+};
+
+export type GenerateReportBodyFormat =
+  (typeof GenerateReportBodyFormat)[keyof typeof GenerateReportBodyFormat];
+
+export const GenerateReportBodyFormat = {
+  json: "json",
+  csv: "csv",
+} as const;
+
+export type GenerateReportBody = {
+  scenarioId: string;
+  format?: GenerateReportBodyFormat;
+  includeEmployeeDetail?: boolean;
+};
+
+export type GetSettingsParams = {
+  districtId: string;
+};
+
+export type UpdateDistrictSettingsBody = {
+  name?: string;
+  state?: string;
+  fiscalYearStart?: string;
+  timezone?: string;
+};
+
+export type UpdateBargainingUnitSettingsBody = { [key: string]: unknown };

@@ -2030,6 +2030,15 @@ components:
           nullable: true
         employeesAtTopStep:
           type: number
+        avgLane:
+          type: string
+          nullable: true
+        top3StepsPct:
+          type: number
+          nullable: true
+        bottom3StepsPct:
+          type: number
+          nullable: true
       required:
         - contractYear
         - yearLabel

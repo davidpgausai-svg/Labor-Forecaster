@@ -1230,6 +1230,9 @@ export const GetHeatmapDataResponse = zod.object({
       medianSalary: zod.string().nullish(),
       avgStep: zod.number().nullish(),
       employeesAtTopStep: zod.number(),
+      avgLane: zod.string().nullish(),
+      top3StepsPct: zod.number().nullish(),
+      bottom3StepsPct: zod.number().nullish(),
     }),
   ),
 });
@@ -1302,4 +1305,240 @@ export const GetDashboardResponse = zod.object({
       }),
     )
     .nullish(),
+});
+
+/**
+ * @summary Export full employee roster as CSV
+ */
+export const ExportEmployeesQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+/**
+ * @summary List available scenario reports for a district
+ */
+export const ListReportsQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const ListReportsResponseItem = zod.object({
+  scenarioId: zod.string(),
+  scenarioName: zod.string(),
+  scenarioStatus: zod.string(),
+  isFinal: zod.boolean(),
+  totalFiveYearCost: zod.string(),
+});
+export const ListReportsResponse = zod.array(ListReportsResponseItem);
+
+/**
+ * @summary Generate a report for a scenario
+ */
+export const GenerateReportBody = zod.object({
+  scenarioId: zod.string(),
+  format: zod.enum(["json", "csv"]).optional(),
+  includeEmployeeDetail: zod.boolean().optional(),
+});
+
+export const GenerateReportResponse = zod.object({
+  reportGeneratedAt: zod.string().nullish(),
+  scenarioId: zod.string(),
+  scenarioName: zod.string(),
+  scenarioStatus: zod.string(),
+  isFinal: zod.boolean(),
+  totalFiveYearCost: zod.string(),
+  yearSummaries: zod.array(
+    zod.object({
+      contractYear: zod.number().optional(),
+      totalPayroll: zod.string().optional(),
+      totalBenefits: zod.string().optional(),
+      totalEmployerCost: zod.string().optional(),
+      employeeCount: zod.number().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get report summary for a specific scenario
+ */
+export const GetReportParams = zod.object({
+  scenarioId: zod.coerce.string(),
+});
+
+export const GetReportResponse = zod.object({
+  reportGeneratedAt: zod.string().nullish(),
+  scenarioId: zod.string(),
+  scenarioName: zod.string(),
+  scenarioStatus: zod.string(),
+  isFinal: zod.boolean(),
+  totalFiveYearCost: zod.string(),
+  yearSummaries: zod.array(
+    zod.object({
+      contractYear: zod.number().optional(),
+      totalPayroll: zod.string().optional(),
+      totalBenefits: zod.string().optional(),
+      totalEmployerCost: zod.string().optional(),
+      employeeCount: zod.number().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get district settings and bargaining unit configurations
+ */
+export const GetSettingsQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const GetSettingsResponse = zod.object({
+  district: zod.object({
+    id: zod.string(),
+    name: zod.string(),
+    state: zod.string(),
+    fiscalYearStart: zod.string(),
+    studentEnrollment: zod.number().nullish(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  }),
+  bargainingUnits: zod.array(
+    zod.object({
+      id: zod.string(),
+      districtId: zod.string(),
+      name: zod.string(),
+      code: zod.string(),
+      compensationType: zod.enum(["salary", "hourly"]),
+      retirementSystem: zod.enum(["TRS", "IMRF", "other"]),
+      retirementEmployeeRate: zod.string().optional(),
+      retirementEmployerRate: zod.string().optional(),
+      retirementGrossUpRate: zod.string().optional(),
+      ficaRate: zod.string().optional(),
+      ficaExempt: zod.boolean().optional(),
+      healthInsuranceSingleAnnual: zod.string().optional(),
+      healthInsuranceFamilyAnnual: zod.string().optional(),
+      dentalAnnual: zod.string().optional(),
+      lifeInsuranceAnnual: zod.string().optional(),
+      disabilityInsuranceAnnual: zod.string().optional(),
+      hsaContributionSingle: zod.string().optional(),
+      hsaContributionFamily: zod.string().optional(),
+      workersCompRate: zod.string().optional(),
+      contractStartDate: zod.string().nullish(),
+      contractEndDate: zod.string().nullish(),
+      contractYears: zod.number(),
+      displayOrder: zod.number().optional(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get settings for a specific district
+ */
+export const GetDistrictSettingsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetDistrictSettingsResponse = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  state: zod.string(),
+  fiscalYearStart: zod.string(),
+  studentEnrollment: zod.number().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Update district settings
+ */
+export const UpdateDistrictSettingsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateDistrictSettingsBody = zod.object({
+  name: zod.string().optional(),
+  state: zod.string().optional(),
+  fiscalYearStart: zod.string().optional(),
+  timezone: zod.string().optional(),
+});
+
+export const UpdateDistrictSettingsResponse = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  state: zod.string(),
+  fiscalYearStart: zod.string(),
+  studentEnrollment: zod.number().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Get settings for a specific bargaining unit
+ */
+export const GetBargainingUnitSettingsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetBargainingUnitSettingsResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  name: zod.string(),
+  code: zod.string(),
+  compensationType: zod.enum(["salary", "hourly"]),
+  retirementSystem: zod.enum(["TRS", "IMRF", "other"]),
+  retirementEmployeeRate: zod.string().optional(),
+  retirementEmployerRate: zod.string().optional(),
+  retirementGrossUpRate: zod.string().optional(),
+  ficaRate: zod.string().optional(),
+  ficaExempt: zod.boolean().optional(),
+  healthInsuranceSingleAnnual: zod.string().optional(),
+  healthInsuranceFamilyAnnual: zod.string().optional(),
+  dentalAnnual: zod.string().optional(),
+  lifeInsuranceAnnual: zod.string().optional(),
+  disabilityInsuranceAnnual: zod.string().optional(),
+  hsaContributionSingle: zod.string().optional(),
+  hsaContributionFamily: zod.string().optional(),
+  workersCompRate: zod.string().optional(),
+  contractStartDate: zod.string().nullish(),
+  contractEndDate: zod.string().nullish(),
+  contractYears: zod.number(),
+  displayOrder: zod.number().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Update bargaining unit settings
+ */
+export const UpdateBargainingUnitSettingsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateBargainingUnitSettingsBody = zod.object({}).passthrough();
+
+export const UpdateBargainingUnitSettingsResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  name: zod.string(),
+  code: zod.string(),
+  compensationType: zod.enum(["salary", "hourly"]),
+  retirementSystem: zod.enum(["TRS", "IMRF", "other"]),
+  retirementEmployeeRate: zod.string().optional(),
+  retirementEmployerRate: zod.string().optional(),
+  retirementGrossUpRate: zod.string().optional(),
+  ficaRate: zod.string().optional(),
+  ficaExempt: zod.boolean().optional(),
+  healthInsuranceSingleAnnual: zod.string().optional(),
+  healthInsuranceFamilyAnnual: zod.string().optional(),
+  dentalAnnual: zod.string().optional(),
+  lifeInsuranceAnnual: zod.string().optional(),
+  disabilityInsuranceAnnual: zod.string().optional(),
+  hsaContributionSingle: zod.string().optional(),
+  hsaContributionFamily: zod.string().optional(),
+  workersCompRate: zod.string().optional(),
+  contractStartDate: zod.string().nullish(),
+  contractEndDate: zod.string().nullish(),
+  contractYears: zod.number(),
+  displayOrder: zod.number().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
 });

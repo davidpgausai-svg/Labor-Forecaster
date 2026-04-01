@@ -27,12 +27,16 @@ import type {
   CreateScenarioRequest,
   DashboardData,
   District,
+  DistrictSettings,
   Employee,
   EmployeeList,
   EmployeeWithProjections,
+  ExportEmployeesParams,
+  GenerateReportBody,
   GetDashboardParams,
   GetEmployeeParams,
   GetHeatmapDataParams,
+  GetSettingsParams,
   HealthStatus,
   HeatmapData,
   HourlyScheduleWithCategories,
@@ -41,9 +45,12 @@ import type {
   ListBargainingUnitsParams,
   ListEmployeesParams,
   ListHourlySchedulesParams,
+  ListReportsParams,
   ListRetirementEligibleEmployeesParams,
   ListSalarySchedulesParams,
   ListScenariosParams,
+  ReportData,
+  ReportSummary,
   RetirementEligibleEmployee,
   SalarySchedule,
   SalaryScheduleWithGrid,
@@ -53,7 +60,9 @@ import type {
   ScenarioSummary,
   ScenarioYearConfig,
   UpdateBargainingUnitRequest,
+  UpdateBargainingUnitSettingsBody,
   UpdateDistrictRequest,
+  UpdateDistrictSettingsBody,
   UpdateEmployeeRequest,
   UpdateScenarioRequest,
 } from "./api.schemas";
@@ -3214,3 +3223,808 @@ export function useGetDashboard<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Export full employee roster as CSV
+ */
+export const getExportEmployeesUrl = (params: ExportEmployeesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/employees/export?${stringifiedParams}`
+    : `/api/employees/export`;
+};
+
+export const exportEmployees = async (
+  params: ExportEmployeesParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportEmployeesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportEmployeesQueryKey = (params?: ExportEmployeesParams) => {
+  return [`/api/employees/export`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportEmployeesQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportEmployees>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ExportEmployeesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportEmployees>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportEmployeesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportEmployees>>> = ({
+    signal,
+  }) => exportEmployees(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportEmployees>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportEmployeesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportEmployees>>
+>;
+export type ExportEmployeesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Export full employee roster as CSV
+ */
+
+export function useExportEmployees<
+  TData = Awaited<ReturnType<typeof exportEmployees>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ExportEmployeesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportEmployees>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportEmployeesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List available scenario reports for a district
+ */
+export const getListReportsUrl = (params: ListReportsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports?${stringifiedParams}`
+    : `/api/reports`;
+};
+
+export const listReports = async (
+  params: ListReportsParams,
+  options?: RequestInit,
+): Promise<ReportSummary[]> => {
+  return customFetch<ReportSummary[]>(getListReportsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListReportsQueryKey = (params?: ListReportsParams) => {
+  return [`/api/reports`, ...(params ? [params] : [])] as const;
+};
+
+export const getListReportsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listReports>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListReportsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listReports>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListReportsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listReports>>> = ({
+    signal,
+  }) => listReports(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listReports>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListReportsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listReports>>
+>;
+export type ListReportsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List available scenario reports for a district
+ */
+
+export function useListReports<
+  TData = Awaited<ReturnType<typeof listReports>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListReportsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listReports>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListReportsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generate a report for a scenario
+ */
+export const getGenerateReportUrl = () => {
+  return `/api/reports/generate`;
+};
+
+export const generateReport = async (
+  generateReportBody: GenerateReportBody,
+  options?: RequestInit,
+): Promise<ReportData | string> => {
+  return customFetch<ReportData | string>(getGenerateReportUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateReportBody),
+  });
+};
+
+export const getGenerateReportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateReport>>,
+    TError,
+    { data: BodyType<GenerateReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateReport>>,
+  TError,
+  { data: BodyType<GenerateReportBody> },
+  TContext
+> => {
+  const mutationKey = ["generateReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateReport>>,
+    { data: BodyType<GenerateReportBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateReport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateReport>>
+>;
+export type GenerateReportMutationBody = BodyType<GenerateReportBody>;
+export type GenerateReportMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate a report for a scenario
+ */
+export const useGenerateReport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateReport>>,
+    TError,
+    { data: BodyType<GenerateReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateReport>>,
+  TError,
+  { data: BodyType<GenerateReportBody> },
+  TContext
+> => {
+  return useMutation(getGenerateReportMutationOptions(options));
+};
+
+/**
+ * @summary Get report summary for a specific scenario
+ */
+export const getGetReportUrl = (scenarioId: string) => {
+  return `/api/reports/${scenarioId}`;
+};
+
+export const getReport = async (
+  scenarioId: string,
+  options?: RequestInit,
+): Promise<ReportData> => {
+  return customFetch<ReportData>(getGetReportUrl(scenarioId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReportQueryKey = (scenarioId: string) => {
+  return [`/api/reports/${scenarioId}`] as const;
+};
+
+export const getGetReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReport>>,
+  TError = ErrorType<void>,
+>(
+  scenarioId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReportQueryKey(scenarioId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getReport>>> = ({
+    signal,
+  }) => getReport(scenarioId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scenarioId,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getReport>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReport>>
+>;
+export type GetReportQueryError = ErrorType<void>;
+
+/**
+ * @summary Get report summary for a specific scenario
+ */
+
+export function useGetReport<
+  TData = Awaited<ReturnType<typeof getReport>>,
+  TError = ErrorType<void>,
+>(
+  scenarioId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReportQueryOptions(scenarioId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get district settings and bargaining unit configurations
+ */
+export const getGetSettingsUrl = (params: GetSettingsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/settings?${stringifiedParams}`
+    : `/api/settings`;
+};
+
+export const getSettings = async (
+  params: GetSettingsParams,
+  options?: RequestInit,
+): Promise<DistrictSettings> => {
+  return customFetch<DistrictSettings>(getGetSettingsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSettingsQueryKey = (params?: GetSettingsParams) => {
+  return [`/api/settings`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetSettingsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSettingsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSettings>>> = ({
+    signal,
+  }) => getSettings(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSettings>>
+>;
+export type GetSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get district settings and bargaining unit configurations
+ */
+
+export function useGetSettings<
+  TData = Awaited<ReturnType<typeof getSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetSettingsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSettingsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get settings for a specific district
+ */
+export const getGetDistrictSettingsUrl = (id: string) => {
+  return `/api/settings/district/${id}`;
+};
+
+export const getDistrictSettings = async (
+  id: string,
+  options?: RequestInit,
+): Promise<District> => {
+  return customFetch<District>(getGetDistrictSettingsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDistrictSettingsQueryKey = (id: string) => {
+  return [`/api/settings/district/${id}`] as const;
+};
+
+export const getGetDistrictSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDistrictSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDistrictSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDistrictSettingsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDistrictSettings>>
+  > = ({ signal }) => getDistrictSettings(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDistrictSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDistrictSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDistrictSettings>>
+>;
+export type GetDistrictSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get settings for a specific district
+ */
+
+export function useGetDistrictSettings<
+  TData = Awaited<ReturnType<typeof getDistrictSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getDistrictSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDistrictSettingsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update district settings
+ */
+export const getUpdateDistrictSettingsUrl = (id: string) => {
+  return `/api/settings/district/${id}`;
+};
+
+export const updateDistrictSettings = async (
+  id: string,
+  updateDistrictSettingsBody: UpdateDistrictSettingsBody,
+  options?: RequestInit,
+): Promise<District> => {
+  return customFetch<District>(getUpdateDistrictSettingsUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateDistrictSettingsBody),
+  });
+};
+
+export const getUpdateDistrictSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDistrictSettings>>,
+    TError,
+    { id: string; data: BodyType<UpdateDistrictSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateDistrictSettings>>,
+  TError,
+  { id: string; data: BodyType<UpdateDistrictSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateDistrictSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateDistrictSettings>>,
+    { id: string; data: BodyType<UpdateDistrictSettingsBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateDistrictSettings(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateDistrictSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDistrictSettings>>
+>;
+export type UpdateDistrictSettingsMutationBody =
+  BodyType<UpdateDistrictSettingsBody>;
+export type UpdateDistrictSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update district settings
+ */
+export const useUpdateDistrictSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDistrictSettings>>,
+    TError,
+    { id: string; data: BodyType<UpdateDistrictSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateDistrictSettings>>,
+  TError,
+  { id: string; data: BodyType<UpdateDistrictSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateDistrictSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Get settings for a specific bargaining unit
+ */
+export const getGetBargainingUnitSettingsUrl = (id: string) => {
+  return `/api/settings/bargaining-unit/${id}`;
+};
+
+export const getBargainingUnitSettings = async (
+  id: string,
+  options?: RequestInit,
+): Promise<BargainingUnit> => {
+  return customFetch<BargainingUnit>(getGetBargainingUnitSettingsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBargainingUnitSettingsQueryKey = (id: string) => {
+  return [`/api/settings/bargaining-unit/${id}`] as const;
+};
+
+export const getGetBargainingUnitSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBargainingUnitSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBargainingUnitSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetBargainingUnitSettingsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBargainingUnitSettings>>
+  > = ({ signal }) =>
+    getBargainingUnitSettings(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBargainingUnitSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBargainingUnitSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBargainingUnitSettings>>
+>;
+export type GetBargainingUnitSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get settings for a specific bargaining unit
+ */
+
+export function useGetBargainingUnitSettings<
+  TData = Awaited<ReturnType<typeof getBargainingUnitSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBargainingUnitSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBargainingUnitSettingsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update bargaining unit settings
+ */
+export const getUpdateBargainingUnitSettingsUrl = (id: string) => {
+  return `/api/settings/bargaining-unit/${id}`;
+};
+
+export const updateBargainingUnitSettings = async (
+  id: string,
+  updateBargainingUnitSettingsBody: UpdateBargainingUnitSettingsBody,
+  options?: RequestInit,
+): Promise<BargainingUnit> => {
+  return customFetch<BargainingUnit>(getUpdateBargainingUnitSettingsUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBargainingUnitSettingsBody),
+  });
+};
+
+export const getUpdateBargainingUnitSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBargainingUnitSettings>>,
+    TError,
+    { id: string; data: BodyType<UpdateBargainingUnitSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBargainingUnitSettings>>,
+  TError,
+  { id: string; data: BodyType<UpdateBargainingUnitSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateBargainingUnitSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBargainingUnitSettings>>,
+    { id: string; data: BodyType<UpdateBargainingUnitSettingsBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBargainingUnitSettings(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBargainingUnitSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBargainingUnitSettings>>
+>;
+export type UpdateBargainingUnitSettingsMutationBody =
+  BodyType<UpdateBargainingUnitSettingsBody>;
+export type UpdateBargainingUnitSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update bargaining unit settings
+ */
+export const useUpdateBargainingUnitSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBargainingUnitSettings>>,
+    TError,
+    { id: string; data: BodyType<UpdateBargainingUnitSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBargainingUnitSettings>>,
+  TError,
+  { id: string; data: BodyType<UpdateBargainingUnitSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateBargainingUnitSettingsMutationOptions(options));
+};
