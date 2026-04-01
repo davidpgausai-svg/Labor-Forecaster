@@ -68,10 +68,10 @@ export function calcBenefits(
   // Health insurance: compound annually for cost growth, then pro-rate for partial year
   const healthIncreaseRate = yearConfig.healthPremiumIncreaseRate
     ? new Decimal(yearConfig.healthPremiumIncreaseRate)
-    : new Decimal("0.05");
+    : new Decimal("5");
   const healthCapRate = yearConfig.healthEmployerCapRate
     ? new Decimal(yearConfig.healthEmployerCapRate)
-    : new Decimal("0.08");
+    : new Decimal("8");
 
   const actualIncreaseRate = Decimal.min(healthIncreaseRate, healthCapRate);
   const healthMultiplier = new Decimal("1")
@@ -172,12 +172,12 @@ export function calcProRateFraction(
 
   if (effectiveDate) {
     const startDate = new Date(effectiveDate);
-    // Fiscal year starts July 1. If hire is in Jan–Jun, that belongs to the PRIOR year's
-    // fiscal year (started July of prior year) → the employee started before the current
-    // fiscal year, so they're a full-year employee for this year (no reduction needed).
-    // Math.max(0, ...) handles this: if startDate is before July 1 of its own year,
-    // daysSinceYearStart is negative → 0, so workDays = 260 (full year). Correct.
-    const yearStart = new Date(startDate.getFullYear(), 6, 1); // July 1 of same calendar year
+    // Fiscal year starts July 1. For a hire in Jan–Jun (month < 6 in 0-indexed), the
+    // current fiscal year started July 1 of the PRIOR calendar year. We compute days
+    // since that July 1 so that partial-year hires get a correct fraction.
+    const startMonth = startDate.getMonth();
+    const fyStartYear = startMonth < 6 ? startDate.getFullYear() - 1 : startDate.getFullYear();
+    const yearStart = new Date(fyStartYear, 6, 1); // July 1 of fiscal-year start
     const daysSinceYearStart = Math.max(
       0,
       Math.floor((startDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
