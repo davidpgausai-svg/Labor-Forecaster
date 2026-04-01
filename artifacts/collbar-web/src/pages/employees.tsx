@@ -35,18 +35,20 @@ import {
   ChevronRight,
   X,
   ArrowUpDown,
+  Filter,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
+  createColumnHelper,
   type SortingState,
-  type ColumnDef,
   flexRender,
 } from "@tanstack/react-table";
 
 const ALL = "__all__";
+const columnHelper = createColumnHelper<Employee>();
 
 export default function Employees() {
   const { districtId } = useDistrictContext();
@@ -57,6 +59,10 @@ export default function Employees() {
   const [search, setSearch] = useState("");
   const [unitFilter, setUnitFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
+  const [laneFilter, setLaneFilter] = useState(ALL);
+  const [insuranceFilter, setInsuranceFilter] = useState(ALL);
+  const [retirementFilter, setRetirementFilter] = useState(ALL);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const { data: units } = useListBargainingUnits(
@@ -87,24 +93,36 @@ export default function Employees() {
     },
   });
 
+  const allLanes = useMemo(() => {
+    if (!data?.employees) return [];
+    const lanes = [...new Set(data.employees.map((e) => e.laneName).filter(Boolean) as string[])];
+    return lanes.sort();
+  }, [data]);
+
+  const allInsuranceElections = useMemo(() => {
+    if (!data?.employees) return [];
+    const elections = [...new Set(data.employees.map((e) => e.insuranceElection).filter(Boolean))];
+    return elections.sort();
+  }, [data]);
+
   const filtered = useMemo(() => {
     if (!data?.employees) return [];
     const q = search.toLowerCase();
-    return q
-      ? data.employees.filter(
-          (e) =>
-            e.firstName.toLowerCase().includes(q) ||
-            e.lastName.toLowerCase().includes(q) ||
-            (e.bargainingUnitName || "").toLowerCase().includes(q)
-        )
-      : data.employees;
-  }, [data, search]);
+    return data.employees.filter((e) => {
+      if (q && !e.firstName.toLowerCase().includes(q) && !e.lastName.toLowerCase().includes(q) && !(e.bargainingUnitName || "").toLowerCase().includes(q)) return false;
+      if (laneFilter !== ALL && e.laneName !== laneFilter) return false;
+      if (insuranceFilter !== ALL && e.insuranceElection !== insuranceFilter) return false;
+      if (retirementFilter !== ALL) {
+        const isEligible = retirementFilter === "eligible";
+        if (!!e.retirementEligible !== isEligible) return false;
+      }
+      return true;
+    });
+  }, [data, search, laneFilter, insuranceFilter, retirementFilter]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const columns = useMemo<ColumnDef<Employee, any>[]>(
+  const columns = useMemo(
     () => [
-      {
-        accessorFn: (row) => `${row.lastName}, ${row.firstName}`,
+      columnHelper.accessor((row) => `${row.lastName}, ${row.firstName}`, {
         id: "name",
         header: ({ column }) => (
           <button
@@ -119,9 +137,8 @@ export default function Employees() {
             {row.original.lastName}, {row.original.firstName}
           </span>
         ),
-      },
-      {
-        accessorKey: "bargainingUnitName",
+      }),
+      columnHelper.accessor("bargainingUnitName", {
         header: "Unit",
         cell: ({ row }) => (
           <Badge
@@ -131,8 +148,8 @@ export default function Employees() {
             {row.original.bargainingUnitName || "Unknown"}
           </Badge>
         ),
-      },
-      {
+      }),
+      columnHelper.display({
         id: "stepLane",
         header: "Step / Lane",
         cell: ({ row }) => (
@@ -141,9 +158,24 @@ export default function Employees() {
             {row.original.laneName ? ` / ${row.original.laneName}` : ""}
           </span>
         ),
-      },
-      {
-        accessorKey: "currentAnnualSalary",
+      }),
+      columnHelper.accessor("insuranceElection", {
+        header: "Insurance",
+        cell: ({ getValue }) => (
+          <span className="text-sm text-muted-foreground capitalize">
+            {getValue() || "—"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("retirementEligible", {
+        header: "Retirement",
+        cell: ({ getValue }) => (
+          getValue()
+            ? <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs">Eligible</Badge>
+            : <span className="text-muted-foreground text-sm">—</span>
+        ),
+      }),
+      columnHelper.accessor("currentAnnualSalary", {
         header: ({ column }) => (
           <button
             className="flex items-center gap-1 ml-auto hover:text-foreground transition-colors"
@@ -157,23 +189,22 @@ export default function Employees() {
             {formatCurrency(row.original.currentAnnualSalary)}
           </div>
         ),
-      },
-      {
-        accessorKey: "status",
+      }),
+      columnHelper.accessor("status", {
         header: "Status",
-        cell: ({ row }) => (
+        cell: ({ getValue }) => (
           <Badge
             variant="outline"
             className={
-              row.original.status === "active"
+              getValue() === "active"
                 ? "bg-green-500/10 text-green-500 border-green-500/20 capitalize"
                 : "bg-muted text-muted-foreground capitalize"
             }
           >
-            {row.original.status}
+            {getValue()}
           </Badge>
         ),
-      },
+      }),
     ],
     []
   );
@@ -187,12 +218,21 @@ export default function Employees() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const hasFilters = unitFilter !== ALL || statusFilter !== ALL || search;
+  const hasFilters =
+    unitFilter !== ALL ||
+    statusFilter !== ALL ||
+    laneFilter !== ALL ||
+    insuranceFilter !== ALL ||
+    retirementFilter !== ALL ||
+    !!search;
 
   const clearFilters = () => {
     setSearch("");
     setUnitFilter(ALL);
     setStatusFilter(ALL);
+    setLaneFilter(ALL);
+    setInsuranceFilter(ALL);
+    setRetirementFilter(ALL);
     setPage(1);
   };
 
@@ -202,7 +242,8 @@ export default function Employees() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
           <p className="text-muted-foreground text-sm">
-            Manage roster and view projections. {data?.total ? `${data.total} employees.` : ""}
+            Manage roster and view projections.{" "}
+            {data?.total ? `${data.total} employees.` : ""}
           </p>
         </div>
         <Link
@@ -214,57 +255,139 @@ export default function Employees() {
       </div>
 
       <Card className="bg-card border-border">
-        <div className="p-4 border-b border-border flex flex-wrap gap-3 items-center">
-          <div className="relative w-56">
-            <Input
-              placeholder="Search by name..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="bg-background/50 border-border h-9 text-sm pr-3"
-            />
+        <div className="p-4 border-b border-border space-y-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="relative w-56">
+              <Input
+                placeholder="Search by name..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-background/50 border-border h-9 text-sm pr-3"
+              />
+            </div>
+
+            <Select
+              value={unitFilter}
+              onValueChange={(v) => {
+                setUnitFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-44 h-9 bg-background/50 border-border text-sm">
+                <SelectValue placeholder="All Units" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All Units</SelectItem>
+                {units?.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setStatusFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-36 h-9 bg-background/50 border-border text-sm">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="leave">On Leave</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant={showAdvanced ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="h-9 gap-1 text-sm"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              More Filters
+            </Button>
+
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-9 px-3 text-muted-foreground hover:text-foreground gap-1"
+              >
+                <X className="w-4 h-4" /> Clear
+              </Button>
+            )}
           </div>
 
-          <Select
-            value={unitFilter}
-            onValueChange={(v) => { setUnitFilter(v); setPage(1); }}
-          >
-            <SelectTrigger className="w-44 h-9 bg-background/50 border-border text-sm">
-              <SelectValue placeholder="All Units" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All Units</SelectItem>
-              {units?.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {showAdvanced && (
+            <div className="flex flex-wrap gap-3 pt-1 border-t border-border/50">
+              <Select
+                value={laneFilter}
+                onValueChange={(v) => {
+                  setLaneFilter(v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-40 h-8 bg-background/50 border-border text-xs">
+                  <SelectValue placeholder="All Lanes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All Lanes</SelectItem>
+                  {allLanes.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => { setStatusFilter(v); setPage(1); }}
-          >
-            <SelectTrigger className="w-36 h-9 bg-background/50 border-border text-sm">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="leave">On Leave</SelectItem>
-            </SelectContent>
-          </Select>
+              <Select
+                value={insuranceFilter}
+                onValueChange={(v) => {
+                  setInsuranceFilter(v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-40 h-8 bg-background/50 border-border text-xs">
+                  <SelectValue placeholder="Insurance" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All Insurance</SelectItem>
+                  {allInsuranceElections.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          {hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              className="h-9 px-3 text-muted-foreground hover:text-foreground gap-1"
-            >
-              <X className="w-4 h-4" /> Clear
-            </Button>
+              <Select
+                value={retirementFilter}
+                onValueChange={(v) => {
+                  setRetirementFilter(v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-44 h-8 bg-background/50 border-border text-xs">
+                  <SelectValue placeholder="Retirement Eligibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All Employees</SelectItem>
+                  <SelectItem value="eligible">Retirement Eligible</SelectItem>
+                  <SelectItem value="not-eligible">Not Eligible</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
 
@@ -272,10 +395,16 @@ export default function Employees() {
           <Table>
             <TableHeader className="bg-muted/50">
               {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id} className="border-border hover:bg-transparent">
+                <TableRow
+                  key={hg.id}
+                  className="border-border hover:bg-transparent"
+                >
                   {hg.headers.map((header) => (
                     <TableHead key={header.id}>
-                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -285,17 +414,38 @@ export default function Employees() {
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i} className="border-border">
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24 ml-auto" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                    {hasFilters ? "No employees match the current filters." : "No employees found."}
+                  <TableCell
+                    colSpan={7}
+                    className="text-center py-10 text-muted-foreground"
+                  >
+                    {hasFilters
+                      ? "No employees match the current filters."
+                      : "No employees found."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -303,11 +453,16 @@ export default function Employees() {
                   <TableRow
                     key={row.id}
                     className="border-border hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => setLocation(`/employees/${row.original.id}`)}
+                    onClick={() =>
+                      setLocation(`/employees/${row.original.id}`)
+                    }
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -320,7 +475,8 @@ export default function Employees() {
         {data && data.total > pageSize && (
           <div className="p-4 border-t border-border flex items-center justify-between text-sm">
             <div className="text-muted-foreground">
-              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, data.total)} of {data.total}
+              Showing {(page - 1) * pageSize + 1}–
+              {Math.min(page * pageSize, data.total)} of {data.total}
             </div>
             <div className="flex gap-2">
               <Button

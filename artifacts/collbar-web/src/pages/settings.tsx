@@ -7,6 +7,7 @@ import {
   useListBargainingUnits,
   getListBargainingUnitsQueryKey,
   useUpdateBargainingUnit,
+  useCreateBargainingUnit,
   BargainingUnit,
 } from "@workspace/api-client-react";
 import {
@@ -30,6 +31,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus } from "lucide-react";
 
 type BenefitRates = {
   retirementEmployeeRate: string;
@@ -46,6 +49,119 @@ type BenefitRates = {
   hsaContributionFamily: string;
   workersCompRate: string;
 };
+
+function AddBargainingUnitDialog({
+  open,
+  onClose,
+  districtId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  districtId: string;
+}) {
+  const { toast } = useToast();
+  const createMutation = useCreateBargainingUnit();
+
+  const [form, setForm] = useState({
+    name: "",
+    code: "",
+    compensationType: "salary" as "salary" | "hourly",
+    retirementSystem: "TRS" as "TRS" | "IMRF" | "other",
+  });
+
+  const set = (field: keyof typeof form) => (value: string) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreate = () => {
+    if (!form.name || !form.code) return;
+    createMutation.mutate(
+      {
+        data: {
+          districtId,
+          name: form.name,
+          code: form.code,
+          compensationType: form.compensationType as "salary" | "hourly",
+          retirementSystem: form.retirementSystem as "TRS" | "IMRF" | "other",
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Bargaining unit created", description: `${form.name} has been added.` });
+          setForm({ name: "", code: "", compensationType: "salary", retirementSystem: "TRS" });
+          onClose();
+        },
+        onError: () =>
+          toast({ title: "Error", description: "Failed to create bargaining unit.", variant: "destructive" }),
+      }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md bg-card border-border">
+        <DialogHeader>
+          <DialogTitle>Add Bargaining Unit</DialogTitle>
+          <p className="text-sm text-muted-foreground">Define a new unit for contract modeling.</p>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid gap-1.5">
+            <Label>Unit Name</Label>
+            <Input
+              value={form.name}
+              onChange={e => set("name")(e.target.value)}
+              placeholder="e.g. Paraprofessionals"
+              className="bg-background/50"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Short Code</Label>
+            <Input
+              value={form.code}
+              onChange={e => set("code")(e.target.value)}
+              placeholder="e.g. PARA"
+              className="bg-background/50 uppercase"
+              maxLength={10}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Compensation Type</Label>
+              <Select value={form.compensationType} onValueChange={set("compensationType")}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="salary">Salary (Lane/Step)</SelectItem>
+                  <SelectItem value="hourly">Hourly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Retirement System</Label>
+              <Select value={form.retirementSystem} onValueChange={set("retirementSystem")}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TRS">TRS</SelectItem>
+                  <SelectItem value="IMRF">IMRF</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={!form.name || !form.code || createMutation.isPending}>
+            {createMutation.isPending ? "Creating..." : "Create Unit"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function BargainingUnitEditDialog({
   unit,
@@ -255,6 +371,7 @@ export default function Settings() {
   const { districtId } = useDistrictContext();
   const { toast } = useToast();
   const [editingUnit, setEditingUnit] = useState<BargainingUnit | null>(null);
+  const [showAddUnit, setShowAddUnit] = useState(false);
 
   const { data: district, isLoading: districtLoading } = useGetDistrict(
     districtId!,
@@ -403,6 +520,14 @@ export default function Settings() {
                 Edit benefit rates and contract parameters per unit.
               </CardDescription>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddUnit(true)}
+              className="gap-1.5 border-border"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Unit
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -469,6 +594,14 @@ export default function Settings() {
           unit={editingUnit}
           open={!!editingUnit}
           onClose={() => setEditingUnit(null)}
+        />
+      )}
+
+      {districtId && (
+        <AddBargainingUnitDialog
+          open={showAddUnit}
+          onClose={() => setShowAddUnit(false)}
+          districtId={districtId}
         />
       )}
     </div>

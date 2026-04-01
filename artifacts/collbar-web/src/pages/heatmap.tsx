@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Download,
   ImageIcon,
+  FileText,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -134,6 +135,36 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
       link.download = `heatmap-${unitName}-${yearData?.yearLabel ?? "year"}.png`;
       link.href = dataUrl;
       link.click();
+    } catch {
+    }
+  };
+
+  const exportPdf = async () => {
+    if (!containerRef.current) return;
+    try {
+      const dataUrl = await toPng(containerRef.current, { backgroundColor: "#111620" });
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) return;
+      printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Heatmap — ${unitName} — ${yearData?.yearLabel ?? "Year"}</title>
+  <style>
+    body { margin: 0; background: #0a0e14; display: flex; justify-content: center; align-items: flex-start; padding: 20px; }
+    img { max-width: 100%; height: auto; }
+    h2 { color: #e2e8f0; font-family: sans-serif; font-size: 14px; margin: 0 0 12px; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div>
+    <h2>Demographic Heatmap — ${unitName} — ${yearData?.yearLabel ?? "Year"}</h2>
+    <img src="${dataUrl}" />
+  </div>
+  <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`);
+      printWindow.document.close();
     } catch {
     }
   };
@@ -279,6 +310,9 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={exportPng} className="gap-2 cursor-pointer">
                 <ImageIcon className="w-4 h-4" /> Export as PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf} className="gap-2 cursor-pointer">
+                <FileText className="w-4 h-4" /> Export as PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
