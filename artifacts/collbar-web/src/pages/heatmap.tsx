@@ -147,11 +147,11 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
   );
 
   const [currentYearIndex, setCurrentYearIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     setCurrentYearIndex(0);
-    setIsPlaying(true);
+    setIsPlaying(false);
   }, [unitId]);
 
   useEffect(() => {
