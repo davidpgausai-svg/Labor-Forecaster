@@ -166,6 +166,9 @@ importers:
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
+      '@workspace/calc-engine':
+        specifier: workspace:*
+        version: link:../../lib/calc-engine
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
@@ -423,6 +426,25 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
 
+  lib/calc-engine:
+    dependencies:
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../db
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
+
   lib/db:
     dependencies:
       drizzle-orm:
@@ -450,6 +472,9 @@ importers:
 
   scripts:
     dependencies:
+      '@workspace/calc-engine':
+        specifier: workspace:*
+        version: link:../lib/calc-engine
       '@workspace/db':
         specifier: workspace:*
         version: link:../lib/db

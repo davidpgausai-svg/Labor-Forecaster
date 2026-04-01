@@ -137,6 +137,30 @@ router.get("/salary-schedules/:id", async (req, res) => {
   res.json({ ...schedule, lanes, steps, cells: cellsWithStepNumber });
 });
 
+const updateSalaryScheduleSchema = z.object({
+  name: z.string().min(1).optional(),
+  effectiveYear: z.number().int().nonnegative().optional(),
+  baseSalary: numericString.optional(),
+});
+
+router.put("/salary-schedules/:id", async (req, res) => {
+  const parsed = updateSalaryScheduleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const [schedule] = await db
+    .update(salarySchedulesTable)
+    .set(parsed.data)
+    .where(eq(salarySchedulesTable.id, req.params.id))
+    .returning();
+  if (!schedule) {
+    res.status(404).json({ error: "Schedule not found" });
+    return;
+  }
+  res.json(schedule);
+});
+
 router.delete("/salary-schedules/:id", async (req, res) => {
   await db.delete(salarySchedulesTable).where(eq(salarySchedulesTable.id, req.params.id));
   res.status(204).send();

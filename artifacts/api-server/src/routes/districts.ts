@@ -63,4 +63,9 @@ router.put("/districts/:id", async (req, res) => {
   res.json(district);
 });
 
+router.delete("/districts/:id", async (req, res) => {
+  await db.delete(districtsTable).where(eq(districtsTable.id, req.params.id));
+  res.status(204).send();
+});
+
 export default router;

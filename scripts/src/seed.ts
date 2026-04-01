@@ -1,4 +1,5 @@
 import { db, pool } from "@workspace/db";
+import { runScenarioCalculation } from "@workspace/calc-engine";
 import { eq } from "drizzle-orm";
 import {
   districtsTable,
@@ -573,23 +574,10 @@ async function seed() {
   }
 
   console.log("\n⚡ Pre-computing scenario projections...");
-  const API_BASE = `http://localhost:${process.env.PORT ?? 8080}/api`;
 
   for (const scenarioId of seededScenarioIds) {
-    let resp: Response;
-    try {
-      resp = await fetch(`${API_BASE}/scenarios/${scenarioId}/calculate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (e) {
-      throw new Error(`Cannot reach API server at ${API_BASE} for scenario ${scenarioId}. Ensure the API server is running before seeding. Error: ${e}`);
-    }
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`Calculation failed for scenario ${scenarioId} (HTTP ${resp.status}): ${body}`);
-    }
-    const result = await resp.json() as { scenarioName: string; employeeCount: number; totalFiveYearCost: string };
+    const result = await runScenarioCalculation(scenarioId);
+    if (!result) throw new Error(`Calculation returned null for scenario ${scenarioId}`);
     console.log(`   ✅ Calculated: ${result.scenarioName} — ${result.employeeCount} employees, $${parseFloat(result.totalFiveYearCost).toLocaleString()} 5-yr cost`);
   }
 

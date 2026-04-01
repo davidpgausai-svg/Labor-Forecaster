@@ -19,6 +19,10 @@ const createHourlyScheduleSchema = z.object({
   categories: z.array(categorySchema).optional(),
 });
 
+const updateHourlyScheduleSchema = z.object({
+  effectiveYear: z.number().int().nonnegative().optional(),
+});
+
 const router = Router();
 
 router.get("/hourly-schedules", async (req, res) => {
@@ -74,6 +78,51 @@ router.post("/hourly-schedules", async (req, res) => {
   }
 
   res.status(201).json({ ...schedule, categories: createdCategories });
+});
+
+router.get("/hourly-schedules/:id", async (req, res) => {
+  const [schedule] = await db
+    .select()
+    .from(hourlySchedulesTable)
+    .where(eq(hourlySchedulesTable.id, req.params.id));
+  if (!schedule) {
+    res.status(404).json({ error: "Schedule not found" });
+    return;
+  }
+  const categories = await db
+    .select()
+    .from(hourlyCategoriesTable)
+    .where(eq(hourlyCategoriesTable.hourlyScheduleId, schedule.id))
+    .orderBy(hourlyCategoriesTable.displayOrder);
+  res.json({ ...schedule, categories });
+});
+
+router.put("/hourly-schedules/:id", async (req, res) => {
+  const parsed = updateHourlyScheduleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const [schedule] = await db
+    .update(hourlySchedulesTable)
+    .set(parsed.data)
+    .where(eq(hourlySchedulesTable.id, req.params.id))
+    .returning();
+  if (!schedule) {
+    res.status(404).json({ error: "Schedule not found" });
+    return;
+  }
+  const categories = await db
+    .select()
+    .from(hourlyCategoriesTable)
+    .where(eq(hourlyCategoriesTable.hourlyScheduleId, schedule.id))
+    .orderBy(hourlyCategoriesTable.displayOrder);
+  res.json({ ...schedule, categories });
+});
+
+router.delete("/hourly-schedules/:id", async (req, res) => {
+  await db.delete(hourlySchedulesTable).where(eq(hourlySchedulesTable.id, req.params.id));
+  res.status(204).send();
 });
 
 export default router;

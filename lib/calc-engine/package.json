@@ -1,17 +1,14 @@
 {
-  "name": "@workspace/scripts",
+  "name": "@workspace/calc-engine",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": {
-    "hello": "tsx ./src/hello.ts",
-    "seed": "tsx ./src/seed.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+  "exports": {
+    ".": "./src/index.ts"
   },
   "dependencies": {
-    "@workspace/calc-engine": "workspace:*",
     "@workspace/db": "workspace:*",
-    "decimal.js": "^10.4.3",
+    "decimal.js": "^10.6.0",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {
