@@ -1542,3 +1542,445 @@ export const UpdateBargainingUnitSettingsResponse = zod.object({
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
+
+/**
+ * @summary List employee groups
+ */
+export const ListEmployeeGroupsQueryParams = zod.object({
+  districtId: zod.coerce.string().optional(),
+});
+
+export const ListEmployeeGroupsResponseItem = zod
+  .object({
+    id: zod.string(),
+    districtId: zod.string(),
+    name: zod.string(),
+    code: zod.string(),
+    contractDays: zod.number().nullish(),
+    bargainingUnitName: zod.string().nullish(),
+    isUnionized: zod.boolean(),
+    contractStartDate: zod.string().nullish(),
+    contractEndDate: zod.string().nullish(),
+    contractYears: zod.number(),
+    retirementSystem: zod.string(),
+    retirementEmployeeRate: zod.string().optional(),
+    retirementEmployerRate: zod.string().optional(),
+    retirementGrossUpRate: zod.string().optional(),
+    ficaRate: zod.string(),
+    ficaExempt: zod.boolean(),
+    healthInsuranceSingleAnnual: zod.string().optional(),
+    healthInsuranceFamilyAnnual: zod.string().optional(),
+    healthInsuranceEmployerCapRate: zod.string().nullish(),
+    dentalAnnual: zod.string().optional(),
+    lifeInsuranceAnnual: zod.string().optional(),
+    disabilityInsuranceAnnual: zod.string().optional(),
+    hsaContributionSingle: zod.string().optional(),
+    hsaContributionFamily: zod.string().optional(),
+    workersCompRate: zod.string().optional(),
+    displayOrder: zod.number().optional(),
+    notes: zod.string().nullish(),
+    active: zod.boolean(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      compensationSchedules: zod.array(
+        zod.object({
+          id: zod.string(),
+          employeeGroupId: zod.string(),
+          name: zod.string(),
+          scheduleType: zod.enum([
+            "index_based_grid",
+            "individual_salary",
+            "direct_import_grid",
+            "hourly",
+            "per_diem",
+            "flat_rate",
+            "stipend_table",
+            "range_based",
+          ]),
+          isPrimary: zod.boolean(),
+          displayOrder: zod.number().optional(),
+          description: zod.string().nullish(),
+          effectiveDate: zod.string().nullish(),
+          effectiveDateRule: zod.string().nullish(),
+          active: zod.boolean(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        }),
+      ),
+    }),
+  );
+export const ListEmployeeGroupsResponse = zod.array(
+  ListEmployeeGroupsResponseItem,
+);
+
+/**
+ * @summary Create an employee group
+ */
+export const CreateEmployeeGroupBody = zod.object({
+  districtId: zod.string(),
+  name: zod.string(),
+  code: zod.string(),
+  contractDays: zod.number().nullish(),
+  bargainingUnitName: zod.string().nullish(),
+  isUnionized: zod.boolean().optional(),
+  contractStartDate: zod.string().nullish(),
+  contractEndDate: zod.string().nullish(),
+  contractYears: zod.number().optional(),
+  retirementSystem: zod.string().optional(),
+  retirementEmployeeRate: zod.string().optional(),
+  retirementEmployerRate: zod.string().optional(),
+  retirementGrossUpRate: zod.string().optional(),
+  ficaRate: zod.string().optional(),
+  ficaExempt: zod.boolean().optional(),
+  healthInsuranceSingleAnnual: zod.string().optional(),
+  healthInsuranceFamilyAnnual: zod.string().optional(),
+  healthInsuranceEmployerCapRate: zod.string().nullish(),
+  dentalAnnual: zod.string().optional(),
+  lifeInsuranceAnnual: zod.string().optional(),
+  disabilityInsuranceAnnual: zod.string().optional(),
+  hsaContributionSingle: zod.string().optional(),
+  hsaContributionFamily: zod.string().optional(),
+  workersCompRate: zod.string().optional(),
+  displayOrder: zod.number().optional(),
+  notes: zod.string().nullish(),
+  active: zod.boolean().optional(),
+});
+
+/**
+ * @summary Get an employee group
+ */
+export const GetEmployeeGroupParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetEmployeeGroupResponse = zod
+  .object({
+    id: zod.string(),
+    districtId: zod.string(),
+    name: zod.string(),
+    code: zod.string(),
+    contractDays: zod.number().nullish(),
+    bargainingUnitName: zod.string().nullish(),
+    isUnionized: zod.boolean(),
+    contractStartDate: zod.string().nullish(),
+    contractEndDate: zod.string().nullish(),
+    contractYears: zod.number(),
+    retirementSystem: zod.string(),
+    retirementEmployeeRate: zod.string().optional(),
+    retirementEmployerRate: zod.string().optional(),
+    retirementGrossUpRate: zod.string().optional(),
+    ficaRate: zod.string(),
+    ficaExempt: zod.boolean(),
+    healthInsuranceSingleAnnual: zod.string().optional(),
+    healthInsuranceFamilyAnnual: zod.string().optional(),
+    healthInsuranceEmployerCapRate: zod.string().nullish(),
+    dentalAnnual: zod.string().optional(),
+    lifeInsuranceAnnual: zod.string().optional(),
+    disabilityInsuranceAnnual: zod.string().optional(),
+    hsaContributionSingle: zod.string().optional(),
+    hsaContributionFamily: zod.string().optional(),
+    workersCompRate: zod.string().optional(),
+    displayOrder: zod.number().optional(),
+    notes: zod.string().nullish(),
+    active: zod.boolean(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      compensationSchedules: zod.array(
+        zod.object({
+          id: zod.string(),
+          employeeGroupId: zod.string(),
+          name: zod.string(),
+          scheduleType: zod.enum([
+            "index_based_grid",
+            "individual_salary",
+            "direct_import_grid",
+            "hourly",
+            "per_diem",
+            "flat_rate",
+            "stipend_table",
+            "range_based",
+          ]),
+          isPrimary: zod.boolean(),
+          displayOrder: zod.number().optional(),
+          description: zod.string().nullish(),
+          effectiveDate: zod.string().nullish(),
+          effectiveDateRule: zod.string().nullish(),
+          active: zod.boolean(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update an employee group
+ */
+export const UpdateEmployeeGroupParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateEmployeeGroupBody = zod.object({
+  name: zod.string().optional(),
+  code: zod.string().optional(),
+  contractDays: zod.number().nullish(),
+  bargainingUnitName: zod.string().nullish(),
+  isUnionized: zod.boolean().optional(),
+  contractStartDate: zod.string().nullish(),
+  contractEndDate: zod.string().nullish(),
+  contractYears: zod.number().optional(),
+  retirementSystem: zod.string().optional(),
+  retirementEmployeeRate: zod.string().optional(),
+  retirementEmployerRate: zod.string().optional(),
+  retirementGrossUpRate: zod.string().optional(),
+  ficaRate: zod.string().optional(),
+  ficaExempt: zod.boolean().optional(),
+  healthInsuranceSingleAnnual: zod.string().optional(),
+  healthInsuranceFamilyAnnual: zod.string().optional(),
+  healthInsuranceEmployerCapRate: zod.string().nullish(),
+  dentalAnnual: zod.string().optional(),
+  lifeInsuranceAnnual: zod.string().optional(),
+  disabilityInsuranceAnnual: zod.string().optional(),
+  hsaContributionSingle: zod.string().optional(),
+  hsaContributionFamily: zod.string().optional(),
+  workersCompRate: zod.string().optional(),
+  displayOrder: zod.number().optional(),
+  notes: zod.string().nullish(),
+  active: zod.boolean().optional(),
+});
+
+export const UpdateEmployeeGroupResponse = zod
+  .object({
+    id: zod.string(),
+    districtId: zod.string(),
+    name: zod.string(),
+    code: zod.string(),
+    contractDays: zod.number().nullish(),
+    bargainingUnitName: zod.string().nullish(),
+    isUnionized: zod.boolean(),
+    contractStartDate: zod.string().nullish(),
+    contractEndDate: zod.string().nullish(),
+    contractYears: zod.number(),
+    retirementSystem: zod.string(),
+    retirementEmployeeRate: zod.string().optional(),
+    retirementEmployerRate: zod.string().optional(),
+    retirementGrossUpRate: zod.string().optional(),
+    ficaRate: zod.string(),
+    ficaExempt: zod.boolean(),
+    healthInsuranceSingleAnnual: zod.string().optional(),
+    healthInsuranceFamilyAnnual: zod.string().optional(),
+    healthInsuranceEmployerCapRate: zod.string().nullish(),
+    dentalAnnual: zod.string().optional(),
+    lifeInsuranceAnnual: zod.string().optional(),
+    disabilityInsuranceAnnual: zod.string().optional(),
+    hsaContributionSingle: zod.string().optional(),
+    hsaContributionFamily: zod.string().optional(),
+    workersCompRate: zod.string().optional(),
+    displayOrder: zod.number().optional(),
+    notes: zod.string().nullish(),
+    active: zod.boolean(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      compensationSchedules: zod.array(
+        zod.object({
+          id: zod.string(),
+          employeeGroupId: zod.string(),
+          name: zod.string(),
+          scheduleType: zod.enum([
+            "index_based_grid",
+            "individual_salary",
+            "direct_import_grid",
+            "hourly",
+            "per_diem",
+            "flat_rate",
+            "stipend_table",
+            "range_based",
+          ]),
+          isPrimary: zod.boolean(),
+          displayOrder: zod.number().optional(),
+          description: zod.string().nullish(),
+          effectiveDate: zod.string().nullish(),
+          effectiveDateRule: zod.string().nullish(),
+          active: zod.boolean(),
+          createdAt: zod.string(),
+          updatedAt: zod.string(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Delete an employee group
+ */
+export const DeleteEmployeeGroupParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List compensation schedules
+ */
+export const ListCompensationSchedulesQueryParams = zod.object({
+  employeeGroupId: zod.coerce.string().optional(),
+});
+
+export const ListCompensationSchedulesResponseItem = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  name: zod.string(),
+  scheduleType: zod.enum([
+    "index_based_grid",
+    "individual_salary",
+    "direct_import_grid",
+    "hourly",
+    "per_diem",
+    "flat_rate",
+    "stipend_table",
+    "range_based",
+  ]),
+  isPrimary: zod.boolean(),
+  displayOrder: zod.number().optional(),
+  description: zod.string().nullish(),
+  effectiveDate: zod.string().nullish(),
+  effectiveDateRule: zod.string().nullish(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListCompensationSchedulesResponse = zod.array(
+  ListCompensationSchedulesResponseItem,
+);
+
+/**
+ * @summary Create a compensation schedule
+ */
+export const CreateCompensationScheduleBody = zod.object({
+  employeeGroupId: zod.string(),
+  name: zod.string(),
+  scheduleType: zod.string(),
+  isPrimary: zod.boolean().optional(),
+  displayOrder: zod.number().optional(),
+  description: zod.string().nullish(),
+  effectiveDate: zod.string().nullish(),
+  effectiveDateRule: zod.string().nullish(),
+  active: zod.boolean().optional(),
+});
+
+/**
+ * @summary Get a compensation schedule
+ */
+export const GetCompensationScheduleParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetCompensationScheduleResponse = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  name: zod.string(),
+  scheduleType: zod.enum([
+    "index_based_grid",
+    "individual_salary",
+    "direct_import_grid",
+    "hourly",
+    "per_diem",
+    "flat_rate",
+    "stipend_table",
+    "range_based",
+  ]),
+  isPrimary: zod.boolean(),
+  displayOrder: zod.number().optional(),
+  description: zod.string().nullish(),
+  effectiveDate: zod.string().nullish(),
+  effectiveDateRule: zod.string().nullish(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Update a compensation schedule
+ */
+export const UpdateCompensationScheduleParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateCompensationScheduleBody = zod.object({
+  name: zod.string().optional(),
+  scheduleType: zod.string().optional(),
+  isPrimary: zod.boolean().optional(),
+  displayOrder: zod.number().optional(),
+  description: zod.string().nullish(),
+  effectiveDate: zod.string().nullish(),
+  effectiveDateRule: zod.string().nullish(),
+  active: zod.boolean().optional(),
+});
+
+export const UpdateCompensationScheduleResponse = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  name: zod.string(),
+  scheduleType: zod.enum([
+    "index_based_grid",
+    "individual_salary",
+    "direct_import_grid",
+    "hourly",
+    "per_diem",
+    "flat_rate",
+    "stipend_table",
+    "range_based",
+  ]),
+  isPrimary: zod.boolean(),
+  displayOrder: zod.number().optional(),
+  description: zod.string().nullish(),
+  effectiveDate: zod.string().nullish(),
+  effectiveDateRule: zod.string().nullish(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a compensation schedule
+ */
+export const DeleteCompensationScheduleParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary Set a compensation schedule as primary for its group
+ */
+export const SetCompensationSchedulePrimaryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const SetCompensationSchedulePrimaryResponse = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  name: zod.string(),
+  scheduleType: zod.enum([
+    "index_based_grid",
+    "individual_salary",
+    "direct_import_grid",
+    "hourly",
+    "per_diem",
+    "flat_rate",
+    "stipend_table",
+    "range_based",
+  ]),
+  isPrimary: zod.boolean(),
+  displayOrder: zod.number().optional(),
+  description: zod.string().nullish(),
+  effectiveDate: zod.string().nullish(),
+  effectiveDateRule: zod.string().nullish(),
+  active: zod.boolean(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});

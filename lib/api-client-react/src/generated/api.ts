@@ -19,8 +19,11 @@ import type {
 import type {
   BargainingUnit,
   CompareScenariosParams,
+  CompensationSchedule,
   CreateBargainingUnitRequest,
+  CreateCompensationScheduleRequest,
   CreateDistrictRequest,
+  CreateEmployeeGroupRequest,
   CreateEmployeeRequest,
   CreateHourlyScheduleRequest,
   CreateSalaryScheduleRequest,
@@ -29,6 +32,7 @@ import type {
   District,
   DistrictSettings,
   Employee,
+  EmployeeGroupWithSchedules,
   EmployeeList,
   EmployeeWithProjections,
   ExportEmployeesParams,
@@ -43,6 +47,8 @@ import type {
   ImportEmployeesRequest,
   ImportResult,
   ListBargainingUnitsParams,
+  ListCompensationSchedulesParams,
+  ListEmployeeGroupsParams,
   ListEmployeesParams,
   ListHourlySchedulesParams,
   ListReportsParams,
@@ -61,8 +67,10 @@ import type {
   ScenarioYearConfig,
   UpdateBargainingUnitRequest,
   UpdateBargainingUnitSettingsBody,
+  UpdateCompensationScheduleRequest,
   UpdateDistrictRequest,
   UpdateDistrictSettingsBody,
+  UpdateEmployeeGroupRequest,
   UpdateEmployeeRequest,
   UpdateScenarioRequest,
 } from "./api.schemas";
@@ -4027,4 +4035,997 @@ export const useUpdateBargainingUnitSettings = <
   TContext
 > => {
   return useMutation(getUpdateBargainingUnitSettingsMutationOptions(options));
+};
+
+/**
+ * @summary List employee groups
+ */
+export const getListEmployeeGroupsUrl = (params?: ListEmployeeGroupsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/employee-groups?${stringifiedParams}`
+    : `/api/employee-groups`;
+};
+
+export const listEmployeeGroups = async (
+  params?: ListEmployeeGroupsParams,
+  options?: RequestInit,
+): Promise<EmployeeGroupWithSchedules[]> => {
+  return customFetch<EmployeeGroupWithSchedules[]>(
+    getListEmployeeGroupsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListEmployeeGroupsQueryKey = (
+  params?: ListEmployeeGroupsParams,
+) => {
+  return [`/api/employee-groups`, ...(params ? [params] : [])] as const;
+};
+
+export const getListEmployeeGroupsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEmployeeGroups>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListEmployeeGroupsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmployeeGroups>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListEmployeeGroupsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEmployeeGroups>>
+  > = ({ signal }) => listEmployeeGroups(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEmployeeGroups>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEmployeeGroupsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEmployeeGroups>>
+>;
+export type ListEmployeeGroupsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List employee groups
+ */
+
+export function useListEmployeeGroups<
+  TData = Awaited<ReturnType<typeof listEmployeeGroups>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListEmployeeGroupsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmployeeGroups>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEmployeeGroupsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an employee group
+ */
+export const getCreateEmployeeGroupUrl = () => {
+  return `/api/employee-groups`;
+};
+
+export const createEmployeeGroup = async (
+  createEmployeeGroupRequest: CreateEmployeeGroupRequest,
+  options?: RequestInit,
+): Promise<EmployeeGroupWithSchedules> => {
+  return customFetch<EmployeeGroupWithSchedules>(getCreateEmployeeGroupUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createEmployeeGroupRequest),
+  });
+};
+
+export const getCreateEmployeeGroupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmployeeGroup>>,
+    TError,
+    { data: BodyType<CreateEmployeeGroupRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEmployeeGroup>>,
+  TError,
+  { data: BodyType<CreateEmployeeGroupRequest> },
+  TContext
+> => {
+  const mutationKey = ["createEmployeeGroup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEmployeeGroup>>,
+    { data: BodyType<CreateEmployeeGroupRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createEmployeeGroup(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEmployeeGroupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEmployeeGroup>>
+>;
+export type CreateEmployeeGroupMutationBody =
+  BodyType<CreateEmployeeGroupRequest>;
+export type CreateEmployeeGroupMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create an employee group
+ */
+export const useCreateEmployeeGroup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmployeeGroup>>,
+    TError,
+    { data: BodyType<CreateEmployeeGroupRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEmployeeGroup>>,
+  TError,
+  { data: BodyType<CreateEmployeeGroupRequest> },
+  TContext
+> => {
+  return useMutation(getCreateEmployeeGroupMutationOptions(options));
+};
+
+/**
+ * @summary Get an employee group
+ */
+export const getGetEmployeeGroupUrl = (id: string) => {
+  return `/api/employee-groups/${id}`;
+};
+
+export const getEmployeeGroup = async (
+  id: string,
+  options?: RequestInit,
+): Promise<EmployeeGroupWithSchedules> => {
+  return customFetch<EmployeeGroupWithSchedules>(getGetEmployeeGroupUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEmployeeGroupQueryKey = (id: string) => {
+  return [`/api/employee-groups/${id}`] as const;
+};
+
+export const getGetEmployeeGroupQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmployeeGroup>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getEmployeeGroup>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEmployeeGroupQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEmployeeGroup>>
+  > = ({ signal }) => getEmployeeGroup(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmployeeGroup>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmployeeGroupQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmployeeGroup>>
+>;
+export type GetEmployeeGroupQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get an employee group
+ */
+
+export function useGetEmployeeGroup<
+  TData = Awaited<ReturnType<typeof getEmployeeGroup>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getEmployeeGroup>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmployeeGroupQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update an employee group
+ */
+export const getUpdateEmployeeGroupUrl = (id: string) => {
+  return `/api/employee-groups/${id}`;
+};
+
+export const updateEmployeeGroup = async (
+  id: string,
+  updateEmployeeGroupRequest: UpdateEmployeeGroupRequest,
+  options?: RequestInit,
+): Promise<EmployeeGroupWithSchedules> => {
+  return customFetch<EmployeeGroupWithSchedules>(
+    getUpdateEmployeeGroupUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateEmployeeGroupRequest),
+    },
+  );
+};
+
+export const getUpdateEmployeeGroupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEmployeeGroup>>,
+    TError,
+    { id: string; data: BodyType<UpdateEmployeeGroupRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEmployeeGroup>>,
+  TError,
+  { id: string; data: BodyType<UpdateEmployeeGroupRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateEmployeeGroup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEmployeeGroup>>,
+    { id: string; data: BodyType<UpdateEmployeeGroupRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateEmployeeGroup(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEmployeeGroupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEmployeeGroup>>
+>;
+export type UpdateEmployeeGroupMutationBody =
+  BodyType<UpdateEmployeeGroupRequest>;
+export type UpdateEmployeeGroupMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update an employee group
+ */
+export const useUpdateEmployeeGroup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEmployeeGroup>>,
+    TError,
+    { id: string; data: BodyType<UpdateEmployeeGroupRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEmployeeGroup>>,
+  TError,
+  { id: string; data: BodyType<UpdateEmployeeGroupRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateEmployeeGroupMutationOptions(options));
+};
+
+/**
+ * @summary Delete an employee group
+ */
+export const getDeleteEmployeeGroupUrl = (id: string) => {
+  return `/api/employee-groups/${id}`;
+};
+
+export const deleteEmployeeGroup = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteEmployeeGroupUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteEmployeeGroupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEmployeeGroup>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteEmployeeGroup>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteEmployeeGroup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteEmployeeGroup>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteEmployeeGroup(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteEmployeeGroupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteEmployeeGroup>>
+>;
+
+export type DeleteEmployeeGroupMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete an employee group
+ */
+export const useDeleteEmployeeGroup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEmployeeGroup>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteEmployeeGroup>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteEmployeeGroupMutationOptions(options));
+};
+
+/**
+ * @summary List compensation schedules
+ */
+export const getListCompensationSchedulesUrl = (
+  params?: ListCompensationSchedulesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/compensation-schedules?${stringifiedParams}`
+    : `/api/compensation-schedules`;
+};
+
+export const listCompensationSchedules = async (
+  params?: ListCompensationSchedulesParams,
+  options?: RequestInit,
+): Promise<CompensationSchedule[]> => {
+  return customFetch<CompensationSchedule[]>(
+    getListCompensationSchedulesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListCompensationSchedulesQueryKey = (
+  params?: ListCompensationSchedulesParams,
+) => {
+  return [`/api/compensation-schedules`, ...(params ? [params] : [])] as const;
+};
+
+export const getListCompensationSchedulesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCompensationSchedules>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCompensationSchedulesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCompensationSchedules>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCompensationSchedulesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCompensationSchedules>>
+  > = ({ signal }) =>
+    listCompensationSchedules(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCompensationSchedules>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCompensationSchedulesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCompensationSchedules>>
+>;
+export type ListCompensationSchedulesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List compensation schedules
+ */
+
+export function useListCompensationSchedules<
+  TData = Awaited<ReturnType<typeof listCompensationSchedules>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCompensationSchedulesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCompensationSchedules>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCompensationSchedulesQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a compensation schedule
+ */
+export const getCreateCompensationScheduleUrl = () => {
+  return `/api/compensation-schedules`;
+};
+
+export const createCompensationSchedule = async (
+  createCompensationScheduleRequest: CreateCompensationScheduleRequest,
+  options?: RequestInit,
+): Promise<CompensationSchedule> => {
+  return customFetch<CompensationSchedule>(getCreateCompensationScheduleUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCompensationScheduleRequest),
+  });
+};
+
+export const getCreateCompensationScheduleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCompensationSchedule>>,
+    TError,
+    { data: BodyType<CreateCompensationScheduleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCompensationSchedule>>,
+  TError,
+  { data: BodyType<CreateCompensationScheduleRequest> },
+  TContext
+> => {
+  const mutationKey = ["createCompensationSchedule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCompensationSchedule>>,
+    { data: BodyType<CreateCompensationScheduleRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCompensationSchedule(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCompensationScheduleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCompensationSchedule>>
+>;
+export type CreateCompensationScheduleMutationBody =
+  BodyType<CreateCompensationScheduleRequest>;
+export type CreateCompensationScheduleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a compensation schedule
+ */
+export const useCreateCompensationSchedule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCompensationSchedule>>,
+    TError,
+    { data: BodyType<CreateCompensationScheduleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCompensationSchedule>>,
+  TError,
+  { data: BodyType<CreateCompensationScheduleRequest> },
+  TContext
+> => {
+  return useMutation(getCreateCompensationScheduleMutationOptions(options));
+};
+
+/**
+ * @summary Get a compensation schedule
+ */
+export const getGetCompensationScheduleUrl = (id: string) => {
+  return `/api/compensation-schedules/${id}`;
+};
+
+export const getCompensationSchedule = async (
+  id: string,
+  options?: RequestInit,
+): Promise<CompensationSchedule> => {
+  return customFetch<CompensationSchedule>(getGetCompensationScheduleUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCompensationScheduleQueryKey = (id: string) => {
+  return [`/api/compensation-schedules/${id}`] as const;
+};
+
+export const getGetCompensationScheduleQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCompensationSchedule>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCompensationSchedule>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCompensationScheduleQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCompensationSchedule>>
+  > = ({ signal }) =>
+    getCompensationSchedule(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCompensationSchedule>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCompensationScheduleQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCompensationSchedule>>
+>;
+export type GetCompensationScheduleQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a compensation schedule
+ */
+
+export function useGetCompensationSchedule<
+  TData = Awaited<ReturnType<typeof getCompensationSchedule>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCompensationSchedule>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCompensationScheduleQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a compensation schedule
+ */
+export const getUpdateCompensationScheduleUrl = (id: string) => {
+  return `/api/compensation-schedules/${id}`;
+};
+
+export const updateCompensationSchedule = async (
+  id: string,
+  updateCompensationScheduleRequest: UpdateCompensationScheduleRequest,
+  options?: RequestInit,
+): Promise<CompensationSchedule> => {
+  return customFetch<CompensationSchedule>(
+    getUpdateCompensationScheduleUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateCompensationScheduleRequest),
+    },
+  );
+};
+
+export const getUpdateCompensationScheduleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCompensationSchedule>>,
+    TError,
+    { id: string; data: BodyType<UpdateCompensationScheduleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCompensationSchedule>>,
+  TError,
+  { id: string; data: BodyType<UpdateCompensationScheduleRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateCompensationSchedule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCompensationSchedule>>,
+    { id: string; data: BodyType<UpdateCompensationScheduleRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCompensationSchedule(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCompensationScheduleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCompensationSchedule>>
+>;
+export type UpdateCompensationScheduleMutationBody =
+  BodyType<UpdateCompensationScheduleRequest>;
+export type UpdateCompensationScheduleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a compensation schedule
+ */
+export const useUpdateCompensationSchedule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCompensationSchedule>>,
+    TError,
+    { id: string; data: BodyType<UpdateCompensationScheduleRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCompensationSchedule>>,
+  TError,
+  { id: string; data: BodyType<UpdateCompensationScheduleRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateCompensationScheduleMutationOptions(options));
+};
+
+/**
+ * @summary Delete a compensation schedule
+ */
+export const getDeleteCompensationScheduleUrl = (id: string) => {
+  return `/api/compensation-schedules/${id}`;
+};
+
+export const deleteCompensationSchedule = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCompensationScheduleUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCompensationScheduleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCompensationSchedule>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCompensationSchedule>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteCompensationSchedule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCompensationSchedule>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCompensationSchedule(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCompensationScheduleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCompensationSchedule>>
+>;
+
+export type DeleteCompensationScheduleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a compensation schedule
+ */
+export const useDeleteCompensationSchedule = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCompensationSchedule>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCompensationSchedule>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteCompensationScheduleMutationOptions(options));
+};
+
+/**
+ * @summary Set a compensation schedule as primary for its group
+ */
+export const getSetCompensationSchedulePrimaryUrl = (id: string) => {
+  return `/api/compensation-schedules/${id}/set-primary`;
+};
+
+export const setCompensationSchedulePrimary = async (
+  id: string,
+  options?: RequestInit,
+): Promise<CompensationSchedule> => {
+  return customFetch<CompensationSchedule>(
+    getSetCompensationSchedulePrimaryUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getSetCompensationSchedulePrimaryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCompensationSchedulePrimary>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setCompensationSchedulePrimary>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["setCompensationSchedulePrimary"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setCompensationSchedulePrimary>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return setCompensationSchedulePrimary(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetCompensationSchedulePrimaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCompensationSchedulePrimary>>
+>;
+
+export type SetCompensationSchedulePrimaryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set a compensation schedule as primary for its group
+ */
+export const useSetCompensationSchedulePrimary = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCompensationSchedulePrimary>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setCompensationSchedulePrimary>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getSetCompensationSchedulePrimaryMutationOptions(options));
 };

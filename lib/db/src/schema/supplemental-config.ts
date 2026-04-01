@@ -1,0 +1,108 @@
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  boolean,
+  numeric,
+  bigint,
+  timestamp,
+} from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+import { compensationSchedulesTable } from "./compensation-schedules";
+import { lanesTable } from "./salary-schedules";
+
+export const perDiemConfigsTable = pgTable("per_diem_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .notNull()
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+  sourceScheduleId: uuid("source_schedule_id").references(
+    () => compensationSchedulesTable.id
+  ),
+  contractDays: integer("contract_days").notNull().default(187),
+  derivationMethod: text("derivation_method")
+    .notNull()
+    .default("independent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const perDiemCapsTable = pgTable("per_diem_caps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .notNull()
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+  laneId: uuid("lane_id")
+    .notNull()
+    .references(() => lanesTable.id, { onDelete: "cascade" }),
+  capStep: integer("cap_step").notNull(),
+  capRateCents: bigint("cap_rate_cents", { mode: "number" }).notNull(),
+});
+
+export const stipendDefinitionsTable = pgTable("stipend_definitions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .notNull()
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("General"),
+  amountType: text("amount_type").notNull().default("fixed_dollar"),
+  amountCents: bigint("amount_cents", { mode: "number" }).notNull().default(0),
+  percentageValue: numeric("percentage_value", { precision: 10, scale: 4 }),
+  maxAmountCents: bigint("max_amount_cents", { mode: "number" }),
+  increaseWithBase: boolean("increase_with_base").notNull().default(false),
+  trsCreditable: boolean("trs_creditable").notNull().default(false),
+  imrfCreditable: boolean("imrf_creditable").notNull().default(false),
+  displayOrder: integer("display_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const salaryRangesTable = pgTable("salary_ranges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .notNull()
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+  positionTitle: text("position_title").notNull(),
+  minSalaryCents: bigint("min_salary_cents", { mode: "number" })
+    .notNull()
+    .default(0),
+  midSalaryCents: bigint("mid_salary_cents", { mode: "number" })
+    .notNull()
+    .default(0),
+  maxSalaryCents: bigint("max_salary_cents", { mode: "number" })
+    .notNull()
+    .default(0),
+  displayOrder: integer("display_order").notNull().default(0),
+});
+
+export const flatRatesTable = pgTable("flat_rates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .notNull()
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+  positionTitle: text("position_title").notNull(),
+  annualAmountCents: bigint("annual_amount_cents", { mode: "number" })
+    .notNull()
+    .default(0),
+  displayOrder: integer("display_order").notNull().default(0),
+});
+
+export const insertPerDiemConfigSchema = createInsertSchema(
+  perDiemConfigsTable
+).omit({ id: true, createdAt: true });
+export const insertStipendDefinitionSchema = createInsertSchema(
+  stipendDefinitionsTable
+).omit({ id: true });
+export const insertSalaryRangeSchema = createInsertSchema(
+  salaryRangesTable
+).omit({ id: true });
+export const insertFlatRateSchema = createInsertSchema(flatRatesTable).omit({
+  id: true,
+});
+
+export type PerDiemConfig = typeof perDiemConfigsTable.$inferSelect;
+export type PerDiemCap = typeof perDiemCapsTable.$inferSelect;
+export type StipendDefinition = typeof stipendDefinitionsTable.$inferSelect;
+export type SalaryRange = typeof salaryRangesTable.$inferSelect;
+export type FlatRate = typeof flatRatesTable.$inferSelect;

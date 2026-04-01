@@ -15,6 +15,8 @@ import { districtsTable } from "./districts";
 import { bargainingUnitsTable } from "./bargaining-units";
 import { lanesTable } from "./salary-schedules";
 import { hourlyCategoriesTable } from "./hourly-schedules";
+import { employeeGroupsTable } from "./employee-groups";
+import { compensationSchedulesTable } from "./compensation-schedules";
 
 export const insuranceElectionEnum = pgEnum("insurance_election", [
   "single",
@@ -79,6 +81,12 @@ export const employeesTable = pgTable("employees", {
   status: employeeStatusEnum("status").notNull().default("active"),
   contractYear: integer("contract_year").notNull().default(0),
   notes: text("notes"),
+  employeeGroupId: uuid("employee_group_id").references(
+    () => employeeGroupsTable.id
+  ),
+  primaryScheduleId: uuid("primary_schedule_id").references(
+    () => compensationSchedulesTable.id
+  ),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

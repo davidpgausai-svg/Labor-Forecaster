@@ -4,3 +4,7 @@ export * from "./salary-schedules";
 export * from "./hourly-schedules";
 export * from "./employees";
 export * from "./scenarios";
+export * from "./employee-groups";
+export * from "./compensation-schedules";
+export * from "./index-grid-config";
+export * from "./supplemental-config";

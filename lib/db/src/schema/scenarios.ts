@@ -15,6 +15,8 @@ import { districtsTable } from "./districts";
 import { bargainingUnitsTable } from "./bargaining-units";
 import { employeesTable } from "./employees";
 import { lanesTable } from "./salary-schedules";
+import { employeeGroupsTable } from "./employee-groups";
+import { compensationSchedulesTable } from "./compensation-schedules";
 
 export const scenarioStatusEnum = pgEnum("scenario_status", [
   "draft",
@@ -94,6 +96,17 @@ export const scenarioYearConfigsTable = pgTable("scenario_year_configs", {
     scale: 4,
   }),
   notes: text("notes"),
+  employeeGroupId: uuid("employee_group_id").references(
+    () => employeeGroupsTable.id
+  ),
+  compensationScheduleId: uuid("compensation_schedule_id").references(
+    () => compensationSchedulesTable.id
+  ),
+  baseAdjustmentType: text("base_adjustment_type"),
+  baseAdjustmentValue: numeric("base_adjustment_value", {
+    precision: 15,
+    scale: 4,
+  }),
 });
 
 export const employeeYearRecordsTable = pgTable("employee_year_records", {

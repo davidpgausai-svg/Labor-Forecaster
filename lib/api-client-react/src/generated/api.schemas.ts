@@ -584,6 +584,154 @@ export interface DashboardData {
   fiveYearProjection?: DashboardDataFiveYearProjectionItem[] | null;
 }
 
+export interface EmployeeGroup {
+  id: string;
+  districtId: string;
+  name: string;
+  code: string;
+  contractDays?: number | null;
+  bargainingUnitName?: string | null;
+  isUnionized: boolean;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  contractYears: number;
+  retirementSystem: string;
+  retirementEmployeeRate?: string;
+  retirementEmployerRate?: string;
+  retirementGrossUpRate?: string;
+  ficaRate: string;
+  ficaExempt: boolean;
+  healthInsuranceSingleAnnual?: string;
+  healthInsuranceFamilyAnnual?: string;
+  healthInsuranceEmployerCapRate?: string | null;
+  dentalAnnual?: string;
+  lifeInsuranceAnnual?: string;
+  disabilityInsuranceAnnual?: string;
+  hsaContributionSingle?: string;
+  hsaContributionFamily?: string;
+  workersCompRate?: string;
+  displayOrder?: number;
+  notes?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CompensationScheduleScheduleType =
+  (typeof CompensationScheduleScheduleType)[keyof typeof CompensationScheduleScheduleType];
+
+export const CompensationScheduleScheduleType = {
+  index_based_grid: "index_based_grid",
+  individual_salary: "individual_salary",
+  direct_import_grid: "direct_import_grid",
+  hourly: "hourly",
+  per_diem: "per_diem",
+  flat_rate: "flat_rate",
+  stipend_table: "stipend_table",
+  range_based: "range_based",
+} as const;
+
+export interface CompensationSchedule {
+  id: string;
+  employeeGroupId: string;
+  name: string;
+  scheduleType: CompensationScheduleScheduleType;
+  isPrimary: boolean;
+  displayOrder?: number;
+  description?: string | null;
+  effectiveDate?: string | null;
+  effectiveDateRule?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type EmployeeGroupWithSchedules = EmployeeGroup & {
+  compensationSchedules: CompensationSchedule[];
+};
+
+export interface CreateEmployeeGroupRequest {
+  districtId: string;
+  name: string;
+  code: string;
+  contractDays?: number | null;
+  bargainingUnitName?: string | null;
+  isUnionized?: boolean;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  contractYears?: number;
+  retirementSystem?: string;
+  retirementEmployeeRate?: string;
+  retirementEmployerRate?: string;
+  retirementGrossUpRate?: string;
+  ficaRate?: string;
+  ficaExempt?: boolean;
+  healthInsuranceSingleAnnual?: string;
+  healthInsuranceFamilyAnnual?: string;
+  healthInsuranceEmployerCapRate?: string | null;
+  dentalAnnual?: string;
+  lifeInsuranceAnnual?: string;
+  disabilityInsuranceAnnual?: string;
+  hsaContributionSingle?: string;
+  hsaContributionFamily?: string;
+  workersCompRate?: string;
+  displayOrder?: number;
+  notes?: string | null;
+  active?: boolean;
+}
+
+export interface UpdateEmployeeGroupRequest {
+  name?: string;
+  code?: string;
+  contractDays?: number | null;
+  bargainingUnitName?: string | null;
+  isUnionized?: boolean;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  contractYears?: number;
+  retirementSystem?: string;
+  retirementEmployeeRate?: string;
+  retirementEmployerRate?: string;
+  retirementGrossUpRate?: string;
+  ficaRate?: string;
+  ficaExempt?: boolean;
+  healthInsuranceSingleAnnual?: string;
+  healthInsuranceFamilyAnnual?: string;
+  healthInsuranceEmployerCapRate?: string | null;
+  dentalAnnual?: string;
+  lifeInsuranceAnnual?: string;
+  disabilityInsuranceAnnual?: string;
+  hsaContributionSingle?: string;
+  hsaContributionFamily?: string;
+  workersCompRate?: string;
+  displayOrder?: number;
+  notes?: string | null;
+  active?: boolean;
+}
+
+export interface CreateCompensationScheduleRequest {
+  employeeGroupId: string;
+  name: string;
+  scheduleType: string;
+  isPrimary?: boolean;
+  displayOrder?: number;
+  description?: string | null;
+  effectiveDate?: string | null;
+  effectiveDateRule?: string | null;
+  active?: boolean;
+}
+
+export interface UpdateCompensationScheduleRequest {
+  name?: string;
+  scheduleType?: string;
+  isPrimary?: boolean;
+  displayOrder?: number;
+  description?: string | null;
+  effectiveDate?: string | null;
+  effectiveDateRule?: string | null;
+  active?: boolean;
+}
+
 export type ListBargainingUnitsParams = {
   districtId?: string;
 };
@@ -668,3 +816,11 @@ export type UpdateDistrictSettingsBody = {
 };
 
 export type UpdateBargainingUnitSettingsBody = { [key: string]: unknown };
+
+export type ListEmployeeGroupsParams = {
+  districtId?: string;
+};
+
+export type ListCompensationSchedulesParams = {
+  employeeGroupId?: string;
+};

@@ -10,6 +10,8 @@ import heatmapRouter from "./heatmap";
 import dashboardRouter from "./dashboard";
 import reportsRouter from "./reports";
 import settingsRouter from "./settings";
+import employeeGroupsRouter from "./employee-groups";
+import compensationSchedulesRouter from "./compensation-schedules";
 
 const router: IRouter = Router();
 
@@ -24,5 +26,7 @@ router.use(heatmapRouter);
 router.use(dashboardRouter);
 router.use(reportsRouter);
 router.use(settingsRouter);
+router.use(employeeGroupsRouter);
+router.use(compensationSchedulesRouter);
 
 export default router;

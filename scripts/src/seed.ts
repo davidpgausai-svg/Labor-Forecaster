@@ -13,6 +13,8 @@ import {
   employeesTable,
   scenariosTable,
   scenarioYearConfigsTable,
+  employeeGroupsTable,
+  compensationSchedulesTable,
 } from "@workspace/db";
 import Decimal from "decimal.js";
 
@@ -39,12 +41,95 @@ const LANE_PREMIUMS = [
 ];
 const BASE_SALARY_BA_STEP1 = new Decimal("48000");
 
+async function migrateEmployeeGroups(districtId: string) {
+  const existingGroups = await db
+    .select()
+    .from(employeeGroupsTable)
+    .where(eq(employeeGroupsTable.districtId, districtId));
+
+  if (existingGroups.length > 0) {
+    console.log(`✅ Employee groups already exist (${existingGroups.length} found) — skipping migration.`);
+    return;
+  }
+
+  console.log("📦 Migrating: creating employee_groups from existing bargaining units...");
+
+  const units = await db
+    .select()
+    .from(bargainingUnitsTable)
+    .where(eq(bargainingUnitsTable.districtId, districtId))
+    .orderBy(bargainingUnitsTable.displayOrder);
+
+  for (const unit of units) {
+    const scheduleType =
+      unit.compensationType === "salary" ? "individual_salary" : "hourly";
+
+    const [group] = await db
+      .insert(employeeGroupsTable)
+      .values({
+        districtId,
+        name: unit.name,
+        code: unit.code,
+        contractDays: unit.code === "LIC" ? 187 : null,
+        isUnionized: true,
+        contractStartDate: unit.contractStartDate,
+        contractEndDate: unit.contractEndDate,
+        contractYears: unit.contractYears,
+        retirementSystem: unit.retirementSystem,
+        retirementEmployeeRate: unit.retirementEmployeeRate,
+        retirementEmployerRate: unit.retirementEmployerRate,
+        retirementGrossUpRate: unit.retirementGrossUpRate,
+        ficaRate: unit.ficaRate,
+        ficaExempt: unit.ficaExempt,
+        healthInsuranceSingleAnnual: unit.healthInsuranceSingleAnnual,
+        healthInsuranceFamilyAnnual: unit.healthInsuranceFamilyAnnual,
+        dentalAnnual: unit.dentalAnnual,
+        lifeInsuranceAnnual: unit.lifeInsuranceAnnual,
+        disabilityInsuranceAnnual: unit.disabilityInsuranceAnnual,
+        hsaContributionSingle: unit.hsaContributionSingle,
+        hsaContributionFamily: unit.hsaContributionFamily,
+        workersCompRate: unit.workersCompRate,
+        displayOrder: unit.displayOrder,
+        active: true,
+      })
+      .returning();
+
+    const scheduleName =
+      unit.code === "LIC"
+        ? "Licensed Staff Salary Schedule"
+        : unit.code === "ESP"
+          ? "ESP Hourly Schedule"
+          : "Custodial Hourly Schedule";
+
+    const [schedule] = await db
+      .insert(compensationSchedulesTable)
+      .values({
+        employeeGroupId: group.id,
+        name: scheduleName,
+        scheduleType,
+        isPrimary: true,
+        displayOrder: 0,
+      })
+      .returning();
+
+    await db
+      .update(employeesTable)
+      .set({ employeeGroupId: group.id, primaryScheduleId: schedule.id })
+      .where(eq(employeesTable.bargainingUnitId, unit.id));
+
+    console.log(`   ✅ ${group.name} → ${schedule.scheduleType} schedule`);
+  }
+
+  console.log("✅ Employee groups migration complete.");
+}
+
 async function seed() {
   console.log("🌱 Seeding CollBar database...");
 
   const existing = await db.select().from(districtsTable);
   if (existing.length > 0) {
-    console.log("⚠️  District already exists — skipping seed. Delete existing data first to re-seed.");
+    console.log("⚠️  District already exists — running additive migration for new tables...");
+    await migrateEmployeeGroups(existing[0].id);
     return;
   }
 
@@ -145,6 +230,127 @@ async function seed() {
     })
     .returning();
   console.log(`✅ Bargaining unit: ${cmUnit.name}`);
+
+  // --- Employee Groups (new architecture) ---
+  const [licGroup] = await db
+    .insert(employeeGroupsTable)
+    .values({
+      districtId: district.id,
+      name: "Licensed Staff",
+      code: "LIC",
+      contractDays: 187,
+      isUnionized: true,
+      contractStartDate: "2025-08-01",
+      contractEndDate: "2030-07-31",
+      contractYears: 5,
+      retirementSystem: "TRS",
+      retirementEmployeeRate: "0.09",
+      retirementEmployerRate: "0",
+      retirementGrossUpRate: "0.008901",
+      ficaRate: "0.0765",
+      ficaExempt: true,
+      healthInsuranceSingleAnnual: "9600",
+      healthInsuranceFamilyAnnual: "21600",
+      dentalAnnual: "480",
+      lifeInsuranceAnnual: "0",
+      disabilityInsuranceAnnual: "120",
+      hsaContributionSingle: "600",
+      hsaContributionFamily: "1200",
+      workersCompRate: "0.0035",
+      displayOrder: 0,
+    })
+    .returning();
+
+  const [licSchedule2] = await db
+    .insert(compensationSchedulesTable)
+    .values({
+      employeeGroupId: licGroup.id,
+      name: "Licensed Staff Salary Schedule",
+      scheduleType: "individual_salary",
+      isPrimary: true,
+      displayOrder: 0,
+    })
+    .returning();
+
+  const [espGroup] = await db
+    .insert(employeeGroupsTable)
+    .values({
+      districtId: district.id,
+      name: "Educational Support Personnel",
+      code: "ESP",
+      isUnionized: true,
+      contractStartDate: "2025-08-01",
+      contractEndDate: "2030-07-31",
+      contractYears: 5,
+      retirementSystem: "IMRF",
+      retirementEmployeeRate: "0.045",
+      retirementEmployerRate: "0.145",
+      retirementGrossUpRate: "0.00212",
+      ficaRate: "0.0765",
+      ficaExempt: false,
+      healthInsuranceSingleAnnual: "9600",
+      healthInsuranceFamilyAnnual: "21600",
+      dentalAnnual: "480",
+      lifeInsuranceAnnual: "0",
+      disabilityInsuranceAnnual: "120",
+      hsaContributionSingle: "600",
+      hsaContributionFamily: "1200",
+      workersCompRate: "0.0060",
+      displayOrder: 1,
+    })
+    .returning();
+
+  const [espCompSchedule] = await db
+    .insert(compensationSchedulesTable)
+    .values({
+      employeeGroupId: espGroup.id,
+      name: "ESP Hourly Schedule",
+      scheduleType: "hourly",
+      isPrimary: true,
+      displayOrder: 0,
+    })
+    .returning();
+
+  const [cmGroup] = await db
+    .insert(employeeGroupsTable)
+    .values({
+      districtId: district.id,
+      name: "Custodial & Maintenance",
+      code: "CM",
+      isUnionized: true,
+      contractStartDate: "2025-08-01",
+      contractEndDate: "2030-07-31",
+      contractYears: 5,
+      retirementSystem: "IMRF",
+      retirementEmployeeRate: "0.045",
+      retirementEmployerRate: "0.145",
+      retirementGrossUpRate: "0.00212",
+      ficaRate: "0.0765",
+      ficaExempt: false,
+      healthInsuranceSingleAnnual: "9600",
+      healthInsuranceFamilyAnnual: "21600",
+      dentalAnnual: "480",
+      lifeInsuranceAnnual: "0",
+      disabilityInsuranceAnnual: "120",
+      hsaContributionSingle: "600",
+      hsaContributionFamily: "1200",
+      workersCompRate: "0.0085",
+      displayOrder: 2,
+    })
+    .returning();
+
+  const [cmCompSchedule] = await db
+    .insert(compensationSchedulesTable)
+    .values({
+      employeeGroupId: cmGroup.id,
+      name: "Custodial Hourly Schedule",
+      scheduleType: "hourly",
+      isPrimary: true,
+      displayOrder: 0,
+    })
+    .returning();
+
+  console.log(`✅ Employee groups: ${licGroup.name}, ${espGroup.name}, ${cmGroup.name}`);
 
   // --- Salary Schedule ---
   const [licSchedule] = await db
@@ -493,6 +699,12 @@ async function seed() {
   }
   await db.insert(employeesTable).values(cmEmployees);
   console.log(`✅ CM employees: ${cmEmployees.length}`);
+
+  // --- Link employees to new employee groups ---
+  await db.update(employeesTable).set({ employeeGroupId: licGroup.id, primaryScheduleId: licSchedule2.id }).where(eq(employeesTable.bargainingUnitId, licensedUnit.id));
+  await db.update(employeesTable).set({ employeeGroupId: espGroup.id, primaryScheduleId: espCompSchedule.id }).where(eq(employeesTable.bargainingUnitId, espUnit.id));
+  await db.update(employeesTable).set({ employeeGroupId: cmGroup.id, primaryScheduleId: cmCompSchedule.id }).where(eq(employeesTable.bargainingUnitId, cmUnit.id));
+  console.log("✅ Employees linked to employee groups");
 
   // --- Scenarios ---
   const scenarioDefs = [

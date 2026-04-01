@@ -26,6 +26,10 @@ tags:
     description: Heatmap visualization data
   - name: dashboard
     description: Dashboard overview data
+  - name: employee-groups
+    description: Employee group management
+  - name: compensation-schedules
+    description: Compensation schedule management
 paths:
   /healthz:
     get:
@@ -917,6 +921,209 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BargainingUnit"
+
+  /employee-groups:
+    get:
+      operationId: listEmployeeGroups
+      tags: [employee-groups]
+      summary: List employee groups
+      parameters:
+        - name: districtId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of employee groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeGroupWithSchedules"
+    post:
+      operationId: createEmployeeGroup
+      tags: [employee-groups]
+      summary: Create an employee group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeGroupRequest"
+      responses:
+        "201":
+          description: Created employee group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeGroupWithSchedules"
+
+  /employee-groups/{id}:
+    get:
+      operationId: getEmployeeGroup
+      tags: [employee-groups]
+      summary: Get an employee group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee group with schedules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeGroupWithSchedules"
+    put:
+      operationId: updateEmployeeGroup
+      tags: [employee-groups]
+      summary: Update an employee group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeGroupRequest"
+      responses:
+        "200":
+          description: Updated employee group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeGroupWithSchedules"
+    delete:
+      operationId: deleteEmployeeGroup
+      tags: [employee-groups]
+      summary: Delete an employee group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules:
+    get:
+      operationId: listCompensationSchedules
+      tags: [compensation-schedules]
+      summary: List compensation schedules
+      parameters:
+        - name: employeeGroupId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of compensation schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompensationSchedule"
+    post:
+      operationId: createCompensationSchedule
+      tags: [compensation-schedules]
+      summary: Create a compensation schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCompensationScheduleRequest"
+      responses:
+        "201":
+          description: Created compensation schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompensationSchedule"
+
+  /compensation-schedules/{id}:
+    get:
+      operationId: getCompensationSchedule
+      tags: [compensation-schedules]
+      summary: Get a compensation schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Compensation schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompensationSchedule"
+    put:
+      operationId: updateCompensationSchedule
+      tags: [compensation-schedules]
+      summary: Update a compensation schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCompensationScheduleRequest"
+      responses:
+        "200":
+          description: Updated compensation schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompensationSchedule"
+    delete:
+      operationId: deleteCompensationSchedule
+      tags: [compensation-schedules]
+      summary: Delete a compensation schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules/{id}/set-primary:
+    post:
+      operationId: setCompensationSchedulePrimary
+      tags: [compensation-schedules]
+      summary: Set a compensation schedule as primary for its group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated compensation schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompensationSchedule"
 
 components:
   schemas:
@@ -2121,3 +2328,329 @@ components:
         - employeesAtTopStepCount
         - activeScenarios
         - employeeCountByUnit
+
+    EmployeeGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        contractDays:
+          type: number
+          nullable: true
+        bargainingUnitName:
+          type: string
+          nullable: true
+        isUnionized:
+          type: boolean
+        contractStartDate:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          nullable: true
+        contractYears:
+          type: number
+        retirementSystem:
+          type: string
+        retirementEmployeeRate:
+          type: string
+        retirementEmployerRate:
+          type: string
+        retirementGrossUpRate:
+          type: string
+        ficaRate:
+          type: string
+        ficaExempt:
+          type: boolean
+        healthInsuranceSingleAnnual:
+          type: string
+        healthInsuranceFamilyAnnual:
+          type: string
+        healthInsuranceEmployerCapRate:
+          type: string
+          nullable: true
+        dentalAnnual:
+          type: string
+        lifeInsuranceAnnual:
+          type: string
+        disabilityInsuranceAnnual:
+          type: string
+        hsaContributionSingle:
+          type: string
+        hsaContributionFamily:
+          type: string
+        workersCompRate:
+          type: string
+        displayOrder:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - name
+        - code
+        - isUnionized
+        - contractYears
+        - retirementSystem
+        - ficaRate
+        - ficaExempt
+        - active
+        - createdAt
+        - updatedAt
+
+    EmployeeGroupWithSchedules:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeGroup"
+        - type: object
+          properties:
+            compensationSchedules:
+              type: array
+              items:
+                $ref: "#/components/schemas/CompensationSchedule"
+          required:
+            - compensationSchedules
+
+    CreateEmployeeGroupRequest:
+      type: object
+      properties:
+        districtId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        contractDays:
+          type: number
+          nullable: true
+        bargainingUnitName:
+          type: string
+          nullable: true
+        isUnionized:
+          type: boolean
+        contractStartDate:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          nullable: true
+        contractYears:
+          type: number
+        retirementSystem:
+          type: string
+        retirementEmployeeRate:
+          type: string
+        retirementEmployerRate:
+          type: string
+        retirementGrossUpRate:
+          type: string
+        ficaRate:
+          type: string
+        ficaExempt:
+          type: boolean
+        healthInsuranceSingleAnnual:
+          type: string
+        healthInsuranceFamilyAnnual:
+          type: string
+        healthInsuranceEmployerCapRate:
+          type: string
+          nullable: true
+        dentalAnnual:
+          type: string
+        lifeInsuranceAnnual:
+          type: string
+        disabilityInsuranceAnnual:
+          type: string
+        hsaContributionSingle:
+          type: string
+        hsaContributionFamily:
+          type: string
+        workersCompRate:
+          type: string
+        displayOrder:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+      required:
+        - districtId
+        - name
+        - code
+
+    UpdateEmployeeGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        contractDays:
+          type: number
+          nullable: true
+        bargainingUnitName:
+          type: string
+          nullable: true
+        isUnionized:
+          type: boolean
+        contractStartDate:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          nullable: true
+        contractYears:
+          type: number
+        retirementSystem:
+          type: string
+        retirementEmployeeRate:
+          type: string
+        retirementEmployerRate:
+          type: string
+        retirementGrossUpRate:
+          type: string
+        ficaRate:
+          type: string
+        ficaExempt:
+          type: boolean
+        healthInsuranceSingleAnnual:
+          type: string
+        healthInsuranceFamilyAnnual:
+          type: string
+        healthInsuranceEmployerCapRate:
+          type: string
+          nullable: true
+        dentalAnnual:
+          type: string
+        lifeInsuranceAnnual:
+          type: string
+        disabilityInsuranceAnnual:
+          type: string
+        hsaContributionSingle:
+          type: string
+        hsaContributionFamily:
+          type: string
+        workersCompRate:
+          type: string
+        displayOrder:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+
+    CompensationSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeGroupId:
+          type: string
+        name:
+          type: string
+        scheduleType:
+          type: string
+          enum:
+            - index_based_grid
+            - individual_salary
+            - direct_import_grid
+            - hourly
+            - per_diem
+            - flat_rate
+            - stipend_table
+            - range_based
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: number
+        description:
+          type: string
+          nullable: true
+        effectiveDate:
+          type: string
+          nullable: true
+        effectiveDateRule:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - employeeGroupId
+        - name
+        - scheduleType
+        - isPrimary
+        - active
+        - createdAt
+        - updatedAt
+
+    CreateCompensationScheduleRequest:
+      type: object
+      properties:
+        employeeGroupId:
+          type: string
+        name:
+          type: string
+        scheduleType:
+          type: string
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: number
+        description:
+          type: string
+          nullable: true
+        effectiveDate:
+          type: string
+          nullable: true
+        effectiveDateRule:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+      required:
+        - employeeGroupId
+        - name
+        - scheduleType
+
+    UpdateCompensationScheduleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        scheduleType:
+          type: string
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: number
+        description:
+          type: string
+          nullable: true
+        effectiveDate:
+          type: string
+          nullable: true
+        effectiveDateRule:
+          type: string
+          nullable: true
+        active:
+          type: boolean
