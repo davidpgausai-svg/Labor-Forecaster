@@ -302,9 +302,15 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     };
   }
 
-  // Process bargaining-unit-based employees
+  // Build set of employee IDs covered by group configs — these take precedence over BU configs
+  // to prevent double-counting employees who belong to both a group and a BU.
+  const groupCoveredEmployeeIds = new Set(groupEmployees.map((r) => r.employee.id));
+
+  // Process bargaining-unit-based employees (skip those handled by an employee-group config)
   for (const bargainingUnitId of bargainingUnitIds) {
-    const unitEmployees = allEmployees.filter((r) => r.employee.bargainingUnitId === bargainingUnitId);
+    const unitEmployees = allEmployees.filter(
+      (r) => r.employee.bargainingUnitId === bargainingUnitId && !groupCoveredEmployeeIds.has(r.employee.id)
+    );
     if (unitEmployees.length === 0) continue;
 
     const unitConfig = unitEmployees.find((r) => r.unit)?.unit;

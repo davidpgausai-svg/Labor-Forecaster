@@ -7,6 +7,7 @@ import {
   getListBargainingUnitsQueryKey,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
+  type EmployeeGroupWithSchedules,
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
@@ -129,107 +130,7 @@ export default function HeatmapPage() {
           )}
 
           {employeeGroups && employeeGroups.length > 0 && (
-            <div className="space-y-4 border-t border-border pt-6">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight mb-1">Employee Groups</h2>
-                <p className="text-sm text-muted-foreground">
-                  Heatmap visualization per group — availability depends on compensation schedule type.
-                </p>
-              </div>
-              <Tabs defaultValue={employeeGroups[0]?.id} className="w-full">
-                <TabsList className="bg-muted border-border">
-                  {employeeGroups.map((g) => {
-                    const ps = g.compensationSchedules?.find((s) => s.isPrimary);
-                    return (
-                      <TabsTrigger
-                        key={g.id}
-                        value={g.id}
-                        className="data-[state=active]:bg-background flex items-center gap-1.5"
-                      >
-                        {g.name}
-                        {ps && (
-                          <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                            ({ps.scheduleType?.replace(/_/g, " ")})
-                          </span>
-                        )}
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
-
-                {employeeGroups.map((g) => {
-                  const ps = g.compensationSchedules?.find((s) => s.isPrimary);
-                  const scheduleType = ps?.scheduleType ?? null;
-                  const GRID_COMPATIBLE = ["individual_salary", "range_based", "direct_import_grid"];
-                  const isGridCompatible = scheduleType && GRID_COMPATIBLE.includes(scheduleType);
-
-                  return (
-                    <TabsContent key={g.id} value={g.id} className="mt-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <h3 className="text-base font-semibold">{g.name}</h3>
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                          {g.code}
-                        </span>
-                        {ps && (
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                            {ps.name} — {scheduleType?.replace(/_/g, " ")}
-                          </span>
-                        )}
-                      </div>
-
-                      {!ps && (
-                        <Card className="bg-card border-border">
-                          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                            No primary compensation schedule assigned. Configure one in Settings to enable heatmap.
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {ps && scheduleType === "index_based_grid" && (
-                        <Card className="bg-card border-border">
-                          <CardContent className="py-8">
-                            <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
-                              <ImageIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground/60" />
-                              <div>
-                                <p className="font-medium text-foreground mb-1">Index-Based Grid — Heatmap Not Applicable</p>
-                                <p>
-                                  Index-based schedules use a compounding base-anchor model rather than discrete lane/step salary
-                                  cells, so a traditional step-distribution heatmap cannot be rendered. Use the Scenario Detail
-                                  page to review projected base salaries and effective rates per employee for this group.
-                                </p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {ps && (scheduleType === "hourly" || scheduleType === "per_diem" || scheduleType === "flat_rate" || scheduleType === "stipend_table") && (
-                        <Card className="bg-card border-border">
-                          <CardContent className="py-8">
-                            <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
-                              <ImageIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground/60" />
-                              <div>
-                                <p className="font-medium text-foreground mb-1">
-                                  {scheduleType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} — Lane/Step Heatmap Not Applicable
-                                </p>
-                                <p>
-                                  This compensation type does not use a lane/step salary grid. Heatmap visualization is available
-                                  only for salary-grid schedules (Individual Salary, Range-Based, Direct Import Grid).
-                                </p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      {ps && isGridCompatible && (
-                        <EmployeeGroupHeatmapViewer groupId={g.id} groupName={g.name} />
-                      )}
-                    </TabsContent>
-                  );
-                })}
-              </Tabs>
-            </div>
+            <EmployeeGroupHeatmapSection groups={employeeGroups} />
           )}
 
           {hourlyUnits.length > 0 && (
@@ -246,6 +147,112 @@ export default function HeatmapPage() {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+const GRID_COMPATIBLE_SCHEDULE_TYPES = ["individual_salary", "range_based", "direct_import_grid"];
+
+function EmployeeGroupHeatmapSection({ groups }: { groups: EmployeeGroupWithSchedules[] }) {
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id ?? "");
+
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? groups[0];
+  const ps = selectedGroup?.compensationSchedules?.find((s) => s.isPrimary);
+  const scheduleType = ps?.scheduleType ?? null;
+  const isGridCompatible = scheduleType && GRID_COMPATIBLE_SCHEDULE_TYPES.includes(scheduleType);
+
+  return (
+    <div className="space-y-4 border-t border-border pt-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight mb-1">Employee Groups</h2>
+          <p className="text-sm text-muted-foreground">
+            Lane/step distribution heatmap per group. Only salary-grid schedules are supported.
+          </p>
+        </div>
+        <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+          <SelectTrigger className="w-[240px] bg-muted border-border shrink-0">
+            <SelectValue placeholder="Select group…" />
+          </SelectTrigger>
+          <SelectContent>
+            {groups.map((g) => {
+              const gps = g.compensationSchedules?.find((s) => s.isPrimary);
+              return (
+                <SelectItem key={g.id} value={g.id}>
+                  <span>{g.name}</span>
+                  {gps && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">
+                      ({gps.scheduleType?.replace(/_/g, " ")})
+                    </span>
+                  )}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {selectedGroup && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded font-mono">{selectedGroup.code}</span>
+            {ps && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                {ps.name} — {scheduleType?.replace(/_/g, " ")}
+              </span>
+            )}
+          </div>
+
+          {!ps && (
+            <Card className="bg-card border-border">
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No primary compensation schedule assigned to this group. Configure one in Settings to enable heatmap.
+              </CardContent>
+            </Card>
+          )}
+
+          {ps && scheduleType === "index_based_grid" && (
+            <Card className="bg-card border-border">
+              <CardContent className="py-8">
+                <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
+                  <ImageIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground/60" />
+                  <div>
+                    <p className="font-medium text-foreground mb-1">Index-Based Grid — Heatmap Not Applicable</p>
+                    <p>
+                      Index-based schedules use a compounding base-anchor model rather than discrete lane/step salary
+                      cells, so a traditional step-distribution heatmap cannot be rendered. Use the Scenario Detail
+                      page to review projected base salaries and effective rates per employee for this group.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {ps && scheduleType && !isGridCompatible && scheduleType !== "index_based_grid" && (
+            <Card className="bg-card border-border">
+              <CardContent className="py-8">
+                <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
+                  <ImageIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground/60" />
+                  <div>
+                    <p className="font-medium text-foreground mb-1">
+                      {scheduleType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} — Lane/Step Heatmap Not Applicable
+                    </p>
+                    <p>
+                      This compensation type does not use a lane/step salary grid. Heatmap visualization is available
+                      only for salary-grid schedules (Individual Salary, Range-Based, Direct Import Grid).
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {ps && isGridCompatible && (
+            <EmployeeGroupHeatmapViewer groupId={selectedGroup.id} groupName={selectedGroup.name} />
+          )}
+        </div>
       )}
     </div>
   );

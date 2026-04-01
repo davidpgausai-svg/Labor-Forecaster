@@ -35,10 +35,12 @@ export function calcIndexBasedEmployeeYear(
     }
   }
 
-  // 2. Step advancement: move step forward by yearIdx positions (capped at maxSteps)
+  // 2. Step advancement: advance by exactly 1 from the caller-tracked currentStep.
+  // The caller (scenario-engine) updates currentStep each year, so we must NOT
+  // multiply by yearIdx here — doing so would double-count progression.
   let projectedStep: number | null = null;
   if (currentStep !== null) {
-    projectedStep = Math.min(currentStep + yearIdx, gridConfig.maxSteps);
+    projectedStep = Math.min(currentStep + 1, gridConfig.maxSteps);
   }
 
   // 3. Look up index value from the grid (match laneId + stepNumber)
