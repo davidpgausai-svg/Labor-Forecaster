@@ -63,7 +63,8 @@ export function calcSalariedEmployeeYear(
   config: YearConfig,
   schedule: SalaryScheduleData | null,
   maxStep: number,
-  laneInfo?: LaneInfo | null
+  laneInfo?: LaneInfo | null,
+  proRateFraction: Decimal = new Decimal("1")
 ): {
   salary: Decimal;
   projectedStep: number | null;
@@ -76,9 +77,8 @@ export function calcSalariedEmployeeYear(
   let effectiveRate: Decimal | null = null;
 
   if (yearIdx === 0) {
-    const proRatedSalary = applyProRating(salary, employee, yearIdx);
     return {
-      salary: proRatedSalary.toDecimalPlaces(0, Decimal.ROUND_HALF_UP),
+      salary: salary.times(proRateFraction).toDecimalPlaces(0, Decimal.ROUND_HALF_UP),
       projectedStep,
       projectedLaneId,
       effectiveRate: null,
@@ -144,42 +144,3 @@ export function calcSalariedEmployeeYear(
   };
 }
 
-export function applyProRating(
-  salary: Decimal,
-  employee: EmployeeInput,
-  _yearIdx: number
-): Decimal {
-  if (_yearIdx !== 0) return salary;
-  if (!employee.effectiveDate && !employee.terminationDate) return salary;
-
-  const FISCAL_YEAR_DAYS = 260;
-
-  let workDays = FISCAL_YEAR_DAYS;
-
-  if (employee.effectiveDate) {
-    const startDate = new Date(employee.effectiveDate);
-    const yearStart = new Date(startDate.getFullYear(), 6, 1);
-    const daysSinceYearStart = Math.max(
-      0,
-      Math.floor(
-        (startDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
-      )
-    );
-    workDays = Math.max(0, FISCAL_YEAR_DAYS - daysSinceYearStart);
-  }
-
-  if (employee.terminationDate) {
-    const endDate = new Date(employee.terminationDate);
-    const yearStart = new Date(endDate.getFullYear(), 6, 1);
-    const daysWorked = Math.max(
-      0,
-      Math.floor(
-        (endDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
-      )
-    );
-    workDays = Math.min(workDays, daysWorked);
-  }
-
-  const fraction = new Decimal(workDays).dividedBy(FISCAL_YEAR_DAYS);
-  return salary.times(fraction);
-}

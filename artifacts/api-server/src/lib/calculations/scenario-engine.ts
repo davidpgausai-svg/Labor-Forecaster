@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { calcSalariedEmployeeYear } from "./salary-engine";
 import { calcHourlyEmployeeYear } from "./hourly-engine";
-import { calcBenefits } from "./benefits-engine";
+import { calcBenefits, calcProRateFraction } from "./benefits-engine";
 import type {
   YearConfig,
   EmployeeInput,
@@ -46,20 +46,26 @@ export function calcEmployeeProjection(
     const projectedLaneId: string | null = currentLaneId;
     let effectiveRate: Decimal | null = null;
 
+    // Pro-rate fraction applies only to the base year (yearIdx=0) for mid-year hires/terms
+    const proRateFraction =
+      yearIdx === 0
+        ? calcProRateFraction(employee.effectiveDate, employee.terminationDate)
+        : new Decimal("1");
+
     if (employee.compensationType === "salary") {
       const tempEmployee: EmployeeInput = {
         ...employee,
         currentAnnualSalary: currentSalary.toString(),
         currentStep,
       };
-      // Step 6: benefits calculated on the rounded salary
       const result = calcSalariedEmployeeYear(
         tempEmployee,
         yearIdx,
         config,
         schedule,
         MAX_STEPS,
-        laneInfo
+        laneInfo,
+        proRateFraction
       );
       projectedBaseSalary = result.salary;
       projectedStep = result.projectedStep;
@@ -79,13 +85,13 @@ export function calcEmployeeProjection(
       currentSalary = result.annualSalary;
     }
 
-    // Step 6: Employer costs calculated on rounded salary
     const benefits = calcBenefits(
       projectedBaseSalary,
       unitConfig,
       config,
       yearIdx,
-      employee.insuranceElection
+      employee.insuranceElection,
+      proRateFraction
     );
 
     results.push({

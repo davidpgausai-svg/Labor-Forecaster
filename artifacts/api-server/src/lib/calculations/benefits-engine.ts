@@ -26,32 +26,38 @@ export function calcBenefits(
   unit: BargainingUnitConfig,
   yearConfig: YearConfig,
   yearIdx: number,
-  insuranceElection: string
+  insuranceElection: string,
+  proRateFraction: Decimal = new Decimal("1")
 ): BenefitResult {
+  const TWO = Decimal.ROUND_HALF_UP;
+
+  // TRS gross-up on rounded salary, then pro-rated for partial year
   const grossUpRate = new Decimal(unit.retirementGrossUpRate);
   const retirementContribution = salary
     .times(grossUpRate)
-    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    .times(proRateFraction)
+    .toDecimalPlaces(2, TWO);
 
+  // FICA / Medicare — salary is already pro-rated at this point for yearIdx=0
+  // so FICA naturally reflects the partial-year earnings
   let ficaCost: Decimal;
   if (unit.ficaExempt) {
     ficaCost = salary
       .times(MEDICARE_RATE)
-      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      .toDecimalPlaces(2, TWO);
   } else {
     if (salary.lte(SS_WAGE_BASE)) {
       ficaCost = salary
         .times(FULL_FICA_RATE)
-        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        .toDecimalPlaces(2, TWO);
     } else {
-      const ssPart = SS_WAGE_BASE.times(SS_RATE);
+      const ssPart = SS_WAGE_BASE.times(proRateFraction).times(SS_RATE);
       const medicarePart = salary.times(MEDICARE_RATE);
-      ficaCost = ssPart
-        .plus(medicarePart)
-        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      ficaCost = ssPart.plus(medicarePart).toDecimalPlaces(2, TWO);
     }
   }
 
+  // Health insurance: compound annually, then pro-rate for partial year
   const healthIncreaseRate = yearConfig.healthPremiumIncreaseRate
     ? new Decimal(yearConfig.healthPremiumIncreaseRate)
     : new Decimal("0.05");
@@ -83,38 +89,39 @@ export function calcBenefits(
 
   const healthInsuranceCost = healthBase
     .times(healthMultiplier)
-    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    .times(proRateFraction)
+    .toDecimalPlaces(2, TWO);
 
-  const dentalCost = new Decimal(unit.dentalAnnual).toDecimalPlaces(
-    2,
-    Decimal.ROUND_HALF_UP
-  );
+  // Fixed annual benefits — pro-rated for partial year
+  const dentalCost = new Decimal(unit.dentalAnnual)
+    .times(proRateFraction)
+    .toDecimalPlaces(2, TWO);
+
   const lifeCost = salary
     .times("0.005")
-    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-  const disabilityCost = new Decimal(unit.disabilityInsuranceAnnual).toDecimalPlaces(
-    2,
-    Decimal.ROUND_HALF_UP
-  );
+    .toDecimalPlaces(2, TWO);
+
+  const disabilityCost = new Decimal(unit.disabilityInsuranceAnnual)
+    .times(proRateFraction)
+    .toDecimalPlaces(2, TWO);
 
   let hsaCost: Decimal;
   if (election === "family") {
-    hsaCost = new Decimal(unit.hsaContributionFamily).toDecimalPlaces(
-      2,
-      Decimal.ROUND_HALF_UP
-    );
+    hsaCost = new Decimal(unit.hsaContributionFamily)
+      .times(proRateFraction)
+      .toDecimalPlaces(2, TWO);
   } else if (election !== "waived") {
-    hsaCost = new Decimal(unit.hsaContributionSingle).toDecimalPlaces(
-      2,
-      Decimal.ROUND_HALF_UP
-    );
+    hsaCost = new Decimal(unit.hsaContributionSingle)
+      .times(proRateFraction)
+      .toDecimalPlaces(2, TWO);
   } else {
     hsaCost = new Decimal("0");
   }
 
+  // Workers comp — calculated on (pro-rated) salary
   const workersCompCost = salary
     .times(unit.workersCompRate)
-    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    .toDecimalPlaces(2, TWO);
 
   const otherBenefitsCost = dentalCost
     .plus(lifeCost)
@@ -140,4 +147,41 @@ export function calcBenefits(
     otherBenefitsCost,
     totalEmployerCost,
   };
+}
+
+const FISCAL_YEAR_DAYS = 260;
+
+export function calcProRateFraction(
+  effectiveDate?: string | null,
+  terminationDate?: string | null
+): Decimal {
+  if (!effectiveDate && !terminationDate) return new Decimal("1");
+
+  let workDays = FISCAL_YEAR_DAYS;
+
+  if (effectiveDate) {
+    const startDate = new Date(effectiveDate);
+    const yearStart = new Date(startDate.getFullYear(), 6, 1);
+    const daysSinceYearStart = Math.max(
+      0,
+      Math.floor(
+        (startDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
+      )
+    );
+    workDays = Math.max(0, FISCAL_YEAR_DAYS - daysSinceYearStart);
+  }
+
+  if (terminationDate) {
+    const endDate = new Date(terminationDate);
+    const yearStart = new Date(endDate.getFullYear(), 6, 1);
+    const daysWorked = Math.max(
+      0,
+      Math.floor(
+        (endDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24)
+      )
+    );
+    workDays = Math.min(workDays, daysWorked);
+  }
+
+  return new Decimal(workDays).dividedBy(FISCAL_YEAR_DAYS);
 }

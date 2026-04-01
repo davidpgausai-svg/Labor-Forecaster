@@ -172,7 +172,10 @@ router.get("/scenarios/compare", async (req, res) => {
     return;
   }
 
-  const results = await Promise.all(scenarioIds.map((id) => runCalculation(id)));
+  // Read-only compare: uses pre-computed employee_year_records (call POST /calculate first)
+  const results = await Promise.all(
+    scenarioIds.map((id) => getScenarioWithConfigs(id))
+  );
   const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (validResults.length === 0) {
@@ -180,21 +183,44 @@ router.get("/scenarios/compare", async (req, res) => {
     return;
   }
 
-  const fiveYearCosts = validResults.map((r) => ({
-    id: r.scenarioId,
-    cost: new Decimal(r.totalFiveYearCost ?? "0"),
-  }));
+  // Sum totalFiveYearCost from pre-computed records for each scenario
+  const fiveYearCosts = await Promise.all(
+    validResults.map(async (s) => {
+      const rows = await db
+        .select({ totalEmployerCost: employeeYearRecordsTable.totalEmployerCost })
+        .from(employeeYearRecordsTable)
+        .where(eq(employeeYearRecordsTable.scenarioId, s.id));
+      const total = rows.reduce(
+        (sum, r) => sum.plus(new Decimal(r.totalEmployerCost ?? "0")),
+        new Decimal("0")
+      );
+      return { id: s.id, name: s.name, cost: total };
+    })
+  );
 
-  const cheapest = fiveYearCosts.reduce((min, c) => (c.cost.lt(min.cost) ? c : min));
-  const mostExpensive = fiveYearCosts.reduce((max, c) => (c.cost.gt(max.cost) ? c : max));
+  const validCosts = fiveYearCosts.filter((f) => f.cost.gt(0));
+  if (validCosts.length === 0) {
+    res.status(422).json({
+      error: "No pre-computed records found. Run POST /scenarios/:id/calculate for each scenario first.",
+    });
+    return;
+  }
+
+  const cheapest = validCosts.reduce((min, c) => (c.cost.lt(min.cost) ? c : min));
+  const mostExpensive = validCosts.reduce((max, c) => (c.cost.gt(max.cost) ? c : max));
 
   const delta =
-    fiveYearCosts.length >= 2
+    validCosts.length >= 2
       ? mostExpensive.cost.minus(cheapest.cost).toDecimalPlaces(2).toString()
       : null;
 
   res.json({
     scenarios: validResults,
+    fiveYearSummary: fiveYearCosts.map((f) => ({
+      scenarioId: f.id,
+      name: f.name,
+      totalFiveYearCost: f.cost.toDecimalPlaces(2).toString(),
+    })),
     cheapestScenarioId: cheapest.id,
     mostExpensiveScenarioId: mostExpensive.id,
     maxDeltaFiveYear: delta,
@@ -541,15 +567,34 @@ router.post("/scenarios/:id/apply", async (req, res) => {
     return;
   }
 
+  // Fetch the scenario to get its districtId (ensures cross-district isolation)
+  const [scenario] = await db
+    .select({ districtId: scenariosTable.districtId })
+    .from(scenariosTable)
+    .where(eq(scenariosTable.id, req.params.id));
+
+  if (!scenario) {
+    res.status(404).json({ error: "Scenario not found" });
+    return;
+  }
+
+  // Mark this scenario as final
   await db
     .update(scenariosTable)
     .set({ isFinal: true, status: "final", updatedAt: new Date() })
     .where(eq(scenariosTable.id, req.params.id));
 
+  // Un-mark any other final scenario in the SAME district only
   await db
     .update(scenariosTable)
     .set({ isFinal: false })
-    .where(and(eq(scenariosTable.isFinal, true), sql`${scenariosTable.id} != ${req.params.id}`));
+    .where(
+      and(
+        eq(scenariosTable.districtId, scenario.districtId),
+        eq(scenariosTable.isFinal, true),
+        sql`${scenariosTable.id} != ${req.params.id}`
+      )
+    );
 
   res.json(result);
 });
