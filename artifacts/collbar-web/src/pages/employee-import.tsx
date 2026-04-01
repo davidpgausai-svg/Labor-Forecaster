@@ -268,44 +268,89 @@ export default function EmployeeImport() {
       {step === 3 && (
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Preview</CardTitle>
-            <CardDescription>Showing first 10 rows. {rows.length} employees will be imported.</CardDescription>
+            <CardTitle>Preview & Validation</CardTitle>
+            <CardDescription>Review the first 20 rows. Rows with errors will be skipped during import.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="overflow-x-auto rounded border border-border">
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow className="border-border">
-                    <TableHead>#</TableHead>
-                    <TableHead>First Name</TableHead>
-                    <TableHead>Last Name</TableHead>
-                    <TableHead>Employee ID</TableHead>
-                    <TableHead className="text-right">Base Salary</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.slice(0, 10).map((row, i) => {
-                    const emp = rowToEmployee(row, mapping as ColumnMapping, districtId ?? "");
-                    const isValid = !!(emp.firstName && emp.lastName);
-                    return (
-                      <TableRow key={i} className={`border-border ${!isValid ? "opacity-50" : ""}`}>
-                        <TableCell className="font-mono text-muted-foreground">{i + 1}</TableCell>
-                        <TableCell>{emp.firstName || <span className="text-destructive">—</span>}</TableCell>
-                        <TableCell>{emp.lastName || <span className="text-destructive">—</span>}</TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">{emp.employeeNumber || "—"}</TableCell>
-                        <TableCell className="text-right font-mono">{emp.currentAnnualSalary && emp.currentAnnualSalary !== "0" ? `$${parseInt(emp.currentAnnualSalary).toLocaleString()}` : "—"}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={emp.status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10" : "text-muted-foreground border-border"}>
-                            {emp.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            {(() => {
+              const preview = rows.slice(0, 20).map((row, i) => {
+                const emp = rowToEmployee(row, mapping as ColumnMapping, districtId ?? "");
+                const errors: string[] = [];
+                if (!emp.firstName) errors.push("Missing first name");
+                if (!emp.lastName) errors.push("Missing last name");
+                if (emp.currentAnnualSalary === "0" || !emp.currentAnnualSalary) errors.push("Missing salary");
+                return { emp, errors, rowNum: i + 1 };
+              });
+              const errorCount = preview.filter(p => p.errors.length > 0).length;
+              return (
+                <>
+                  <div className="flex items-center gap-3 flex-wrap text-sm">
+                    <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
+                      {rows.length} total rows
+                    </Badge>
+                    <Badge variant="outline" className="bg-muted text-muted-foreground">
+                      Showing first {Math.min(rows.length, 20)} of {rows.length}
+                    </Badge>
+                    {errorCount > 0 && (
+                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                        {errorCount} rows with issues
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto rounded border border-border">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow className="border-border">
+                          <TableHead className="w-10">#</TableHead>
+                          <TableHead>First Name</TableHead>
+                          <TableHead>Last Name</TableHead>
+                          <TableHead>Employee ID</TableHead>
+                          <TableHead className="text-right">Base Salary</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Validation</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {preview.map(({ emp, errors, rowNum }) => (
+                          <TableRow key={rowNum} className={`border-border ${errors.length > 0 ? "bg-destructive/5" : ""}`}>
+                            <TableCell className="font-mono text-muted-foreground text-xs">{rowNum}</TableCell>
+                            <TableCell className={!emp.firstName ? "text-destructive" : ""}>{emp.firstName || "—"}</TableCell>
+                            <TableCell className={!emp.lastName ? "text-destructive" : ""}>{emp.lastName || "—"}</TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">{emp.employeeNumber || "—"}</TableCell>
+                            <TableCell className={`text-right font-mono ${emp.currentAnnualSalary === "0" || !emp.currentAnnualSalary ? "text-destructive" : ""}`}>
+                              {emp.currentAnnualSalary && emp.currentAnnualSalary !== "0" ? `$${parseInt(emp.currentAnnualSalary).toLocaleString()}` : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={emp.status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10" : "text-muted-foreground border-border"}>
+                                {emp.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {errors.length === 0 ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <div className="flex flex-col gap-0.5">
+                                  {errors.map((err, ei) => (
+                                    <span key={ei} className="text-xs text-destructive flex items-center gap-1">
+                                      <AlertCircle className="w-3 h-3 flex-shrink-0" />{err}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {rows.length > 20 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      + {rows.length - 20} more rows not shown in preview
+                    </p>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
