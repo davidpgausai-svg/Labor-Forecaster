@@ -24,9 +24,11 @@
     "pino": "^9",
     "pino-http": "^10",
     "xlsx": "^0.18.5",
+    "adm-zip": "^0.5.10",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

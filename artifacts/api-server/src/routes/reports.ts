@@ -437,6 +437,10 @@ async function buildReportDetail(scenarioId: string): Promise<ReportDetail | nul
     .where(eq(employeeYearRecordsTable.scenarioId, scenarioId))
     .orderBy(employeeYearRecordsTable.contractYear);
 
+  if (yearRecords.length === 0) {
+    throw Object.assign(new Error("No calculated data found for this scenario. Run 'Calculate' on the scenario first."), { statusCode: 422 });
+  }
+
   const yearSet = [...new Set(yearRecords.map(r => r.record.contractYear))].sort();
 
   const perUnitPerYear: Record<string, Record<number, { totalPayroll: Decimal; totalRetirement: Decimal; totalFICA: Decimal; totalHealth: Decimal; totalOther: Decimal; totalEmployerCost: Decimal; employeeCount: number }>> = {};
@@ -516,6 +520,12 @@ async function buildReportDetail(scenarioId: string): Promise<ReportDetail | nul
   return { scenarioId, scenarioName: scenario.name, scenarioDescription: scenario.description, scenarioStatus: scenario.status, isFinal: scenario.isFinal, districtName: district[0]?.name ?? null, districtState: district[0]?.state ?? null, reportGeneratedAt: new Date().toISOString(), yearSet, unitSummaries, employeeDetail, yearConfigs: yearConfigsFormatted, schedules };
 }
 
+function handleReportError(err: unknown, res: import("express").Response) {
+  const e = err as Error & { statusCode?: number };
+  const status = e.statusCode ?? 500;
+  res.status(status).json({ error: e.message ?? String(err) });
+}
+
 router.get("/reports/:scenarioId/download/board-pdf", async (req, res) => {
   const { scenarioId } = req.params;
   try {
@@ -525,9 +535,7 @@ router.get("/reports/:scenarioId/download/board-pdf", async (req, res) => {
     const filename = `${(detail.districtName ?? "District").replace(/\s+/g, "_")}_Board_Presentation_${new Date().toISOString().slice(0, 10)}.pdf`;
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}"`, "Content-Length": buf.length });
     res.send(buf);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
+  } catch (err) { handleReportError(err, res); }
 });
 
 router.get("/reports/:scenarioId/download/negotiation-pdf", async (req, res) => {
@@ -539,9 +547,7 @@ router.get("/reports/:scenarioId/download/negotiation-pdf", async (req, res) => 
     const filename = `${(detail.districtName ?? "District").replace(/\s+/g, "_")}_Negotiation_Summary_${new Date().toISOString().slice(0, 10)}.pdf`;
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}"`, "Content-Length": buf.length });
     res.send(buf);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
+  } catch (err) { handleReportError(err, res); }
 });
 
 router.get("/reports/:scenarioId/download/budget-pdf", async (req, res) => {
@@ -553,9 +559,7 @@ router.get("/reports/:scenarioId/download/budget-pdf", async (req, res) => {
     const filename = `${(detail.districtName ?? "District").replace(/\s+/g, "_")}_Budget_Impact_${new Date().toISOString().slice(0, 10)}.pdf`;
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}"`, "Content-Length": buf.length });
     res.send(buf);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
+  } catch (err) { handleReportError(err, res); }
 });
 
 router.post("/reports/:scenarioId/download/heatmap-pdf", async (req, res) => {
@@ -568,9 +572,7 @@ router.post("/reports/:scenarioId/download/heatmap-pdf", async (req, res) => {
     const filename = `${(detail.districtName ?? "District").replace(/\s+/g, "_")}_Heatmap_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}"`, "Content-Length": buf.length });
     res.send(buf);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
+  } catch (err) { handleReportError(err, res); }
 });
 
 router.get("/reports/:scenarioId/download/employee-excel", async (req, res) => {

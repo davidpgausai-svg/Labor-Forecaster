@@ -2,6 +2,47 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import Decimal from "decimal.js";
+import AdmZip from "adm-zip";
+
+type FreezeSpec = { xSplit: number; ySplit: number };
+
+function injectFreezePanes(xlsxBuf: Buffer, sheetFreeze: Record<string, FreezeSpec>): Buffer {
+  const zip = new AdmZip(xlsxBuf);
+  const entries = zip.getEntries();
+  for (const entry of entries) {
+    const match = entry.entryName.match(/^xl\/worksheets\/(sheet\d+)\.xml$/);
+    if (!match) continue;
+    let xml = zip.readAsText(entry);
+    const wsIdx = parseInt(match[1].replace("sheet", ""), 10) - 1;
+    const sheetNames = Object.keys(sheetFreeze);
+    if (wsIdx >= sheetNames.length) continue;
+    const freeze = sheetFreeze[sheetNames[wsIdx]];
+    if (!freeze) continue;
+    const { xSplit, ySplit } = freeze;
+    const topLeftCell = colName(xSplit) + (ySplit + 1);
+    const paneXml = `<sheetViews><sheetView workbookViewId="0"><pane xSplit="${xSplit}" ySplit="${ySplit}" topLeftCell="${topLeftCell}" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>`;
+    if (xml.includes("<sheetViews>")) {
+      xml = xml.replace(/<sheetViews>[\s\S]*?<\/sheetViews>/, paneXml);
+    } else if (xml.includes("<sheetData")) {
+      xml = xml.replace("<sheetData", paneXml + "<sheetData");
+    } else {
+      xml = xml.replace("</worksheet>", paneXml + "</worksheet>");
+    }
+    zip.deleteFile(entry);
+    zip.addFile(entry.entryName, Buffer.from(xml, "utf8"));
+  }
+  return zip.toBuffer();
+}
+
+function colName(idx: number): string {
+  let s = "";
+  let n = idx;
+  while (n >= 0) {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  }
+  return s;
+}
 
 export type UnitYear = {
   contractYear: number;
@@ -290,7 +331,7 @@ export function generateNegotiationPdf(detail: ReportDetail): Buffer {
   const now = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
   doc.setFillColor(30, 58, 95);
-  doc.rect(0, 0, PAGE_W, 30, "F");
+  doc.rect(0, 0, PAGE_W, 35, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
@@ -300,8 +341,10 @@ export function generateNegotiationPdf(detail: ReportDetail): Buffer {
   doc.text(`Collective Bargaining — Negotiation Summary · ${now}`, MARGIN, 20);
   doc.setFontSize(8);
   doc.text(`Scenario: ${detail.scenarioName} · Status: ${detail.scenarioStatus}`, MARGIN, 27);
+  doc.setFont("helvetica", "italic");
+  doc.text(`Single-scenario detailed cost analysis. For scenario comparison, use the Scenario Compare view in CollBar.`, MARGIN, 33);
   doc.setTextColor(30, 30, 30);
-  let y = 38;
+  let y = 42;
 
   const byUnit: Record<string, YearConfig[]> = {};
   for (const yc of detail.yearConfigs) {
@@ -699,7 +742,7 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
   ]);
 
   const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
-  summaryWs["!cols"] = [{ wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 20 }, { wch: 14 }];
+  summaryWs["!cols"] = [{ wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 22 }, { wch: 16 }];
   const sumDataStart = 9;
   const sumDataEnd = sumDataStart + allYearTotals.length;
   applyCurrencyFmt(summaryWs, ["B", "C", "D", "E", "F", "G"], sumDataStart, sumDataEnd, INT_CURR);
@@ -715,9 +758,10 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
       [],
     ];
 
+    const FIELDS_PER_YEAR = 8;
     const empYearHeader = ["Employee #", "Employee Name", ...yearSet.flatMap(yr => [
-      `${yearLabel(yr)} Salary`, `${yearLabel(yr)} Retirement`, `${yearLabel(yr)} FICA`,
-      `${yearLabel(yr)} Health`, `${yearLabel(yr)} Other`, `${yearLabel(yr)} Total`,
+      `${yearLabel(yr)} Step`, `${yearLabel(yr)} Salary`, `${yearLabel(yr)} Retirement`, `${yearLabel(yr)} FICA`,
+      `${yearLabel(yr)} Health`, `${yearLabel(yr)} Other`, `${yearLabel(yr)} Total`, `${yearLabel(yr)} Emp Cost`,
     ])];
     empRows.push(empYearHeader);
 
@@ -736,33 +780,45 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
         const rec = empRecords.find(r => r.contractYear === yr);
         if (rec) {
           row.push(
+            rec.projectedStep ?? "",
             parseFloat(rec.projectedSalary) || 0,
             parseFloat(rec.retirementContribution) || 0,
             parseFloat(rec.ficaCost) || 0,
             parseFloat(rec.healthInsuranceCost) || 0,
             parseFloat(rec.otherBenefitsCost) || 0,
             parseFloat(rec.totalEmployerCost) || 0,
+            parseFloat(rec.projectedSalary) + parseFloat(rec.retirementContribution) + parseFloat(rec.ficaCost) + parseFloat(rec.healthInsuranceCost) + parseFloat(rec.otherBenefitsCost) || 0,
           );
         } else {
-          row.push("", "", "", "", "", "");
+          row.push("", "", "", "", "", "", "", "");
         }
       }
       empRows.push(row);
     }
 
     const unitWs = XLSX.utils.aoa_to_sheet(empRows);
-    const cols: XLSX.ColInfo[] = [{ wch: 12 }, { wch: 24 }];
-    for (let i = 0; i < yearSet.length; i++) cols.push({ wch: 13 }, { wch: 13 }, { wch: 11 }, { wch: 13 }, { wch: 11 }, { wch: 15 });
+    const cols: XLSX.ColInfo[] = [{ wch: 12 }, { wch: 26 }];
+    for (let i = 0; i < yearSet.length; i++) {
+      cols.push({ wch: 8 }, { wch: 14 }, { wch: 13 }, { wch: 12 }, { wch: 13 }, { wch: 12 }, { wch: 15 }, { wch: 15 });
+    }
     unitWs["!cols"] = cols;
 
     const dataRowStart = 5;
     const dataRowEnd = dataRowStart + uniqueEmps.length - 1;
     if (uniqueEmps.length > 0) {
-      const currencyCols = "CDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, yearSet.length * 6);
+      const totalCols = yearSet.length * FIELDS_PER_YEAR;
+      const alpha26 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const currencyCols: string[] = [];
+      for (let i = 0; i < totalCols; i++) {
+        const colIdx = 2 + i;
+        if ((i % FIELDS_PER_YEAR) === 0) continue;
+        if (colIdx < 26) currencyCols.push(alpha26[colIdx]);
+        else currencyCols.push(alpha26[Math.floor(colIdx / 26) - 1] + alpha26[colIdx % 26]);
+      }
       applyCurrencyFmt(unitWs, currencyCols, dataRowStart, dataRowEnd, INT_CURR);
     }
 
-    const sheetName = u.unitName.replace(/[/\\?*[\]]/g, "_").slice(0, 29);
+    const sheetName = u.unitName.replace(/[/\\?*[\]:]/g, "_").slice(0, 29);
     XLSX.utils.book_append_sheet(wb, unitWs, sheetName);
   }
 
@@ -782,7 +838,7 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
       "Total Employer Cost": parseFloat(r.totalEmployerCost) || 0,
     }));
     const allEmpWs = XLSX.utils.json_to_sheet(allEmpRows);
-    allEmpWs["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 6 }, { wch: 14 }, { wch: 13 }, { wch: 11 }, { wch: 12 }, { wch: 13 }, { wch: 20 }];
+    allEmpWs["!cols"] = [{ wch: 12 }, { wch: 26 }, { wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 22 }];
     if (allEmpRows.length > 0) {
       applyCurrencyFmt(allEmpWs, ["G", "H", "I", "J", "K", "L"], 2, allEmpRows.length + 1, INT_CURR);
     }
@@ -840,6 +896,21 @@ export function generateEmployeeExcel(detail: ReportDetail): Buffer {
   assumWs["!cols"] = [{ wch: 14 }, { wch: 26 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, assumWs, "Assumptions");
 
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-  return buf as Buffer;
+  const rawBuf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
+
+  const sheetFreeze: Record<string, FreezeSpec> = { "Summary": { xSplit: 0, ySplit: 8 } };
+  for (const u of unitSummaries) {
+    const sn = u.unitName.replace(/[/\\?*[\]:]/g, "_").slice(0, 29);
+    sheetFreeze[sn] = { xSplit: 2, ySplit: 4 };
+  }
+  if (employeeDetail.length > 0) sheetFreeze["All Employees"] = { xSplit: 3, ySplit: 1 };
+  if (detail.schedules && detail.schedules.length > 0) {
+    for (const sched of detail.schedules) {
+      const sn = `${sched.unitName.slice(0, 15)} Schedule`.replace(/[/\\?*[\]:]/g, "_").slice(0, 29);
+      sheetFreeze[sn] = { xSplit: 1, ySplit: 3 };
+    }
+  }
+  sheetFreeze["Assumptions"] = { xSplit: 0, ySplit: 7 };
+
+  return injectFreezePanes(rawBuf, sheetFreeze);
 }
