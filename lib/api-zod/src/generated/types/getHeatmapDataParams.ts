@@ -8,4 +8,5 @@
 
 export type GetHeatmapDataParams = {
   bargainingUnitId?: string;
+  employeeGroupId?: string;
 };

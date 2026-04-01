@@ -688,6 +688,10 @@ paths:
           in: query
           schema:
             type: string
+        - name: employeeGroupId
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: Heatmap data for all contract years

@@ -1224,6 +1224,7 @@ export const GetHeatmapDataParams = zod.object({
 
 export const GetHeatmapDataQueryParams = zod.object({
   bargainingUnitId: zod.coerce.string().optional(),
+  employeeGroupId: zod.coerce.string().optional(),
 });
 
 export const GetHeatmapDataResponse = zod.object({

@@ -817,6 +817,7 @@ export type CompareScenariosParams = {
 
 export type GetHeatmapDataParams = {
   bargainingUnitId?: string;
+  employeeGroupId?: string;
 };
 
 export type GetDashboardParams = {

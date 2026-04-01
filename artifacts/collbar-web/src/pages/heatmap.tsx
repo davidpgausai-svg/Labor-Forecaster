@@ -264,23 +264,17 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
   const containerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  const heatmapParams = employeeGroupId
+    ? { employeeGroupId }
+    : { bargainingUnitId: unitId };
+
   const { data, isLoading } = useGetHeatmapData(
     scenarioId!,
-    employeeGroupId ? { bargainingUnitId: employeeGroupId } : { bargainingUnitId: unitId },
+    heatmapParams,
     {
       query: {
-        enabled: !!scenarioId && !!unitId,
-        queryKey: employeeGroupId
-          ? [...getGetHeatmapDataQueryKey(scenarioId!, { bargainingUnitId: unitId }), "group", employeeGroupId]
-          : getGetHeatmapDataQueryKey(scenarioId!, { bargainingUnitId: unitId }),
-        queryFn: employeeGroupId
-          ? async () => {
-              const url = `/api/heatmap/${scenarioId}?employeeGroupId=${employeeGroupId}`;
-              const res = await fetch(url);
-              if (!res.ok) throw new Error("Failed to fetch group heatmap data");
-              return res.json();
-            }
-          : undefined,
+        enabled: !!scenarioId && (!!unitId || !!employeeGroupId),
+        queryKey: getGetHeatmapDataQueryKey(scenarioId!, heatmapParams),
       },
     }
   );
