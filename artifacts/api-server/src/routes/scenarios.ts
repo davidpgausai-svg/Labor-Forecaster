@@ -183,21 +183,31 @@ router.get("/scenarios/compare", async (req, res) => {
     return;
   }
 
-  // Sum totalFiveYearCost from pre-computed records for each scenario
-  const fiveYearCosts = await Promise.all(
-    validResults.map(async (s) => {
-      const rows = await db
-        .select({ totalEmployerCostCents: employeeYearRecordsTable.totalEmployerCostCents })
-        .from(employeeYearRecordsTable)
-        .where(eq(employeeYearRecordsTable.scenarioId, s.id));
-      const totalCents = rows.reduce(
-        (sum, r) => sum + (r.totalEmployerCostCents ?? 0),
-        0
-      );
-      const total = new Decimal(totalCents).dividedBy(100);
-      return { id: s.id, name: s.name, cost: total };
+  // Load pre-computed records for all scenarios in one batch
+  const allRecords = await db
+    .select({
+      scenarioId: employeeYearRecordsTable.scenarioId,
+      contractYear: employeeYearRecordsTable.contractYear,
+      projectedBaseSalaryCents: employeeYearRecordsTable.projectedBaseSalaryCents,
+      totalEmployerCostCents: employeeYearRecordsTable.totalEmployerCostCents,
     })
-  );
+    .from(employeeYearRecordsTable)
+    .where(inArray(employeeYearRecordsTable.scenarioId, scenarioIds));
+
+  if (allRecords.length === 0) {
+    res.status(422).json({
+      error: "No pre-computed records found. Run POST /scenarios/:id/calculate for each scenario first.",
+    });
+    return;
+  }
+
+  // Aggregate five-year totals per scenario
+  const fiveYearCosts = validResults.map((s) => {
+    const rows = allRecords.filter((r) => r.scenarioId === s.id);
+    const totalCents = rows.reduce((sum, r) => sum + (r.totalEmployerCostCents ?? 0), 0);
+    const total = new Decimal(totalCents).dividedBy(100);
+    return { id: s.id, name: s.name, cost: total };
+  });
 
   const validCosts = fiveYearCosts.filter((f) => f.cost.gt(0));
   if (validCosts.length === 0) {
@@ -215,13 +225,37 @@ router.get("/scenarios/compare", async (req, res) => {
       ? mostExpensive.cost.minus(cheapest.cost).toDecimalPlaces(2).toString()
       : null;
 
+  // Build year-by-year aligned comparison: for each contract year, one entry per scenario
+  const allYears = [...new Set(allRecords.map((r) => r.contractYear))].sort((a, b) => a - b);
+  const byYear = allYears.map((contractYear) => {
+    const yearLabel = validResults[0]?.yearConfigs?.find((c) => c.contractYear === contractYear)?.yearLabel
+      ?? `Year ${contractYear}`;
+    return {
+      contractYear,
+      yearLabel,
+      scenarios: validResults.map((s) => {
+        const yearRows = allRecords.filter((r) => r.scenarioId === s.id && r.contractYear === contractYear);
+        const payrollCents = yearRows.reduce((sum, r) => sum + (r.projectedBaseSalaryCents ?? 0), 0);
+        const costCents = yearRows.reduce((sum, r) => sum + (r.totalEmployerCostCents ?? 0), 0);
+        return {
+          scenarioId: s.id,
+          name: s.name,
+          totalPayroll: new Decimal(payrollCents).dividedBy(100).toDecimalPlaces(2).toString(),
+          totalEmployerCost: new Decimal(costCents).dividedBy(100).toDecimalPlaces(2).toString(),
+          employeeCount: yearRows.length,
+        };
+      }),
+    };
+  });
+
   res.json({
-    scenarios: validResults,
+    scenarios: validResults.map((s) => ({ id: s.id, name: s.name, status: s.status, isFinal: s.isFinal })),
     fiveYearSummary: fiveYearCosts.map((f) => ({
       scenarioId: f.id,
       name: f.name,
       totalFiveYearCost: f.cost.toDecimalPlaces(2).toString(),
     })),
+    byYear,
     cheapestScenarioId: cheapest.id,
     mostExpensiveScenarioId: mostExpensive.id,
     maxDeltaFiveYear: delta,
@@ -425,7 +459,9 @@ async function runCalculation(scenarioId: string) {
 
       const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId);
       for (const r of yearResults) {
-        const toCents = (s: string | null) => s ? Math.round(parseFloat(s) * 100) : null;
+        // Use Decimal for cent conversion to avoid floating-point precision loss from parseFloat
+        const toCents = (s: string | null) =>
+          s != null ? new Decimal(s).times(100).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toNumber() : null;
         allYearRecords.push({
           employeeId: r.employeeId,
           scenarioId: r.scenarioId,

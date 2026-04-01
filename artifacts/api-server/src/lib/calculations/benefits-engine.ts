@@ -47,16 +47,20 @@ export function calcBenefits(
     .times(grossUpRate)
     .toDecimalPlaces(2, TWO);
 
-  // FICA / Medicare — computed on pro-rated salary, naturally scaled
+  // FICA / Medicare — computed on pro-rated salary, naturally scaled.
+  // For partial-year employees, the SS wage-base cap must also be prorated so that an
+  // employee who earns below the FULL annual base but above the PRORATED base is not
+  // overcharged on Social Security.
   let ficaCost: Decimal;
   if (unit.ficaExempt) {
     ficaCost = salary.times(MEDICARE_RATE).toDecimalPlaces(2, TWO);
   } else {
-    if (salary.lte(SS_WAGE_BASE)) {
+    const proRatedWageBase = SS_WAGE_BASE.times(proRateFraction);
+    if (salary.lte(proRatedWageBase)) {
+      // Salary is below the prorated wage base — full FICA rate applies
       ficaCost = salary.times(FULL_FICA_RATE).toDecimalPlaces(2, TWO);
     } else {
-      // SS portion only up to wage base (capped at proRated share of base)
-      const proRatedWageBase = SS_WAGE_BASE.times(proRateFraction);
+      // SS portion capped at prorated wage base; Medicare on full salary
       const ssPart = proRatedWageBase.times(SS_RATE);
       const medicarePart = salary.times(MEDICARE_RATE);
       ficaCost = ssPart.plus(medicarePart).toDecimalPlaces(2, TWO);

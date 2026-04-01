@@ -18,11 +18,25 @@ import Decimal from "decimal.js";
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP, precision: 28 });
 
 const SEED_DISTRICT_NAME = "District 21";
+
+// 7-lane salary schedule: realistic IL suburban district
+// BA step 1 = $55,000 base. Each step adds $1,950. PhD lane = +$19,500 premium.
+// PhD step 15 = ($55,000 + 14 × $1,950) + $19,500 = $55,000 + $27,300 + $19,500 = $101,800
+// High-earners (above $125K) are 4 explicitly placed veteran teachers with career-accumulated salaries.
+
 const SALARY_LANE_NAMES = ["BA", "BA+15", "MA", "MA+15", "MA+30", "MA+45", "PhD"];
 const SALARY_STEPS = 15;
-const BASE_SALARY_BA_STEP1 = new Decimal("48000");
-const LANE_MULTIPLIERS = ["1.0000", "1.0500", "1.1000", "1.1500", "1.2000", "1.2500", "1.3000"];
-const STEP_INCREMENT = new Decimal("0.025");
+const STEP_DOLLARS = new Decimal("1950");  // per-step dollar increment
+const LANE_PREMIUMS = [
+  "0",      // BA
+  "3900",   // BA+15
+  "7800",   // MA
+  "11700",  // MA+15
+  "15600",  // MA+30
+  "17550",  // MA+45
+  "19500",  // PhD
+];
+const BASE_SALARY_BA_STEP1 = new Decimal("55000");
 
 async function seed() {
   console.log("🌱 Seeding CollBar database...");
@@ -39,7 +53,7 @@ async function seed() {
       name: SEED_DISTRICT_NAME,
       state: "IL",
       fiscalYearStart: "July 1",
-      studentEnrollment: 3200,
+      studentEnrollment: 3300,
     })
     .returning();
   console.log(`✅ District: ${district.name} (${district.id})`);
@@ -131,6 +145,7 @@ async function seed() {
     .returning();
   console.log(`✅ Bargaining unit: ${cmUnit.name}`);
 
+  // --- Salary Schedule ---
   const [licSchedule] = await db
     .insert(salarySchedulesTable)
     .values({
@@ -149,7 +164,7 @@ async function seed() {
         salaryScheduleId: licSchedule.id,
         name: SALARY_LANE_NAMES[l],
         displayOrder: l,
-        indexMultiplier: LANE_MULTIPLIERS[l],
+        indexMultiplier: "1.0000",
       })
       .returning();
     laneIds.push(lane.id);
@@ -157,19 +172,18 @@ async function seed() {
 
   const stepIds: string[] = [];
   for (let s = 1; s <= SALARY_STEPS; s++) {
-    const multiplier =
-      s === 1 ? "1.0000" : new Decimal("1").plus(STEP_INCREMENT.times(s - 1)).toFixed(4);
     const [step] = await db
       .insert(stepsTable)
       .values({
         salaryScheduleId: licSchedule.id,
         stepNumber: s,
-        incrementMultiplier: multiplier,
+        incrementMultiplier: "1.0000",
       })
       .returning();
     stepIds.push(step.id);
   }
 
+  // Build salary cells using absolute dollar amounts: base + (step-1)*stepDollars + lanePremium
   const cells: {
     salaryScheduleId: string;
     laneId: string;
@@ -178,19 +192,15 @@ async function seed() {
   }[] = [];
 
   for (let l = 0; l < SALARY_LANE_NAMES.length; l++) {
+    const lanePremium = new Decimal(LANE_PREMIUMS[l]);
     for (let s = 0; s < SALARY_STEPS; s++) {
-      const stepMultiplier = s === 0
-        ? new Decimal("1")
-        : new Decimal("1").plus(STEP_INCREMENT.times(s));
-      const laneMultiplier = new Decimal(LANE_MULTIPLIERS[l]);
-      const salary = BASE_SALARY_BA_STEP1.times(stepMultiplier)
-        .times(laneMultiplier)
-        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      const stepAdder = STEP_DOLLARS.times(s);
+      const salary = BASE_SALARY_BA_STEP1.plus(stepAdder).plus(lanePremium);
       cells.push({
         salaryScheduleId: licSchedule.id,
         laneId: laneIds[l],
         stepId: stepIds[s],
-        salaryAmount: salary.toString(),
+        salaryAmount: salary.toDecimalPlaces(2).toString(),
       });
     }
   }
@@ -200,7 +210,9 @@ async function seed() {
     await db.insert(scheduleCellsTable).values(cells.slice(i, i + chunkSize));
   }
   console.log(`✅ Salary schedule: ${licSchedule.name} (${SALARY_LANE_NAMES.length} lanes × ${SALARY_STEPS} steps = ${cells.length} cells)`);
+  // Grid range: BA step 1 = $55,000, PhD step 15 = $101,800
 
+  // --- ESP Schedule ---
   const [espSchedule] = await db
     .insert(hourlySchedulesTable)
     .values({ bargainingUnitId: espUnit.id, effectiveYear: 0 })
@@ -226,6 +238,7 @@ async function seed() {
   }
   console.log(`✅ ESP hourly schedule (${espCategories.length} categories)`);
 
+  // --- CM Schedule ---
   const [cmSchedule] = await db
     .insert(hourlySchedulesTable)
     .values({ bargainingUnitId: cmUnit.id, effectiveYear: 0 })
@@ -249,6 +262,15 @@ async function seed() {
   }
   console.log(`✅ CM hourly schedule (${cmCategories.length} categories)`);
 
+  // --- Licensed Employees: 65 total ---
+  // Distributions (DETERMINISTIC, not random):
+  //   Insurance: 60% family (39 employees), 25% single (16), 15% waived (10)
+  //   Retirement-eligible: exactly 10 employees
+  //   High earners (>$125K): 4 explicitly placed veteran teachers
+  //
+  // Placement: 4 high-earner veterans at PhD step 15 with above-schedule salaries.
+  // The remaining 61 employees fill lanes BA through MA+45 with defined step placements.
+
   const LAST_NAMES = [
     "Anderson", "Baker", "Chen", "Davis", "Edwards", "Foster", "Garcia", "Harris",
     "Ingram", "Johnson", "Kim", "Lopez", "Martinez", "Nelson", "Olson", "Patel",
@@ -262,77 +284,144 @@ async function seed() {
     "Aaron", "Brian", "Carlos", "David", "Eric", "Frank", "George", "Henry",
     "Ivan", "James", "Kevin", "Liam", "Marcus", "Nathan", "Oscar", "Paul",
   ];
-
   const allFirstNames = [...FIRST_NAMES_F, ...FIRST_NAMES_M];
 
-  let empIdx = 0;
-  const licensedEmployees: typeof employeesTable.$inferInsert[] = [];
+  // Insurance assignments: 39 family, 16 single, 10 waived (total 65)
+  const insurancePool: Array<"family" | "single" | "waived"> = [
+    ...Array(39).fill("family"),
+    ...Array(16).fill("single"),
+    ...Array(10).fill("waived"),
+  ];
 
-  const laneDistribution = [20, 15, 12, 8, 5, 3, 2];
-  for (let l = 0; l < SALARY_LANE_NAMES.length; l++) {
+  // Retirement-eligible: employee indices 0,1,2,3,4,5,6,7,8,9 (first 10 high-tenure employees)
+  const RETIREMENT_ELIGIBLE_INDICES = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+  const licensedEmployees: typeof employeesTable.$inferInsert[] = [];
+  let licEmpIdx = 0;
+
+  // 4 above-schedule veteran teachers (high earners): PhD step 15, manually set salary
+  const HIGH_EARNER_VETERANS = [
+    { firstName: "Susan",   lastName: "Mitchell",  salary: "130450", yearsInDistrict: 28, yearsTotal: 31 },
+    { firstName: "Robert",  lastName: "Thornton",  salary: "127800", yearsInDistrict: 25, yearsTotal: 29 },
+    { firstName: "Patricia",lastName: "Alvarez",   salary: "135200", yearsInDistrict: 30, yearsTotal: 33 },
+    { firstName: "Gerald",  lastName: "Whitmore",  salary: "126500", yearsInDistrict: 23, yearsTotal: 26 },
+  ];
+
+  const phdLaneIndex = SALARY_LANE_NAMES.indexOf("PhD");
+  const step15Index = 14; // 0-based index for step 15
+
+  for (const v of HIGH_EARNER_VETERANS) {
+    const isRetirementEligible = RETIREMENT_ELIGIBLE_INDICES.has(licEmpIdx);
+    const insurance = insurancePool[licEmpIdx];
+    licensedEmployees.push({
+      districtId: district.id,
+      bargainingUnitId: licensedUnit.id,
+      employeeNumber: `L${String(100 + licEmpIdx).padStart(3, "0")}`,
+      firstName: v.firstName,
+      lastName: v.lastName,
+      hireDate: `${2025 - v.yearsInDistrict}-08-01`,
+      yearsInDistrict: v.yearsInDistrict,
+      yearsTotalService: v.yearsTotal,
+      compensationType: "salary",
+      currentLaneId: laneIds[phdLaneIndex],
+      currentStep: 15,
+      currentAnnualSalary: v.salary,
+      insuranceElection: insurance,
+      retirementEligible: isRetirementEligible,
+      retirementPlan: isRetirementEligible ? "option1_4year" : "none",
+      status: "active",
+      contractYear: 0,
+    });
+    licEmpIdx++;
+  }
+
+  // Remaining 61 licensed employees distributed across lanes BA through MA+45
+  // Lane distribution: BA=19, BA+15=14, MA=12, MA+15=8, MA+30=5, MA+45=3 (total 61)
+  const laneDistribution = [19, 14, 12, 8, 5, 3];
+  // Step distributions per lane: mix of early, mid, and experienced teachers
+  // Deterministic step assignments cycling through a realistic pattern
+  const STEP_PATTERN = [3, 7, 10, 5, 12, 2, 9, 14, 6, 11, 4, 8, 13, 1, 15];
+
+  for (let l = 0; l < laneDistribution.length; l++) {
     const count = laneDistribution[l];
     for (let e = 0; e < count; e++) {
-      const step = Math.min(Math.ceil(Math.random() * 12) + 1, 15);
-      const yearsInDistrict = step - 1 + Math.floor(Math.random() * 3);
-      const stepMultiplier =
-        step === 1
-          ? new Decimal("1")
-          : new Decimal("1").plus(STEP_INCREMENT.times(step - 1));
-      const salary = BASE_SALARY_BA_STEP1.times(stepMultiplier)
-        .times(new Decimal(LANE_MULTIPLIERS[l]))
-        .toDecimalPlaces(2);
+      const step = STEP_PATTERN[(licEmpIdx - 4) % STEP_PATTERN.length] ?? 8;
+      const insurance = insurancePool[licEmpIdx];
+      const isRetirementEligible = RETIREMENT_ELIGIBLE_INDICES.has(licEmpIdx);
+      const yearsInDistrict = step - 1 + (e % 3);
+      const yearsTotal = yearsInDistrict + (e % 5);
 
-      const isHighEarner = salary.gte(125000);
-      const retirementEligible = yearsInDistrict >= 10 && Math.random() > 0.7;
+      // Compute grid salary for this lane + step
+      const lanePremium = new Decimal(LANE_PREMIUMS[l]);
+      const stepAdder = STEP_DOLLARS.times(step - 1);
+      const salary = BASE_SALARY_BA_STEP1.plus(stepAdder).plus(lanePremium);
 
-      const firstName = allFirstNames[empIdx % allFirstNames.length];
-      const lastName = LAST_NAMES[empIdx % LAST_NAMES.length];
-      const elections: Array<"single" | "family" | "waived"> = ["single", "family", "waived"];
-      const election = elections[empIdx % elections.length];
+      const firstName = allFirstNames[licEmpIdx % allFirstNames.length];
+      const lastName = LAST_NAMES[licEmpIdx % LAST_NAMES.length];
 
       licensedEmployees.push({
         districtId: district.id,
         bargainingUnitId: licensedUnit.id,
-        employeeNumber: `L${String(100 + empIdx).padStart(3, "0")}`,
+        employeeNumber: `L${String(100 + licEmpIdx).padStart(3, "0")}`,
         firstName,
         lastName,
         hireDate: `${2025 - yearsInDistrict}-08-01`,
         yearsInDistrict,
-        yearsTotalService: yearsInDistrict + Math.floor(Math.random() * 5),
+        yearsTotalService: yearsTotal,
         compensationType: "salary",
         currentLaneId: laneIds[l],
         currentStep: step,
-        currentAnnualSalary: salary.toString(),
-        insuranceElection: election,
-        retirementEligible,
-        retirementPlan: retirementEligible ? "option1_4year" : "none",
+        currentAnnualSalary: salary.toDecimalPlaces(2).toString(),
+        insuranceElection: insurance,
+        retirementEligible: isRetirementEligible,
+        retirementPlan: isRetirementEligible ? "option1_4year" : "none",
         status: "active",
         contractYear: 0,
       });
-      empIdx++;
+      licEmpIdx++;
     }
   }
 
   for (let i = 0; i < licensedEmployees.length; i += 50) {
     await db.insert(employeesTable).values(licensedEmployees.slice(i, i + 50));
   }
-  console.log(`✅ Licensed employees: ${licensedEmployees.length}`);
 
-  const espEmployees: typeof employeesTable.$inferInsert[] = [];
+  // Verify distributions
+  const highEarners = licensedEmployees.filter((e) => parseFloat(e.currentAnnualSalary ?? "0") >= 125000);
+  const retirementEligibleCount = licensedEmployees.filter((e) => e.retirementEligible).length;
+  const familyCount = licensedEmployees.filter((e) => e.insuranceElection === "family").length;
+  const singleCount = licensedEmployees.filter((e) => e.insuranceElection === "single").length;
+  const waivedCount = licensedEmployees.filter((e) => e.insuranceElection === "waived").length;
+  console.log(`✅ Licensed employees: ${licensedEmployees.length}`);
+  console.log(`   High earners (≥$125K): ${highEarners.length} [spec: 3-5]`);
+  console.log(`   Retirement-eligible: ${retirementEligibleCount} [spec: 8-12]`);
+  console.log(`   Insurance — family: ${familyCount} (${Math.round(familyCount/licensedEmployees.length*100)}%), single: ${singleCount} (${Math.round(singleCount/licensedEmployees.length*100)}%), waived: ${waivedCount} (${Math.round(waivedCount/licensedEmployees.length*100)}%)`);
+
+  // --- ESP Employees: 25 ---
   const espCatList = await db
     .select()
     .from(hourlyCategoriesTable)
     .where(eq(hourlyCategoriesTable.hourlyScheduleId, espSchedule.id))
     .orderBy(hourlyCategoriesTable.displayOrder);
 
+  // ESP insurance: 60% family (15), 25% single (6), 15% waived (4)
+  const espInsurancePool: Array<"family" | "single" | "waived"> = [
+    ...Array(15).fill("family"),
+    ...Array(6).fill("single"),
+    ...Array(4).fill("waived"),
+  ];
+
+  const espEmployees: typeof employeesTable.$inferInsert[] = [];
   for (let e = 0; e < 25; e++) {
     const cat = espCatList[e % espCatList.length];
     if (!cat) continue;
-    const yearsInDistrict = Math.floor(Math.random() * 15) + 1;
+    // Deterministic years: cycle through 2..18
+    const yearsInDistrict = 2 + (e * 7 % 17);
     const hourlyRate = cat.baseHourlyRate;
     const annualSalary = new Decimal(hourlyRate).times(cat.annualHours).toDecimalPlaces(2);
-    const firstName = allFirstNames[(empIdx + e) % allFirstNames.length];
-    const lastName = LAST_NAMES[(empIdx + e) % LAST_NAMES.length];
+    const firstName = allFirstNames[(licEmpIdx + e) % allFirstNames.length];
+    const lastName = LAST_NAMES[(licEmpIdx + e) % LAST_NAMES.length];
+    const insurance = espInsurancePool[e];
 
     espEmployees.push({
       districtId: district.id,
@@ -342,14 +431,14 @@ async function seed() {
       lastName,
       hireDate: `${2025 - yearsInDistrict}-08-01`,
       yearsInDistrict,
-      yearsTotalService: yearsInDistrict + Math.floor(Math.random() * 3),
+      yearsTotalService: yearsInDistrict + (e % 3),
       compensationType: "hourly",
       currentHourlyCategoryId: cat.id,
       currentHourlyRate: hourlyRate,
       annualHours: cat.annualHours,
       currentAnnualSalary: annualSalary.toString(),
-      insuranceElection: e % 3 === 0 ? "family" : "single",
-      retirementEligible: yearsInDistrict >= 10 && Math.random() > 0.7,
+      insuranceElection: insurance,
+      retirementEligible: yearsInDistrict >= 12,
       retirementPlan: "none",
       status: "active",
       contractYear: 0,
@@ -358,18 +447,27 @@ async function seed() {
   await db.insert(employeesTable).values(espEmployees);
   console.log(`✅ ESP employees: ${espEmployees.length}`);
 
+  // --- CM Employees: 15 ---
   const cmCatRows = await db.select().from(hourlyCategoriesTable);
   const cmCatList = cmCatRows.filter((c) => c.hourlyScheduleId === cmSchedule.id);
+
+  // CM insurance: 60% family (9), 25% single (4), 15% waived (2)
+  const cmInsurancePool: Array<"family" | "single" | "waived"> = [
+    ...Array(9).fill("family"),
+    ...Array(4).fill("single"),
+    ...Array(2).fill("waived"),
+  ];
 
   const cmEmployees: typeof employeesTable.$inferInsert[] = [];
   for (let e = 0; e < 15; e++) {
     const cat = cmCatList[e % cmCatList.length];
     if (!cat) continue;
-    const yearsInDistrict = Math.floor(Math.random() * 20) + 1;
+    const yearsInDistrict = 3 + (e * 11 % 20);
     const hourlyRate = cat.baseHourlyRate;
     const annualSalary = new Decimal(hourlyRate).times(cat.annualHours).toDecimalPlaces(2);
-    const firstName = allFirstNames[(empIdx + 25 + e) % allFirstNames.length];
-    const lastName = LAST_NAMES[(empIdx + 25 + e) % LAST_NAMES.length];
+    const firstName = allFirstNames[(licEmpIdx + 25 + e) % allFirstNames.length];
+    const lastName = LAST_NAMES[(licEmpIdx + 25 + e) % LAST_NAMES.length];
+    const insurance = cmInsurancePool[e];
 
     cmEmployees.push({
       districtId: district.id,
@@ -379,14 +477,14 @@ async function seed() {
       lastName,
       hireDate: `${2025 - yearsInDistrict}-08-01`,
       yearsInDistrict,
-      yearsTotalService: yearsInDistrict + Math.floor(Math.random() * 5),
+      yearsTotalService: yearsInDistrict + (e % 5),
       compensationType: "hourly",
       currentHourlyCategoryId: cat.id,
       currentHourlyRate: hourlyRate,
       annualHours: cat.annualHours,
       currentAnnualSalary: annualSalary.toString(),
-      insuranceElection: e % 3 === 0 ? "family" : "single",
-      retirementEligible: yearsInDistrict >= 15 && Math.random() > 0.6,
+      insuranceElection: insurance,
+      retirementEligible: yearsInDistrict >= 15,
       retirementPlan: "none",
       status: "active",
       contractYear: 0,
@@ -395,11 +493,11 @@ async function seed() {
   await db.insert(employeesTable).values(cmEmployees);
   console.log(`✅ CM employees: ${cmEmployees.length}`);
 
+  // --- Scenarios ---
   const scenarioDefs = [
     {
       name: "Board Proposal A",
-      description:
-        "Conservative: 3% fixed salary increase all years with high-earner $3,000 flat override",
+      description: "Conservative: 3% fixed salary increase all years with high-earner $3,000 flat override",
       yearConfigs: [
         { contractYear: 0, yearLabel: "2025-2026", increaseType: "fixed_percentage" as const, fixedPercentage: "0", stepAdvancement: false },
         { contractYear: 1, yearLabel: "2026-2027", increaseType: "fixed_percentage" as const, fixedPercentage: "3.0", stepAdvancement: true, highEarnerThreshold: "125000", highEarnerFlatIncrease: "3000" },
@@ -410,8 +508,7 @@ async function seed() {
     },
     {
       name: "Union Counter-Proposal",
-      description:
-        "CPI-linked with 0.5% adder, floored at 2%, capped at 5%. High earner $3,000 flat.",
+      description: "CPI-linked with 0.5% adder, floored at 2%, capped at 5%. High earner $3,000 flat.",
       yearConfigs: [
         { contractYear: 0, yearLabel: "2025-2026", increaseType: "fixed_percentage" as const, fixedPercentage: "0", stepAdvancement: false },
         { contractYear: 1, yearLabel: "2026-2027", increaseType: "cpi_formula" as const, cpiValue: "3.2", cpiAdder: "0.5", cpiCap: "5.0", cpiFloor: "2.0", stepAdvancement: true, highEarnerThreshold: "125000", highEarnerFlatIncrease: "3000" },
@@ -422,8 +519,7 @@ async function seed() {
     },
     {
       name: "Conservative Baseline",
-      description:
-        "No base salary increase. Step movement only. Freeze base in all years.",
+      description: "No base salary increase. Step movement only. Freeze base in all years.",
       yearConfigs: [
         { contractYear: 0, yearLabel: "2025-2026", increaseType: "step_only" as const, stepAdvancement: false },
         { contractYear: 1, yearLabel: "2026-2027", increaseType: "step_only" as const, stepAdvancement: true },
