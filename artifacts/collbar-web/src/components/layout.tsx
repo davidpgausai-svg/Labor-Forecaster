@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, Calendar, Grid, FileText, Settings, Layers } from "lucide-react";
+import { LayoutDashboard, Users, Calendar, Grid, FileText, Settings, Layers, Building2 } from "lucide-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { useListScenarios, getListScenariosQueryKey } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,28 +18,59 @@ const NAV_ITEMS = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const { districtId, scenarioId, setScenarioId, isLoading: districtLoading } = useDistrictContext();
+  const {
+    districtId,
+    districtName,
+    scenarioId,
+    setScenarioId,
+    activeContractYear,
+    setActiveContractYear,
+    contractYears,
+    isLoading: districtLoading,
+  } = useDistrictContext();
 
   const { data: scenarios, isLoading: scenariosLoading } = useListScenarios(
     { districtId: districtId! },
     { query: { enabled: !!districtId, queryKey: getListScenariosQueryKey({ districtId: districtId! }) } }
   );
 
+  const currentPageLabel =
+    location === "/"
+      ? "Overview"
+      : NAV_ITEMS.find((n) => location.startsWith(n.href) && n.href !== "/")?.label || "Page";
+
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans text-foreground selection:bg-primary/30">
       {/* Sidebar */}
       <aside className="w-64 border-r border-sidebar-border bg-sidebar flex flex-col flex-shrink-0">
-        <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
-          <div className="font-bold text-xl tracking-tight text-primary flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary text-primary-foreground flex items-center justify-center text-xs">C</div>
-            CollBar
+        <div className="h-16 flex items-center px-6 border-b border-sidebar-border gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+            C
+          </div>
+          <div>
+            <div className="font-bold text-base tracking-tight text-primary leading-tight">CollBar</div>
+            {districtName && (
+              <div className="text-[10px] text-sidebar-foreground/50 font-medium tracking-wide truncate max-w-[160px]">
+                {districtName}
+              </div>
+            )}
           </div>
         </div>
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            const isActive =
+              location === item.href ||
+              (item.href !== "/" && location.startsWith(item.href));
             return (
-              <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`}>
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                }`}
+              >
                 <item.icon className="w-4 h-4" />
                 {item.label}
               </Link>
@@ -50,8 +81,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           {districtLoading ? (
             <Skeleton className="h-4 w-32 bg-sidebar-accent" />
           ) : (
-            <div className="text-xs text-sidebar-foreground/50 uppercase tracking-wider font-semibold">
-              District Active
+            <div className="flex items-center gap-2 text-xs text-sidebar-foreground/50">
+              <Building2 className="w-3 h-3" />
+              <span className="uppercase tracking-wider font-semibold truncate">
+                {districtName ?? "District Active"}
+              </span>
             </div>
           )}
         </div>
@@ -61,25 +95,60 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-8 flex-shrink-0">
-          <div className="text-sm font-medium text-muted-foreground">
-            {location === "/" ? "Overview" : NAV_ITEMS.find(n => location.startsWith(n.href) && n.href !== "/")?.label || "Page"}
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-semibold text-foreground">{currentPageLabel}</div>
+            {districtName && (
+              <div className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="text-muted-foreground/50">•</span>
+                <Building2 className="w-3 h-3" />
+                <span>{districtName}</span>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              Contract Years: 2024-2028
-            </div>
+          <div className="flex items-center gap-3">
+            {contractYears.length > 0 && (
+              <Select
+                value={activeContractYear?.toString() ?? ""}
+                onValueChange={(v) => setActiveContractYear(v ? parseInt(v) : null)}
+              >
+                <SelectTrigger className="w-[160px] h-9 border-border bg-background text-sm">
+                  <SelectValue placeholder="Contract Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contractYears.map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}–{y + 1}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {contractYears.length === 0 && (
+              <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                Contract Years: 2024-2028
+              </div>
+            )}
+
             {scenariosLoading ? (
               <Skeleton className="h-9 w-48" />
             ) : (
-              <Select value={scenarioId || "default"} onValueChange={(val) => setScenarioId(val === "default" ? null : val)}>
+              <Select
+                value={scenarioId || "default"}
+                onValueChange={(val) =>
+                  setScenarioId(val === "default" ? null : val)
+                }
+              >
                 <SelectTrigger className="w-[240px] h-9 border-border bg-background">
                   <SelectValue placeholder="Select Scenario" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="default">Default / Baseline</SelectItem>
-                  {scenarios?.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name} {s.isFinal ? "(Final)" : ""}</SelectItem>
+                  {scenarios?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} {s.isFinal ? "(Final)" : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -88,9 +157,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Scrollable Page */}
-        <main className="flex-1 overflow-y-auto p-8">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-8">{children}</main>
       </div>
     </div>
   );

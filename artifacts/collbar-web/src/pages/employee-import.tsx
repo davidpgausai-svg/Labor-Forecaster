@@ -1,14 +1,16 @@
 import { useState, useCallback } from "react";
-import { useImportEmployees, CreateEmployeeRequest } from "@workspace/api-client-react";
+import { useImportEmployees, CreateEmployeeRequest, useListBargainingUnits, getListBargainingUnitsQueryKey } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { UploadCloud, CheckCircle2, AlertCircle, FileText, ChevronRight } from "lucide-react";
+import { UploadCloud, CheckCircle2, AlertCircle, FileText, ChevronRight, Pencil, X } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -25,6 +27,16 @@ type ColumnMapping = {
   status: string;
 };
 
+type ValidationRow = {
+  rowNum: number;
+  firstName: string;
+  lastName: string;
+  employeeNumber: string;
+  baseSalary: string;
+  status: string;
+  errors: string[];
+};
+
 const REQUIRED_FIELDS: (keyof ColumnMapping)[] = ["firstName", "lastName", "baseSalary"];
 
 const FIELD_LABELS: Record<keyof ColumnMapping, string> = {
@@ -39,6 +51,7 @@ const FIELD_LABELS: Record<keyof ColumnMapping, string> = {
 };
 
 const SKIP_VALUE = "__skip__";
+const CONTRACT_YEARS = [2024, 2025, 2026, 2027, 2028];
 
 function guessMapping(headers: string[]): Partial<ColumnMapping> {
   const lower = headers.map(h => h.toLowerCase().trim());
@@ -80,22 +93,36 @@ function rowToEmployee(row: ParsedRow, mapping: ColumnMapping, districtId: strin
   };
 }
 
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+const STEPS = ["Upload", "Year & Options", "Map Columns", "Validate", "Preview", "Import"];
+
 export default function EmployeeImport() {
   const { districtId } = useDistrictContext();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<Step>(1);
   const [file, setFile] = useState<File | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>({});
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: { row?: number; message?: string }[] } | null>(null);
+  const [contractYear, setContractYear] = useState<number>(2024);
+  const [incrementalMode, setIncrementalMode] = useState(false);
+  const [validationRows, setValidationRows] = useState<ValidationRow[]>([]);
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [editValues, setEditValues] = useState<Partial<ValidationRow>>({});
+  const [importProgress, setImportProgress] = useState(0);
+
+  const { data: bargainingUnits } = useListBargainingUnits(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }) } }
+  );
 
   const importMutation = useImportEmployees();
 
   const parseFile = useCallback((f: File) => {
     const ext = f.name.split(".").pop()?.toLowerCase();
-
     if (ext === "xlsx" || ext === "xls") {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -144,27 +171,98 @@ export default function EmployeeImport() {
 
   const isMappingValid = REQUIRED_FIELDS.every(f => mapping[f] && mapping[f] !== SKIP_VALUE);
 
+  const buildValidationRows = () => {
+    if (!districtId) return;
+    const vrows: ValidationRow[] = rows.slice(0, 200).map((row, i) => {
+      const emp = rowToEmployee(row, mapping as ColumnMapping, districtId);
+      const errors: string[] = [];
+      if (!emp.firstName) errors.push("Missing first name");
+      if (!emp.lastName) errors.push("Missing last name");
+      if (!emp.currentAnnualSalary || emp.currentAnnualSalary === "0") errors.push("Missing salary");
+      return {
+        rowNum: i + 1,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        employeeNumber: emp.employeeNumber ?? "",
+        baseSalary: emp.currentAnnualSalary ?? "0",
+        status: emp.status ?? "active",
+        errors,
+      };
+    });
+    setValidationRows(vrows);
+    setStep(4);
+  };
+
+  const startEditRow = (rowNum: number) => {
+    const vr = validationRows.find(r => r.rowNum === rowNum);
+    if (!vr) return;
+    setEditingRow(rowNum);
+    setEditValues({ firstName: vr.firstName, lastName: vr.lastName, baseSalary: vr.baseSalary, status: vr.status });
+  };
+
+  const saveEditRow = (rowNum: number) => {
+    setValidationRows(prev => prev.map(r => {
+      if (r.rowNum !== rowNum) return r;
+      const updated = { ...r, ...editValues };
+      const errors: string[] = [];
+      if (!updated.firstName) errors.push("Missing first name");
+      if (!updated.lastName) errors.push("Missing last name");
+      if (!updated.baseSalary || updated.baseSalary === "0") errors.push("Missing salary");
+      return { ...updated, errors };
+    }));
+    setEditingRow(null);
+    setEditValues({});
+  };
+
+  const dismissRow = (rowNum: number) => {
+    setValidationRows(prev => prev.filter(r => r.rowNum !== rowNum));
+  };
+
   const handleRunImport = () => {
     if (!districtId || !isMappingValid) return;
-    const employees: CreateEmployeeRequest[] = rows
-      .map(row => rowToEmployee(row, mapping as ColumnMapping, districtId))
-      .filter(e => e.firstName && e.lastName);
+
+    const validRows = validationRows.filter(vr => vr.errors.length === 0);
+    const employees: CreateEmployeeRequest[] = validRows.map(vr => ({
+      districtId,
+      firstName: vr.firstName,
+      lastName: vr.lastName,
+      employeeNumber: vr.employeeNumber || undefined,
+      bargainingUnitId: districtId,
+      currentAnnualSalary: vr.baseSalary,
+      status: vr.status as "active" | "inactive",
+    }));
+
+    if (employees.length === 0) {
+      toast({ title: "No valid rows", description: "All rows have validation errors.", variant: "destructive" });
+      return;
+    }
+
+    setImportProgress(10);
+    const progressTimer = setInterval(() => {
+      setImportProgress(p => Math.min(p + 15, 85));
+    }, 300);
 
     importMutation.mutate(
       { data: { districtId, employees } },
       {
         onSuccess: (result) => {
+          clearInterval(progressTimer);
+          setImportProgress(100);
           setImportResult(result);
-          setStep(4);
+          setTimeout(() => setStep(6), 400);
         },
         onError: () => {
+          clearInterval(progressTimer);
+          setImportProgress(0);
           toast({ title: "Import Failed", description: "An error occurred while importing employees.", variant: "destructive" });
         },
       }
     );
+    setStep(5);
   };
 
-  const STEPS = ["Upload", "Map Columns", "Preview", "Complete"];
+  const errorRows = validationRows.filter(r => r.errors.length > 0);
+  const validCount = validationRows.filter(r => r.errors.length === 0).length;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -173,20 +271,22 @@ export default function EmployeeImport() {
         <p className="text-muted-foreground text-sm">Upload roster data via CSV or Excel to bulk-add employees.</p>
       </div>
 
-      <div className="flex items-center gap-2 mb-8">
+      <div className="flex items-center gap-0 mb-8 overflow-x-auto">
         {STEPS.map((label, i) => {
-          const stepNum = i + 1;
+          const stepNum = (i + 1) as Step;
           const isActive = stepNum === step;
           const isDone = stepNum < step;
           return (
-            <div key={label} className="flex items-center gap-2 flex-1">
-              <div className={`flex items-center gap-2 flex-1 ${stepNum < 4 ? "border-b-2" : ""} pb-2 ${isDone ? "border-primary" : isActive ? "border-primary/60" : "border-border"}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isDone ? "bg-primary text-primary-foreground" : isActive ? "bg-primary/20 text-primary border border-primary/50" : "bg-muted text-muted-foreground"}`}>
+            <div key={label} className="flex items-center gap-0 flex-shrink-0">
+              <div className={`flex flex-col items-center gap-1 px-1 ${isDone ? "opacity-80" : ""}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors ${isDone ? "bg-primary text-primary-foreground" : isActive ? "bg-primary/20 text-primary border border-primary/50" : "bg-muted text-muted-foreground"}`}>
                   {isDone ? <CheckCircle2 className="w-4 h-4" /> : stepNum}
                 </div>
-                <span className={`text-xs font-medium ${isActive ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
+                <span className={`text-[10px] font-medium whitespace-nowrap ${isActive ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
               </div>
-              {stepNum < STEPS.length && <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
+              {i < STEPS.length - 1 && (
+                <div className={`w-8 h-0.5 mb-4 ${isDone ? "bg-primary" : "bg-border"}`} />
+              )}
             </div>
           );
         })}
@@ -216,6 +316,80 @@ export default function EmployeeImport() {
       )}
 
       {step === 2 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Import Options
+            </CardTitle>
+            <CardDescription>
+              {file?.name} — {rows.length} rows detected. Configure import settings before mapping columns.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Contract Year</label>
+                <Select value={String(contractYear)} onValueChange={v => setContractYear(parseInt(v))}>
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTRACT_YEARS.map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}–{y + 1}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Employees are associated with the selected contract year.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Target Bargaining Unit</label>
+                <Select
+                  value={SKIP_VALUE}
+                  onValueChange={() => {}}
+                >
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue placeholder="Auto-detect from mapping" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SKIP_VALUE}>Auto-detect from mapping</SelectItem>
+                    {bargainingUnits?.map(bu => (
+                      <SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Override the bargaining unit for all imported employees.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <p className="text-sm font-medium">Incremental Import</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  When enabled, only adds new employees. Duplicate Employee IDs will be skipped.
+                  When disabled, existing employees with matching IDs will be updated.
+                </p>
+              </div>
+              <Switch
+                checked={incrementalMode}
+                onCheckedChange={setIncrementalMode}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+              <Button onClick={() => setStep(3)}>Map Columns</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && (
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -258,111 +432,212 @@ export default function EmployeeImport() {
             )}
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-              <Button onClick={() => setStep(3)} disabled={!isMappingValid}>Preview Import</Button>
+              <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+              <Button onClick={buildValidationRows} disabled={!isMappingValid}>Validate Rows</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Preview & Validation</CardTitle>
-            <CardDescription>Review the first 20 rows. Rows with errors will be skipped during import.</CardDescription>
+            <CardTitle>Validation & Inline Correction</CardTitle>
+            <CardDescription>
+              Review all rows. Rows with errors must be corrected or dismissed before import.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(() => {
-              const preview = rows.slice(0, 20).map((row, i) => {
-                const emp = rowToEmployee(row, mapping as ColumnMapping, districtId ?? "");
-                const errors: string[] = [];
-                if (!emp.firstName) errors.push("Missing first name");
-                if (!emp.lastName) errors.push("Missing last name");
-                if (emp.currentAnnualSalary === "0" || !emp.currentAnnualSalary) errors.push("Missing salary");
-                return { emp, errors, rowNum: i + 1 };
-              });
-              const errorCount = preview.filter(p => p.errors.length > 0).length;
-              return (
-                <>
-                  <div className="flex items-center gap-3 flex-wrap text-sm">
-                    <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
-                      {rows.length} total rows
-                    </Badge>
-                    <Badge variant="outline" className="bg-muted text-muted-foreground">
-                      Showing first {Math.min(rows.length, 20)} of {rows.length}
-                    </Badge>
-                    {errorCount > 0 && (
-                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
-                        {errorCount} rows with issues
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="overflow-x-auto rounded border border-border">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="border-border">
-                          <TableHead className="w-10">#</TableHead>
-                          <TableHead>First Name</TableHead>
-                          <TableHead>Last Name</TableHead>
-                          <TableHead>Employee ID</TableHead>
-                          <TableHead className="text-right">Base Salary</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Validation</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {preview.map(({ emp, errors, rowNum }) => (
-                          <TableRow key={rowNum} className={`border-border ${errors.length > 0 ? "bg-destructive/5" : ""}`}>
-                            <TableCell className="font-mono text-muted-foreground text-xs">{rowNum}</TableCell>
-                            <TableCell className={!emp.firstName ? "text-destructive" : ""}>{emp.firstName || "—"}</TableCell>
-                            <TableCell className={!emp.lastName ? "text-destructive" : ""}>{emp.lastName || "—"}</TableCell>
-                            <TableCell className="font-mono text-sm text-muted-foreground">{emp.employeeNumber || "—"}</TableCell>
-                            <TableCell className={`text-right font-mono ${emp.currentAnnualSalary === "0" || !emp.currentAnnualSalary ? "text-destructive" : ""}`}>
-                              {emp.currentAnnualSalary && emp.currentAnnualSalary !== "0" ? `$${parseInt(emp.currentAnnualSalary).toLocaleString()}` : "—"}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={emp.status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10" : "text-muted-foreground border-border"}>
-                                {emp.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {errors.length === 0 ? (
-                                <CheckCircle2 className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <div className="flex flex-col gap-0.5">
-                                  {errors.map((err, ei) => (
-                                    <span key={ei} className="text-xs text-destructive flex items-center gap-1">
-                                      <AlertCircle className="w-3 h-3 flex-shrink-0" />{err}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {rows.length > 20 && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      + {rows.length - 20} more rows not shown in preview
-                    </p>
-                  )}
-                </>
-              );
-            })()}
+            <div className="flex items-center gap-3 flex-wrap text-sm">
+              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30">
+                {validCount} valid
+              </Badge>
+              {errorRows.length > 0 && (
+                <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                  {errorRows.length} rows with errors
+                </Badge>
+              )}
+              <Badge variant="outline" className="bg-muted text-muted-foreground">
+                Contract Year: {contractYear}–{contractYear + 1}
+              </Badge>
+              {incrementalMode && (
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                  Incremental Mode On
+                </Badge>
+              )}
+            </div>
 
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-              <Button onClick={handleRunImport} disabled={importMutation.isPending}>
-                {importMutation.isPending ? "Importing..." : `Import ${rows.length} Employees`}
-              </Button>
+            <div className="overflow-x-auto rounded border border-border max-h-[480px] overflow-y-auto">
+              <Table>
+                <TableHeader className="bg-muted/50 sticky top-0">
+                  <TableRow className="border-border">
+                    <TableHead className="w-10">#</TableHead>
+                    <TableHead>First Name</TableHead>
+                    <TableHead>Last Name</TableHead>
+                    <TableHead>Emp ID</TableHead>
+                    <TableHead className="text-right">Salary</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Issues</TableHead>
+                    <TableHead className="w-20">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {validationRows.map(({ rowNum, firstName, lastName, employeeNumber, baseSalary, status, errors }) => {
+                    const isEditing = editingRow === rowNum;
+                    return (
+                      <TableRow key={rowNum} className={`border-border ${errors.length > 0 ? "bg-destructive/5" : ""}`}>
+                        <TableCell className="font-mono text-muted-foreground text-xs">{rowNum}</TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input value={editValues.firstName ?? ""} onChange={e => setEditValues(p => ({ ...p, firstName: e.target.value }))} className="h-7 text-xs w-28" />
+                          ) : (
+                            <span className={!firstName ? "text-destructive" : ""}>{firstName || "—"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEditing ? (
+                            <Input value={editValues.lastName ?? ""} onChange={e => setEditValues(p => ({ ...p, lastName: e.target.value }))} className="h-7 text-xs w-28" />
+                          ) : (
+                            <span className={!lastName ? "text-destructive" : ""}>{lastName || "—"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">{employeeNumber || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          {isEditing ? (
+                            <Input value={editValues.baseSalary ?? ""} onChange={e => setEditValues(p => ({ ...p, baseSalary: e.target.value }))} className="h-7 text-xs w-24 text-right" />
+                          ) : (
+                            <span className={`font-mono ${(!baseSalary || baseSalary === "0") ? "text-destructive" : ""}`}>
+                              {baseSalary && baseSalary !== "0" ? `$${parseInt(baseSalary).toLocaleString()}` : "—"}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10 text-xs" : "text-muted-foreground border-border text-xs"}>
+                            {status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {errors.length === 0 ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              {errors.map((err, ei) => (
+                                <span key={ei} className="text-xs text-destructive flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3 flex-shrink-0" />{err}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {isEditing ? (
+                              <Button size="sm" variant="default" className="h-6 px-2 text-xs" onClick={() => saveEditRow(rowNum)}>Save</Button>
+                            ) : (
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEditRow(rowNum)}>
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => dismissRow(rowNum)}>
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex justify-between items-center gap-3 pt-2">
+              <p className="text-xs text-muted-foreground">
+                {errorRows.length > 0 ? `${errorRows.length} rows with errors will be skipped.` : "All rows are valid and ready to import."}
+              </p>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
+                <Button onClick={() => setStep(5)} disabled={validCount === 0}>Preview {validCount} Valid Rows</Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 4 && importResult && (
+      {step === 5 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle>Preview & Confirm</CardTitle>
+            <CardDescription>
+              {validationRows.filter(r => r.errors.length === 0).length} valid rows ready to import for contract year {contractYear}–{contractYear + 1}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {importMutation.isPending ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-4">
+                <div className="w-full max-w-xs">
+                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-300"
+                      style={{ width: `${importProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-center text-sm text-muted-foreground mt-3">
+                    Importing {validCount} employees… {importProgress}%
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded border border-border">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="border-border">
+                        <TableHead className="w-10">#</TableHead>
+                        <TableHead>First Name</TableHead>
+                        <TableHead>Last Name</TableHead>
+                        <TableHead>Emp ID</TableHead>
+                        <TableHead className="text-right">Salary</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {validationRows.filter(r => r.errors.length === 0).slice(0, 20).map(vr => (
+                        <TableRow key={vr.rowNum} className="border-border">
+                          <TableCell className="font-mono text-muted-foreground text-xs">{vr.rowNum}</TableCell>
+                          <TableCell>{vr.firstName}</TableCell>
+                          <TableCell>{vr.lastName}</TableCell>
+                          <TableCell className="font-mono text-sm text-muted-foreground">{vr.employeeNumber || "—"}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            {vr.baseSalary && vr.baseSalary !== "0" ? `$${parseInt(vr.baseSalary).toLocaleString()}` : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={vr.status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10 text-xs" : "text-muted-foreground border-border text-xs"}>
+                              {vr.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {validCount > 20 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    + {validCount - 20} more rows not shown in preview
+                  </p>
+                )}
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setStep(4)}>Back</Button>
+                  <Button onClick={handleRunImport} disabled={importMutation.isPending}>
+                    {importMutation.isPending ? "Importing..." : `Import ${validCount} Employees`}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 6 && importResult && (
         <Card className="bg-card border-green-500/30 bg-green-500/5">
           <CardContent className="flex flex-col items-center py-12 text-center space-y-4">
             <CheckCircle2 className="w-12 h-12 text-green-500" />
@@ -393,7 +668,12 @@ export default function EmployeeImport() {
                 ))}
               </div>
             )}
-            <Button onClick={() => setLocation("/employees")} className="mt-4">View Employees</Button>
+            <div className="flex gap-3 mt-4">
+              <Button variant="outline" onClick={() => { setStep(1); setFile(null); setRows([]); setImportResult(null); }}>
+                Import Another File
+              </Button>
+              <Button onClick={() => setLocation("/employees")}>View Employees</Button>
+            </div>
           </CardContent>
         </Card>
       )}

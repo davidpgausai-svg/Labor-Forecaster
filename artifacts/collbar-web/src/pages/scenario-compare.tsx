@@ -6,6 +6,7 @@ import {
   useCompareScenarios,
   getCompareScenariosQueryKey,
   ScenarioCalculationResult,
+  ScenarioYearSummary,
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
@@ -24,6 +25,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -40,6 +47,20 @@ const COMPARE_COLORS = [
   "hsl(258,90%,66%)",
   "hsl(38,92%,50%)",
 ];
+
+const UNIT_COLORS: Record<string, string> = {
+  Licensed: "hsl(217,91%,60%)",
+  ESP: "hsl(258,90%,66%)",
+  CM: "hsl(38,92%,50%)",
+};
+
+function unitColor(name: string | null | undefined): string {
+  if (!name) return "hsl(var(--muted-foreground))";
+  for (const [key, color] of Object.entries(UNIT_COLORS)) {
+    if (name.toLowerCase().includes(key.toLowerCase())) return color;
+  }
+  return "hsl(var(--primary))";
+}
 
 export default function ScenarioCompare() {
   const { districtId } = useDistrictContext();
@@ -101,7 +122,7 @@ export default function ScenarioCompare() {
             Compare Scenarios
           </h1>
           <p className="text-muted-foreground text-sm">
-            Select 2–3 scenarios to compare their 5-year cost projections.
+            Select 2–3 scenarios for side-by-side cost projection comparison.
           </p>
         </div>
       </div>
@@ -156,6 +177,13 @@ export default function ScenarioCompare() {
   );
 }
 
+function fmt(v: string | number | null | undefined): string {
+  if (!v) return "—";
+  const n = typeof v === "number" ? v : parseFloat(v);
+  if (isNaN(n) || n === 0) return "—";
+  return formatCurrency(n);
+}
+
 function DeltaBadge({ delta, pct }: { delta: number; pct: number }) {
   if (Math.abs(delta) < 1) {
     return (
@@ -178,6 +206,247 @@ function DeltaBadge({ delta, pct }: { delta: number; pct: number }) {
       {formatCurrency(delta)} ({pct > 0 ? "+" : ""}
       {pct.toFixed(1)}%)
     </span>
+  );
+}
+
+function YearlyBreakdownTable({
+  comparison,
+}: {
+  comparison: ScenarioCalculationResult[];
+}) {
+  const allYears =
+    comparison[0]?.districtWideSummary?.map(
+      (y) => ({ year: y.contractYear!, label: y.yearLabel ?? `Year ${y.contractYear}` })
+    ) ?? [];
+
+  const baseline = comparison[0];
+
+  const METRICS: { label: string; key: "totalPayroll" | "totalBenefits" | "totalEmployerCost" }[] = [
+    { label: "Total Payroll", key: "totalPayroll" },
+    { label: "Benefits", key: "totalBenefits" },
+    { label: "Total Employer Cost", key: "totalEmployerCost" },
+  ];
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow className="border-border">
+            <TableHead className="w-48">Metric</TableHead>
+            {comparison.map((sc, idx) => (
+              <TableHead
+                key={sc.scenarioId}
+                className="text-right text-xs"
+                style={{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }}
+              >
+                {sc.scenarioName}
+              </TableHead>
+            ))}
+            {comparison.length > 1 &&
+              comparison.slice(1).map((sc) => (
+                <TableHead
+                  key={`delta-${sc.scenarioId}`}
+                  className="text-right text-xs text-muted-foreground"
+                >
+                  Δ vs Baseline
+                </TableHead>
+              ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {allYears.map(({ year, label }, yi) => {
+            const baseTotal = parseFloat(baseline.districtWideSummary?.[yi]?.totalEmployerCost ?? "0");
+            const yearCosts = comparison.map((sc) => parseFloat(sc.districtWideSummary?.[yi]?.totalEmployerCost ?? "0"));
+            const maxCost = Math.max(...yearCosts.filter(Boolean));
+            const minCost = Math.min(...yearCosts.filter(n => n > 0));
+
+            return (
+              <>
+                <TableRow key={`year-${year}`} className="border-border bg-muted/20">
+                  <TableCell colSpan={comparison.length + comparison.length} className="py-1.5 font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                    {label}
+                  </TableCell>
+                </TableRow>
+                {METRICS.map(({ label: metricLabel, key }) => {
+                  const isTotalRow = key === "totalEmployerCost";
+                  return (
+                    <TableRow key={`${year}-${key}`} className={`border-border ${isTotalRow ? "font-semibold" : ""}`}>
+                      <TableCell className={`text-sm pl-6 ${isTotalRow ? "" : "text-muted-foreground"}`}>
+                        {metricLabel}
+                      </TableCell>
+                      {comparison.map((sc, idx) => {
+                        const raw = sc.districtWideSummary?.[yi]?.[key];
+                        const val = parseFloat((raw as string) ?? "0") || 0;
+                        const isCheapestYear = isTotalRow && val === minCost && comparison.length > 1;
+                        const isMostExpYear = isTotalRow && val === maxCost && comparison.length > 1;
+                        return (
+                          <TableCell
+                            key={sc.scenarioId}
+                            className="text-right font-mono text-sm"
+                            style={{ color: isTotalRow ? COMPARE_COLORS[idx % COMPARE_COLORS.length] : undefined }}
+                          >
+                            <span className={isCheapestYear ? "text-green-400" : isMostExpYear ? "text-red-400" : ""}>
+                              {fmt(val || null)}
+                            </span>
+                            {isCheapestYear && <span className="ml-1 text-[10px] text-green-400">▼</span>}
+                            {isMostExpYear && <span className="ml-1 text-[10px] text-red-400">▲</span>}
+                          </TableCell>
+                        );
+                      })}
+                      {isTotalRow && comparison.slice(1).map((sc) => {
+                        const cost = parseFloat(sc.districtWideSummary?.[yi]?.totalEmployerCost ?? "0");
+                        const delta = cost - baseTotal;
+                        const pct = baseTotal > 0 ? (delta / baseTotal) * 100 : 0;
+                        return (
+                          <TableCell key={`delta-${sc.scenarioId}-${year}`} className="text-right">
+                            <DeltaBadge delta={delta} pct={pct} />
+                          </TableCell>
+                        );
+                      })}
+                      {!isTotalRow && comparison.slice(1).map((sc) => (
+                        <TableCell key={`delta-${sc.scenarioId}-${year}-${key}`} />
+                      ))}
+                    </TableRow>
+                  );
+                })}
+              </>
+            );
+          })}
+
+          <TableRow className="border-t-2 border-border bg-muted/30 font-bold">
+            <TableCell className="text-sm">5-Year Total</TableCell>
+            {comparison.map((sc, idx) => {
+              const total = sc.districtWideSummary?.reduce(
+                (s, y) => s + (parseFloat(y.totalEmployerCost ?? "0") || 0),
+                0
+              ) ?? 0;
+              return (
+                <TableCell
+                  key={sc.scenarioId}
+                  className="text-right font-mono text-sm"
+                  style={{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }}
+                >
+                  {formatCurrency(total)}
+                </TableCell>
+              );
+            })}
+            {comparison.slice(1).map((sc) => {
+              const baseTotal =
+                baseline.districtWideSummary?.reduce(
+                  (s, y) => s + (parseFloat(y.totalEmployerCost ?? "0") || 0),
+                  0
+                ) ?? 0;
+              const total =
+                sc.districtWideSummary?.reduce(
+                  (s, y) => s + (parseFloat(y.totalEmployerCost ?? "0") || 0),
+                  0
+                ) ?? 0;
+              const delta = total - baseTotal;
+              const pct = baseTotal > 0 ? (delta / baseTotal) * 100 : 0;
+              return (
+                <TableCell key={`total-delta-${sc.scenarioId}`} className="text-right">
+                  <DeltaBadge delta={delta} pct={pct} />
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function UnitBreakdownTable({
+  comparison,
+}: {
+  comparison: ScenarioCalculationResult[];
+}) {
+  const allYearSummaries = comparison.flatMap(sc => sc.yearSummaries ?? []);
+  const unitNames = [...new Set(allYearSummaries.map(s => s.bargainingUnitName).filter(Boolean) as string[])].sort();
+  const allYears = [...new Set(allYearSummaries.map(s => s.contractYear))].sort((a, b) => a - b);
+
+  if (unitNames.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground text-sm">
+        No unit breakdown data available. Run scenario calculations first.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {allYears.map(year => {
+        const yearLabel = comparison[0]?.yearSummaries?.find(s => s.contractYear === year)?.yearLabel ?? `Year ${year}`;
+        return (
+          <div key={year}>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{yearLabel}</h4>
+            <div className="overflow-x-auto rounded border border-border">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="border-border">
+                    <TableHead className="w-40">Bargaining Unit</TableHead>
+                    {comparison.map((sc, idx) => (
+                      <TableHead key={sc.scenarioId} className="text-right text-xs" style={{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }}>
+                        {sc.scenarioName}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {unitNames.map(unitName => {
+                    const getUnitYearSummary = (sc: ScenarioCalculationResult): ScenarioYearSummary | undefined =>
+                      sc.yearSummaries?.find(s => s.contractYear === year && s.bargainingUnitName === unitName);
+
+                    return (
+                      <>
+                        <TableRow key={`${year}-${unitName}-header`} className="border-border bg-muted/10">
+                          <TableCell className="font-semibold text-sm" colSpan={comparison.length + 1}>
+                            <span style={{ color: unitColor(unitName) }}>{unitName}</span>
+                          </TableCell>
+                        </TableRow>
+                        {[
+                          { label: "Payroll", key: "totalPayroll" as keyof ScenarioYearSummary },
+                          { label: "TRS", key: "totalTRS" as keyof ScenarioYearSummary },
+                          { label: "IMRF", key: "totalIMRF" as keyof ScenarioYearSummary },
+                          { label: "FICA", key: "totalFICA" as keyof ScenarioYearSummary },
+                          { label: "Health Insurance", key: "totalHealthInsurance" as keyof ScenarioYearSummary },
+                          { label: "Other Benefits", key: "totalOtherBenefits" as keyof ScenarioYearSummary },
+                          { label: "Total Employer Cost", key: "totalEmployerCost" as keyof ScenarioYearSummary },
+                        ].map(({ label, key }) => {
+                          const isTotalRow = key === "totalEmployerCost";
+                          const vals = comparison.map(sc => {
+                            const s = getUnitYearSummary(sc);
+                            return parseFloat((s?.[key] as string | undefined) ?? "0") || 0;
+                          });
+                          if (vals.every(v => v === 0) && !isTotalRow) return null;
+                          return (
+                            <TableRow key={`${year}-${unitName}-${key}`} className={`border-border ${isTotalRow ? "font-semibold" : ""}`}>
+                              <TableCell className={`text-sm pl-6 ${isTotalRow ? "" : "text-muted-foreground"}`}>{label}</TableCell>
+                              {comparison.map((sc, idx) => {
+                                const val = vals[idx];
+                                return (
+                                  <TableCell
+                                    key={sc.scenarioId}
+                                    className="text-right font-mono text-sm"
+                                    style={{ color: isTotalRow ? COMPARE_COLORS[idx % COMPARE_COLORS.length] : undefined }}
+                                  >
+                                    {fmt(val || null)}
+                                  </TableCell>
+                                );
+                              })}
+                            </TableRow>
+                          );
+                        })}
+                      </>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -207,8 +476,6 @@ function ComparisonPanel({
     }
     return point;
   });
-
-  const baseline = comparison[0];
 
   return (
     <div className="space-y-6">
@@ -245,7 +512,7 @@ function ComparisonPanel({
                   {formatCurrency(fiveYearTotal)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  5-Year Total Cost
+                  5-Year Total Employer Cost
                 </div>
                 {idx > 0 && (() => {
                   const baseTotal = comparison[0].districtWideSummary?.reduce(
@@ -282,7 +549,7 @@ function ComparisonPanel({
       {chartData.length > 0 && (
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Year-by-Year Cost Comparison</CardTitle>
+            <CardTitle>Year-by-Year Total Employer Cost</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -346,147 +613,44 @@ function ComparisonPanel({
         </Card>
       )}
 
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle>Year-by-Year Detail with Deltas</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Costs per year compared to{" "}
-            <span className="font-semibold text-foreground">
-              {baseline.scenarioName}
-            </span>{" "}
-            baseline
-          </p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow className="border-border">
-                  <TableHead className="w-28">Year</TableHead>
-                  {comparison.map((sc, idx) => (
-                    <TableHead
-                      key={sc.scenarioId}
-                      className="text-right"
-                      style={{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }}
-                    >
-                      {sc.scenarioName}
-                    </TableHead>
-                  ))}
-                  {comparison.length > 1 &&
-                    comparison.slice(1).map((sc) => (
-                      <TableHead
-                        key={`delta-${sc.scenarioId}`}
-                        className="text-right text-xs"
-                      >
-                        Δ vs Baseline
-                      </TableHead>
-                    ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allYears.map((year, yi) => {
-                  const baseCost = parseFloat(
-                    baseline.districtWideSummary?.[yi]?.totalEmployerCost ?? "0"
-                  );
-                  return (
-                    <TableRow key={year} className="border-border">
-                      <TableCell className="font-medium text-sm">{year}</TableCell>
-                      {comparison.map((sc, idx) => {
-                        const cost = parseFloat(
-                          sc.districtWideSummary?.[yi]?.totalEmployerCost ?? "0"
-                        );
-                        return (
-                          <TableCell
-                            key={sc.scenarioId}
-                            className="text-right font-mono text-sm"
-                            style={
-                              idx === 0
-                                ? { color: COMPARE_COLORS[0] }
-                                : {}
-                            }
-                          >
-                            {formatCurrency(cost)}
-                          </TableCell>
-                        );
-                      })}
-                      {comparison.slice(1).map((sc) => {
-                        const cost = parseFloat(
-                          sc.districtWideSummary?.[yi]?.totalEmployerCost ?? "0"
-                        );
-                        const delta = cost - baseCost;
-                        const pct = baseCost > 0 ? (delta / baseCost) * 100 : 0;
-                        const isPos = delta > 0;
-                        return (
-                          <TableCell
-                            key={`delta-${sc.scenarioId}`}
-                            className="text-right"
-                          >
-                            <span
-                              className={`font-mono text-xs ${Math.abs(delta) < 1 ? "text-muted-foreground" : isPos ? "text-red-400" : "text-green-400"}`}
-                            >
-                              {Math.abs(delta) < 1
-                                ? "—"
-                                : `${isPos ? "+" : ""}${formatCurrency(delta)} (${isPos ? "+" : ""}${pct.toFixed(1)}%)`}
-                            </span>
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  );
-                })}
+      <Tabs defaultValue="district" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="district">District-Wide Year-by-Year</TabsTrigger>
+          <TabsTrigger value="units">By Bargaining Unit</TabsTrigger>
+        </TabsList>
 
-                <TableRow className="border-t-2 border-border bg-muted/30 font-semibold">
-                  <TableCell className="font-bold text-sm">5-Yr Total</TableCell>
-                  {comparison.map((sc, idx) => {
-                    const total = sc.districtWideSummary?.reduce(
-                      (s, y) => s + (parseFloat(y.totalEmployerCost ?? "0") || 0),
-                      0
-                    ) ?? 0;
-                    return (
-                      <TableCell
-                        key={sc.scenarioId}
-                        className="text-right font-mono text-sm font-bold"
-                        style={{ color: COMPARE_COLORS[idx % COMPARE_COLORS.length] }}
-                      >
-                        {formatCurrency(total)}
-                      </TableCell>
-                    );
-                  })}
-                  {comparison.slice(1).map((sc) => {
-                    const baseTotal =
-                      baseline.districtWideSummary?.reduce(
-                        (s, y) => s + (parseFloat(y.totalEmployerCost ?? "0") || 0),
-                        0
-                      ) ?? 0;
-                    const total =
-                      sc.districtWideSummary?.reduce(
-                        (s, y) => s + (parseFloat(y.totalEmployerCost ?? "0") || 0),
-                        0
-                      ) ?? 0;
-                    const delta = total - baseTotal;
-                    const pct = baseTotal > 0 ? (delta / baseTotal) * 100 : 0;
-                    const isPos = delta > 0;
-                    return (
-                      <TableCell
-                        key={`total-delta-${sc.scenarioId}`}
-                        className="text-right"
-                      >
-                        <span
-                          className={`font-mono text-sm font-bold ${Math.abs(delta) < 1 ? "text-muted-foreground" : isPos ? "text-red-400" : "text-green-400"}`}
-                        >
-                          {Math.abs(delta) < 1
-                            ? "—"
-                            : `${isPos ? "+" : ""}${formatCurrency(delta)} (${isPos ? "+" : ""}${pct.toFixed(1)}%)`}
-                        </span>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="district">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Year-by-Year Cost Breakdown</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Payroll, benefits, and total employer cost with deltas vs{" "}
+                <span className="font-semibold text-foreground">
+                  {comparison[0].scenarioName}
+                </span>{" "}
+                baseline. ▼ = lowest cost year, ▲ = highest.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <YearlyBreakdownTable comparison={comparison} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="units">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Per-Unit Cost Breakdown</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Payroll, TRS, IMRF, FICA, health insurance, and total employer cost per bargaining unit per year.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <UnitBreakdownTable comparison={comparison} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

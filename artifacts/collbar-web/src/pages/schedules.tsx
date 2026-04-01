@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useListSalarySchedules,
   getListSalarySchedulesQueryKey,
@@ -6,6 +6,8 @@ import {
   getListHourlySchedulesQueryKey,
   useListBargainingUnits,
   getListBargainingUnitsQueryKey,
+  useListEmployees,
+  getListEmployeesQueryKey,
   SalaryScheduleWithGrid,
   Lane,
   Step,
@@ -27,8 +29,9 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { getBadgeColorClass } from "@/lib/badges";
-import { LayoutGrid, SplitSquareHorizontal, Clock, DollarSign } from "lucide-react";
+import { LayoutGrid, SplitSquareHorizontal, Clock, DollarSign, AlertTriangle, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type ViewMode = "single" | "compare";
@@ -140,7 +143,177 @@ function UnitHeader({ unit }: { unit: BargainingUnit }) {
   );
 }
 
+function OffScheduleIndicator({
+  unitId,
+  cells,
+}: {
+  unitId: string;
+  cells: ScheduleCell[];
+}) {
+  const { districtId } = useDistrictContext();
+  const { data: empData } = useListEmployees(
+    { districtId: districtId!, bargainingUnitId: unitId, pageSize: 500 },
+    {
+      query: {
+        enabled: !!districtId && !!unitId,
+        queryKey: getListEmployeesQueryKey({ districtId: districtId!, bargainingUnitId: unitId, pageSize: 500 }),
+      },
+    }
+  );
+
+  const offScheduleCount = useMemo(() => {
+    if (!empData?.employees || cells.length === 0) return 0;
+    const salarySet = new Set(cells.map(c => Math.round(parseFloat(c.salaryAmount))));
+    return empData.employees.filter(emp => {
+      const sal = Math.round(parseFloat(emp.currentAnnualSalary) || 0);
+      return sal > 0 && !salarySet.has(sal);
+    }).length;
+  }, [empData, cells]);
+
+  if (offScheduleCount === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-400 mb-3">
+      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+      <span className="font-medium">{offScheduleCount} off-schedule</span>
+      <span className="text-amber-400/70">
+        {offScheduleCount === 1 ? "employee has a salary" : "employees have salaries"} that don't match any step/lane cell in this schedule.
+      </span>
+    </div>
+  );
+}
+
+function FormulaBuilder({
+  lanes,
+  steps,
+}: {
+  lanes: Lane[];
+  steps: Step[];
+}) {
+  const [baseValue, setBaseValue] = useState("40000");
+  const [stepPct, setStepPct] = useState("2.0");
+  const [lanePct, setLanePct] = useState("4.0");
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+
+  const computedCells = useMemo(() => {
+    const base = parseFloat(baseValue.replace(/,/g, "")) || 0;
+    const sPct = parseFloat(stepPct) / 100;
+    const lPct = parseFloat(lanePct) / 100;
+    const result: Record<string, number> = {};
+    steps.forEach((step, si) => {
+      lanes.forEach((lane, li) => {
+        const key = `${step.id}-${lane.id}`;
+        if (overrides[key] !== undefined) {
+          result[key] = parseFloat(overrides[key].replace(/,/g, "")) || 0;
+        } else {
+          result[key] = base * Math.pow(1 + sPct, si) * Math.pow(1 + lPct, li);
+        }
+      });
+    });
+    return result;
+  }, [baseValue, stepPct, lanePct, overrides, steps, lanes]);
+
+  return (
+    <Card className="bg-card border-border border-dashed">
+      <CardHeader className="py-3 px-4 border-b border-border">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Wand2 className="w-4 h-4 text-primary" />
+            Formula Builder Preview
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">Preview only — not saved</span>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 space-y-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Step 1, Lane 1 Base ($)</label>
+            <Input
+              value={baseValue}
+              onChange={e => setBaseValue(e.target.value)}
+              className="h-8 bg-background/50 text-sm font-mono"
+              placeholder="40000"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Step Increment (%)</label>
+            <Input
+              value={stepPct}
+              onChange={e => setStepPct(e.target.value)}
+              className="h-8 bg-background/50 text-sm font-mono"
+              placeholder="2.0"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Lane Increment (%)</label>
+            <Input
+              value={lanePct}
+              onChange={e => setLanePct(e.target.value)}
+              className="h-8 bg-background/50 text-sm font-mono"
+              placeholder="4.0"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Click any cell below to override its computed value. Preview only — values are not saved to the database.
+        </p>
+        <div className="overflow-x-auto rounded border border-border">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="border-border">
+                <TableHead className="w-16 border-r border-border text-xs">Step</TableHead>
+                {lanes.map(lane => (
+                  <TableHead key={lane.id} className="text-right border-r border-border min-w-[110px] text-xs">{lane.name}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {steps.map(step => (
+                <TableRow key={step.id} className="border-border">
+                  <TableCell className="font-bold border-r border-border text-center text-xs py-1.5">{step.stepNumber}</TableCell>
+                  {lanes.map(lane => {
+                    const key = `${step.id}-${lane.id}`;
+                    const val = computedCells[key] ?? 0;
+                    const isOverridden = overrides[key] !== undefined;
+                    return (
+                      <TableCell
+                        key={lane.id}
+                        className={`text-right font-mono text-xs border-r border-border last:border-r-0 py-1.5 cursor-pointer transition-colors ${isOverridden ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
+                        onClick={() => {
+                          const current = overrides[key] ?? String(Math.round(val));
+                          const newVal = window.prompt(`Override Step ${step.stepNumber} / ${lane.name}:`, current);
+                          if (newVal !== null) {
+                            if (newVal === "") {
+                              setOverrides(prev => { const n = { ...prev }; delete n[key]; return n; });
+                            } else {
+                              setOverrides(prev => ({ ...prev, [key]: newVal }));
+                            }
+                          }
+                        }}
+                      >
+                        {val > 0 ? formatCurrency(String(val.toFixed(0))) : "—"}
+                        {isOverridden && <span className="ml-1 text-[9px] text-primary">✎</span>}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        {Object.keys(overrides).length > 0 && (
+          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => setOverrides({})}>
+            Clear all overrides ({Object.keys(overrides).length})
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ScheduleGrid({ unitId }: { unitId: string }) {
+  const [showFormula, setShowFormula] = useState(false);
+
   const { data: schedules, isLoading } = useListSalarySchedules(
     { bargainingUnitId: unitId },
     {
@@ -173,53 +346,72 @@ function ScheduleGrid({ unitId }: { unitId: string }) {
   const cells: ScheduleCell[] = schedule.cells ?? [];
 
   return (
-    <Card className="bg-card border-border overflow-hidden">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader className="bg-muted/50">
-            <TableRow className="border-border">
-              <TableHead className="w-20 border-r border-border sticky left-0 bg-muted/50">
-                Step
-              </TableHead>
-              {lanes.map((lane) => (
-                <TableHead
-                  key={lane.id}
-                  className="text-right border-r border-border min-w-[120px]"
-                >
-                  {lane.name}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {steps.map((step) => (
-              <TableRow
-                key={step.id}
-                className="border-border hover:bg-muted/30"
-              >
-                <TableCell className="font-bold border-r border-border text-center sticky left-0 bg-card">
-                  {step.stepNumber}
-                </TableCell>
-                {lanes.map((lane) => {
-                  const cell = cells.find(
-                    (c: ScheduleCell) =>
-                      c.stepId === step.id && c.laneId === lane.id
-                  );
-                  return (
-                    <TableCell
-                      key={lane.id}
-                      className="text-right font-mono text-sm border-r border-border last:border-r-0 text-muted-foreground hover:text-foreground hover:bg-primary/5 transition-colors"
-                    >
-                      {cell ? formatCurrency(cell.salaryAmount) : "—"}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <div className="space-y-3">
+      <OffScheduleIndicator unitId={unitId} cells={cells} />
+
+      <div className="flex justify-end">
+        <Button
+          variant={showFormula ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowFormula(v => !v)}
+          className="h-8 gap-1.5 text-xs"
+        >
+          <Wand2 className="w-3.5 h-3.5" />
+          Formula Builder
+          {showFormula ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </Button>
       </div>
-    </Card>
+
+      {showFormula && <FormulaBuilder lanes={lanes} steps={steps} />}
+
+      <Card className="bg-card border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="border-border">
+                <TableHead className="w-20 border-r border-border sticky left-0 bg-muted/50">
+                  Step
+                </TableHead>
+                {lanes.map((lane) => (
+                  <TableHead
+                    key={lane.id}
+                    className="text-right border-r border-border min-w-[120px]"
+                  >
+                    {lane.name}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {steps.map((step) => (
+                <TableRow
+                  key={step.id}
+                  className="border-border hover:bg-muted/30"
+                >
+                  <TableCell className="font-bold border-r border-border text-center sticky left-0 bg-card">
+                    {step.stepNumber}
+                  </TableCell>
+                  {lanes.map((lane) => {
+                    const cell = cells.find(
+                      (c: ScheduleCell) =>
+                        c.stepId === step.id && c.laneId === lane.id
+                    );
+                    return (
+                      <TableCell
+                        key={lane.id}
+                        className="text-right font-mono text-sm border-r border-border last:border-r-0 text-muted-foreground hover:text-foreground hover:bg-primary/5 transition-colors"
+                      >
+                        {cell ? formatCurrency(cell.salaryAmount) : "—"}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+    </div>
   );
 }
 

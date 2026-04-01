@@ -62,6 +62,10 @@ export default function Employees() {
   const [laneFilter, setLaneFilter] = useState(ALL);
   const [insuranceFilter, setInsuranceFilter] = useState(ALL);
   const [retirementFilter, setRetirementFilter] = useState(ALL);
+  const [stepMin, setStepMin] = useState("");
+  const [stepMax, setStepMax] = useState("");
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -108,6 +112,10 @@ export default function Employees() {
   const filtered = useMemo(() => {
     if (!data?.employees) return [];
     const q = search.toLowerCase();
+    const stepMinNum = stepMin !== "" ? parseInt(stepMin, 10) : null;
+    const stepMaxNum = stepMax !== "" ? parseInt(stepMax, 10) : null;
+    const salaryMinNum = salaryMin !== "" ? parseFloat(salaryMin.replace(/,/g, "")) : null;
+    const salaryMaxNum = salaryMax !== "" ? parseFloat(salaryMax.replace(/,/g, "")) : null;
     return data.employees.filter((e) => {
       if (q && !e.firstName.toLowerCase().includes(q) && !e.lastName.toLowerCase().includes(q) && !(e.bargainingUnitName || "").toLowerCase().includes(q)) return false;
       if (laneFilter !== ALL && e.laneName !== laneFilter) return false;
@@ -116,9 +124,14 @@ export default function Employees() {
         const isEligible = retirementFilter === "eligible";
         if (!!e.retirementEligible !== isEligible) return false;
       }
+      if (stepMinNum !== null && e.currentStep !== null && e.currentStep !== undefined && e.currentStep < stepMinNum) return false;
+      if (stepMaxNum !== null && e.currentStep !== null && e.currentStep !== undefined && e.currentStep > stepMaxNum) return false;
+      const salary = parseFloat(e.currentAnnualSalary) || 0;
+      if (salaryMinNum !== null && salary < salaryMinNum) return false;
+      if (salaryMaxNum !== null && salary > salaryMaxNum) return false;
       return true;
     });
-  }, [data, search, laneFilter, insuranceFilter, retirementFilter]);
+  }, [data, search, laneFilter, insuranceFilter, retirementFilter, stepMin, stepMax, salaryMin, salaryMax]);
 
   const columns = useMemo(
     () => [
@@ -224,6 +237,10 @@ export default function Employees() {
     laneFilter !== ALL ||
     insuranceFilter !== ALL ||
     retirementFilter !== ALL ||
+    stepMin !== "" ||
+    stepMax !== "" ||
+    salaryMin !== "" ||
+    salaryMax !== "" ||
     !!search;
 
   const clearFilters = () => {
@@ -233,6 +250,10 @@ export default function Employees() {
     setLaneFilter(ALL);
     setInsuranceFilter(ALL);
     setRetirementFilter(ALL);
+    setStepMin("");
+    setStepMax("");
+    setSalaryMin("");
+    setSalaryMax("");
     setPage(1);
   };
 
@@ -387,6 +408,48 @@ export default function Employees() {
                   <SelectItem value="not-eligible">Not Eligible</SelectItem>
                 </SelectContent>
               </Select>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Step:</span>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Min"
+                  value={stepMin}
+                  onChange={(e) => { setStepMin(e.target.value); setPage(1); }}
+                  className="h-8 w-16 bg-background/50 border-border text-xs"
+                />
+                <span className="text-muted-foreground text-xs">–</span>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Max"
+                  value={stepMax}
+                  onChange={(e) => { setStepMax(e.target.value); setPage(1); }}
+                  className="h-8 w-16 bg-background/50 border-border text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Salary $:</span>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Min"
+                  value={salaryMin}
+                  onChange={(e) => { setSalaryMin(e.target.value); setPage(1); }}
+                  className="h-8 w-24 bg-background/50 border-border text-xs"
+                />
+                <span className="text-muted-foreground text-xs">–</span>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Max"
+                  value={salaryMax}
+                  onChange={(e) => { setSalaryMax(e.target.value); setPage(1); }}
+                  className="h-8 w-24 bg-background/50 border-border text-xs"
+                />
+              </div>
             </div>
           )}
         </div>
