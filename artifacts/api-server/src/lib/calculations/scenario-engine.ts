@@ -70,8 +70,12 @@ export function calcEmployeeProjection(
       projectedBaseSalary = result.salary;
       projectedStep = result.projectedStep;
       effectiveRate = result.effectiveRate;
-      currentSalary = result.salary;
       currentStep = result.projectedStep;
+      // Carry forward FULL annualized salary — pro-rating affects only what was paid THIS year,
+      // not the base for future year projections. For yearIdx>0, proRateFraction is always 1.
+      currentSalary = yearIdx === 0 && proRateFraction.lt("1")
+        ? new Decimal(employee.currentAnnualSalary)
+        : result.salary;
     } else {
       const tempEmployee: EmployeeInput = {
         ...employee,
@@ -81,7 +85,10 @@ export function calcEmployeeProjection(
       projectedHourlyRate = result.hourlyRate;
       projectedBaseSalary = result.annualSalary;
       effectiveRate = result.effectiveRate;
+      // hourlyRate is never pro-rated (it's a rate, not an amount); carry it forward as-is.
       currentHourlyRate = result.hourlyRate;
+      // For hourly employees, annualSalary is recomputed from rate×hours each year,
+      // so currentSalary carry-forward value doesn't affect subsequent projections.
       currentSalary = result.annualSalary;
     }
 

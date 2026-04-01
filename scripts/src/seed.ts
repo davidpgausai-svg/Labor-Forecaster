@@ -36,7 +36,7 @@ const LANE_PREMIUMS = [
   "17550",  // MA+45
   "19500",  // PhD
 ];
-const BASE_SALARY_BA_STEP1 = new Decimal("55000");
+const BASE_SALARY_BA_STEP1 = new Decimal("48000");
 
 async function seed() {
   console.log("🌱 Seeding CollBar database...");
@@ -575,29 +575,22 @@ async function seed() {
   console.log("\n⚡ Pre-computing scenario projections...");
   const API_BASE = `http://localhost:${process.env.PORT ?? 8080}/api`;
 
-  let allCalculated = true;
   for (const scenarioId of seededScenarioIds) {
+    let resp: Response;
     try {
-      const resp = await fetch(`${API_BASE}/scenarios/${scenarioId}/calculate`, {
+      resp = await fetch(`${API_BASE}/scenarios/${scenarioId}/calculate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      if (resp.ok) {
-        const result = await resp.json() as { scenarioName: string; employeeCount: number; totalFiveYearCost: string };
-        console.log(`   ✅ Calculated: ${result.scenarioName} — ${result.employeeCount} employees, $${parseFloat(result.totalFiveYearCost).toLocaleString()} 5-yr cost`);
-      } else {
-        const err = await resp.text();
-        console.warn(`   ⚠️  Calculation failed for ${scenarioId}: ${resp.status} ${err}`);
-        allCalculated = false;
-      }
     } catch (e) {
-      console.warn(`   ⚠️  Could not reach API server for ${scenarioId}: ${e}`);
-      allCalculated = false;
+      throw new Error(`Cannot reach API server at ${API_BASE} for scenario ${scenarioId}. Ensure the API server is running before seeding. Error: ${e}`);
     }
-  }
-
-  if (!allCalculated) {
-    console.log("\n   Note: Run POST /api/scenarios/:id/calculate for each scenario manually if server was not available.");
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Calculation failed for scenario ${scenarioId} (HTTP ${resp.status}): ${body}`);
+    }
+    const result = await resp.json() as { scenarioName: string; employeeCount: number; totalFiveYearCost: string };
+    console.log(`   ✅ Calculated: ${result.scenarioName} — ${result.employeeCount} employees, $${parseFloat(result.totalFiveYearCost).toLocaleString()} 5-yr cost`);
   }
 
   console.log("\n🎉 Seed complete! District 21 is ready.");

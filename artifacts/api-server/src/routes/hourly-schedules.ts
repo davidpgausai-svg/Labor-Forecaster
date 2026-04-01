@@ -1,7 +1,23 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import { hourlySchedulesTable, hourlyCategoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
+const numericString = z.string().regex(/^\d+(\.\d+)?$/, "Must be a numeric string");
+
+const categorySchema = z.object({
+  name: z.string().min(1),
+  baseHourlyRate: numericString,
+  annualHours: numericString.optional(),
+  displayOrder: z.number().int().nonnegative().optional(),
+});
+
+const createHourlyScheduleSchema = z.object({
+  bargainingUnitId: z.string().uuid(),
+  effectiveYear: z.number().int().nonnegative().optional(),
+  categories: z.array(categorySchema).optional(),
+});
 
 const router = Router();
 
@@ -29,11 +45,12 @@ router.get("/hourly-schedules", async (req, res) => {
 });
 
 router.post("/hourly-schedules", async (req, res) => {
-  const { bargainingUnitId, effectiveYear, categories } = req.body;
-  if (!bargainingUnitId) {
-    res.status(400).json({ error: "bargainingUnitId is required" });
+  const parsed = createHourlyScheduleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
+  const { bargainingUnitId, effectiveYear, categories } = parsed.data;
 
   const [schedule] = await db
     .insert(hourlySchedulesTable)
@@ -45,7 +62,7 @@ router.post("/hourly-schedules", async (req, res) => {
     createdCategories = await db
       .insert(hourlyCategoriesTable)
       .values(
-        categories.map((c: { name: string; baseHourlyRate: string; annualHours?: string; displayOrder?: number }) => ({
+        categories.map((c) => ({
           hourlyScheduleId: schedule.id,
           name: c.name,
           baseHourlyRate: c.baseHourlyRate,

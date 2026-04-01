@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import {
   salarySchedulesTable,
@@ -7,6 +8,35 @@ import {
   scheduleCellsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
+const numericString = z.string().regex(/^\d+(\.\d+)?$/, "Must be a numeric string");
+
+const laneSchema = z.object({
+  name: z.string().min(1),
+  displayOrder: z.number().int().nonnegative().optional(),
+  indexMultiplier: numericString.optional(),
+});
+
+const stepSchema = z.object({
+  stepNumber: z.number().int().min(1),
+  incrementMultiplier: numericString.optional(),
+});
+
+const cellSchema = z.object({
+  laneIndex: z.number().int().nonnegative(),
+  stepNumber: z.number().int().min(1),
+  salaryAmount: numericString,
+});
+
+const createSalaryScheduleSchema = z.object({
+  bargainingUnitId: z.string().uuid(),
+  name: z.string().min(1),
+  effectiveYear: z.number().int().nonnegative().optional(),
+  baseSalary: numericString.optional(),
+  lanes: z.array(laneSchema).optional(),
+  steps: z.array(stepSchema).optional(),
+  cells: z.array(cellSchema).optional(),
+});
 
 const router = Router();
 
@@ -23,11 +53,12 @@ router.get("/salary-schedules", async (req, res) => {
 });
 
 router.post("/salary-schedules", async (req, res) => {
-  const { bargainingUnitId, name, effectiveYear, baseSalary, lanes, steps, cells } = req.body;
-  if (!bargainingUnitId || !name) {
-    res.status(400).json({ error: "bargainingUnitId and name are required" });
+  const parsed = createSalaryScheduleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
+  const { bargainingUnitId, name, effectiveYear, baseSalary, lanes, steps, cells } = parsed.data;
 
   const [schedule] = await db
     .insert(salarySchedulesTable)
@@ -39,7 +70,7 @@ router.post("/salary-schedules", async (req, res) => {
     createdLanes = await db
       .insert(lanesTable)
       .values(
-        lanes.map((l: { name: string; displayOrder?: number; indexMultiplier?: string }) => ({
+        lanes.map((l) => ({
           salaryScheduleId: schedule.id,
           name: l.name,
           displayOrder: l.displayOrder ?? 0,
@@ -54,7 +85,7 @@ router.post("/salary-schedules", async (req, res) => {
     createdSteps = await db
       .insert(stepsTable)
       .values(
-        steps.map((s: { stepNumber: number; incrementMultiplier?: string }) => ({
+        steps.map((s) => ({
           salaryScheduleId: schedule.id,
           stepNumber: s.stepNumber,
           incrementMultiplier: s.incrementMultiplier ?? "1.0",
@@ -64,9 +95,7 @@ router.post("/salary-schedules", async (req, res) => {
   }
 
   if (cells?.length && createdLanes.length && createdSteps.length) {
-    const cellsToInsert = (
-      cells as Array<{ laneIndex: number; stepNumber: number; salaryAmount: string }>
-    )
+    const cellsToInsert = cells
       .map((c) => {
         const lane = createdLanes[c.laneIndex];
         const step = createdSteps.find((s) => s.stepNumber === c.stepNumber);

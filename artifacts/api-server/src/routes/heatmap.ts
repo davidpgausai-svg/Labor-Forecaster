@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import {
   employeeYearRecordsTable,
@@ -16,6 +17,12 @@ import Decimal from "decimal.js";
 const router = Router();
 
 router.get("/heatmap/:scenarioId", async (req, res) => {
+  const scenarioIdSchema = z.string().uuid();
+  const parsedId = scenarioIdSchema.safeParse(req.params.scenarioId);
+  if (!parsedId.success) {
+    res.status(400).json({ error: "Invalid scenarioId" });
+    return;
+  }
   const { scenarioId } = req.params;
   const { bargainingUnitId: buQuery } = req.query;
 
@@ -82,11 +89,21 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
   const contractYears = [...new Set(unitYearConfigs.map((c) => c.contractYear))].sort((a, b) => a - b);
   const maxStep = steps.length > 0 ? Math.max(...steps.map((s) => s.stepNumber)) : 0;
 
+  const stepNumbers = steps.map((s) => s.stepNumber);
+
   const yearsData = contractYears.map((contractYear) => {
     const config = unitYearConfigs.find((c) => c.contractYear === contractYear);
     const yearData = yearRecords.filter((r) => r.contractYear === contractYear);
 
-    const cellMap = new Map<string, { laneId: string; laneName: string; stepNumber: number; employeeCount: number; totalSalary: Decimal; employees: Array<{ id: string; name: string; salary: string }> }>();
+    // Build flat cells map
+    const cellMap = new Map<string, {
+      laneId: string;
+      laneName: string;
+      stepNumber: number;
+      employeeCount: number;
+      totalSalary: Decimal;
+      employees: Array<{ id: string; name: string; salary: string }>;
+    }>();
 
     let salaryTotal = new Decimal("0");
     const stepCounts: number[] = [];
@@ -112,6 +129,25 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       stepCounts.push(record.projectedStep);
     }
 
+    const flatCells = Array.from(cellMap.values()).map((c) => ({
+      laneId: c.laneId,
+      laneName: c.laneName,
+      stepNumber: c.stepNumber,
+      employeeCount: c.employeeCount,
+      totalSalary: c.totalSalary.toDecimalPlaces(2).toString(),
+      employees: c.employees,
+    }));
+
+    // Build 2D matrix: rows = steps (ascending), columns = lanes (by displayOrder)
+    // matrix[stepIdx][laneIdx] = { count, totalSalary } | null
+    const matrix: Array<Array<{ count: number; totalSalary: string } | null>> = stepNumbers.map((stepNum) =>
+      lanes.map((lane) => {
+        const cell = flatCells.find((c) => c.stepNumber === stepNum && c.laneId === lane.id);
+        if (!cell || cell.employeeCount === 0) return null;
+        return { count: cell.employeeCount, totalSalary: cell.totalSalary };
+      })
+    );
+
     const totalEmployees = yearData.filter((r) => {
       const emp = employees.find((e) => e.id === r.employeeId);
       return emp && r.projectedLaneId;
@@ -124,8 +160,13 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     return {
       contractYear,
       yearLabel: config?.yearLabel ?? `Year ${contractYear}`,
-      cells: Array.from(cellMap.values()).map((c) => ({ ...c, totalSalary: c.totalSalary.toDecimalPlaces(2).toString() })),
-      lanes: lanes.map((l) => ({ id: l.id, salaryScheduleId: l.salaryScheduleId, name: l.name, displayOrder: l.displayOrder, indexMultiplier: l.indexMultiplier })),
+      // Lane and step headers for 2D matrix interpretation
+      laneHeaders: lanes.map((l) => ({ id: l.id, name: l.name })),
+      stepHeaders: stepNumbers,
+      // 2D matrix: matrix[stepIdx][laneIdx] (nulls for empty cells)
+      matrix,
+      // Flat cells list (for easier filtering/rendering)
+      cells: flatCells,
       maxStep,
       totalEmployees,
       medianSalary: totalEmployees > 0 ? salaryTotal.dividedBy(totalEmployees).toDecimalPlaces(2).toString() : null,

@@ -68,8 +68,8 @@ All monetary values in `employee_year_records` are stored as **bigint cents** (m
 **IMPORTANT**: After editing any schema file in lib/db/src/schema/, run `cd lib/db && pnpm build` then restart the API server, otherwise TypeScript will serve stale types from the `dist/` directory.
 
 ## Seed Data (District 21)
-- District ID: `c4275149-be7b-498a-8826-3c40955898f3`
-- 65 Licensed employees (7 lanes × 15 steps, BA step 1 = $55,000 + $1,950/step + lane premium)
+- District ID: `b2ab4e3b-e4ec-4127-b0b3-9e0421b12194`
+- 65 Licensed employees (7 lanes × 15 steps, BA step 1 = $48,000 + $1,950/step + lane premium; grid tops at $94,800 PhD/step15)
   - 4 veteran high-earners above $125K (PhD, step 15, above-schedule salary)
   - Insurance: exactly 39 family (60%), 16 single (25%), 10 waived (15%)
   - Retirement-eligible: exactly 10 licensed staff (within spec 8–12)
