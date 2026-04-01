@@ -157,7 +157,7 @@ router.post("/scenarios", async (req, res) => {
         : new Date().getFullYear();
 
       const autoConfigs = units.flatMap((unit) => {
-        const numYears = unit.contractYears ?? 5;
+        const numYears = unit.contractYears && unit.contractYears > 0 ? unit.contractYears : 5;
         return Array.from({ length: numYears }, (_, i) => ({
           scenarioId: scenario.id,
           bargainingUnitId: unit.id,
