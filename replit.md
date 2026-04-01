@@ -1,96 +1,111 @@
-# Workspace
+# CollBar — Collective Bargaining Compensation & Labor Forecasting Platform
 
-## Overview
+## Project Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+CollBar is a single-tenant K-12 CSBO (Chief School Business Official) platform for modeling multi-year labor costs across multiple bargaining units. It builds and compares contract proposals with penny-accurate projections and generates board presentation reports.
 
-## Stack
+## Architecture
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+### Stack
+- **Frontend**: React + Vite (Task #2 — pending)
+- **Backend**: Express 5 + TypeScript
+- **Database**: PostgreSQL via Drizzle ORM
+- **Codegen**: Orval from OpenAPI spec → React Query hooks + Zod schemas
+- **Math precision**: decimal.js for all monetary calculations
+- **Dates**: date-fns
 
-## Structure
-
-```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+### Monorepo Structure
+```
+/artifacts/api-server/     — Express 5 API server
+/lib/db/                   — Drizzle schema + database client
+/lib/api-spec/             — OpenAPI spec (openapi.yaml) + Orval config
+/lib/api-client-react/     — Generated React Query hooks
+/lib/api-zod/              — Generated Zod schemas
+/scripts/                  — Seed scripts
 ```
 
-## TypeScript & Composite Projects
+### Calculation Engine (`artifacts/api-server/src/lib/calculations/`)
+- **types.ts** — Shared TypeScript interfaces for the engine
+- **salary-engine.ts** — Salaried employee projections: step advancement → grid lookup → percentage/CPI/flat increase → round to $0.01
+- **benefits-engine.ts** — Employer cost calc: TRS gross-up, FICA (with SS wage base cap), health insurance compounding, dental/life/disability/HSA/workers' comp
+- **retirement-engine.ts** — Option 1 (4-year 5.5%), Option 2 (2-year + incentives), Option 3 (longevity $275/year)
+- **scenario-engine.ts** — Orchestrates all projections, produces year-summaries and district-wide rollups
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+### Order of Operations (CRITICAL)
+1. Step advancement → grid cell lookup
+2. Base salary increase (CPI formula OR fixed % OR flat dollar)
+3. High-earner threshold override ($125K default → flat $3,000)
+4. Educational advancement (BA+15, MA, MA+15)
+5. Round to nearest $0.01 (stored as NUMERIC(15,2) in Postgres)
+6. Employer costs calculated on rounded salary
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+### CPI Formula
+`effective_rate = max(floor, min(cap, cpi_value + adder))`
 
-## Root Scripts
+### Database Schema (lib/db/src/schema/)
+- `districts` — District configuration
+- `bargaining_units` — Per-unit rates (TRS/IMRF, FICA, health, dental, HSA, etc.)
+- `salary_schedules` + `lanes` + `steps` + `schedule_cells` — Salary grid (lane×step matrix)
+- `hourly_schedules` + `hourly_categories` — ESP/CM hourly compensation
+- `employees` — Roster with lane/step placement, insurance election, retirement flags
+- `scenarios` + `scenario_year_configs` — Contract proposal modeling (key: separate year config per bargaining unit per scenario)
+- `employee_year_records` — Calculated projections cache
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+## Seed Data (District 21)
+- 65 Licensed employees (7 lanes × 15 steps, base BA step 1 = $48,000, 2.5%/step)
+- 25 ESP employees (6 categories: Paraprofessional, Secretary, Library Aide, etc.)
+- 15 CM employees (4 categories: Custodian, Head Custodian, Maintenance, Grounds)
+- 3 pre-built scenarios: 3% Flat, CPI+0.5% (2-5% cap/floor), Step-Only freeze
+- District ID: b5562c32-4641-4559-a468-f8d9bdb96b26
 
-## Packages
+## API Endpoints (all under /api)
+- `GET /healthz` — Health check
+- `GET|POST /districts` — District management
+- `GET|PUT /districts/:id`
+- `GET|POST /bargaining-units` — Bargaining unit management
+- `GET|PUT|DELETE /bargaining-units/:id`
+- `GET|POST /employees` — Employee roster
+- `GET /employees/retirement-eligible` — Retirement analysis
+- `POST /employees/import` — Bulk CSV import
+- `GET|PUT|DELETE /employees/:id`
+- `GET|POST /salary-schedules` — Salary grid management
+- `GET|DELETE /salary-schedules/:id`
+- `GET|POST /hourly-schedules` — Hourly compensation management
+- `GET|POST /scenarios` — Scenario modeling
+- `GET /scenarios/compare?ids=a,b,c` — Side-by-side comparison
+- `GET|PUT|DELETE /scenarios/:id`
+- `POST /scenarios/:id/calculate` — Run projections (stores to DB)
+- `POST /scenarios/:id/apply` — Mark scenario as final
+- `POST /scenarios/:id/year-configs` — Upsert year configs
+- `GET /scenarios/:id/summary` — Get calculated summary
+- `GET /heatmap/:scenarioId` — Lane×step employee distribution
+- `GET /dashboard` — Overview stats
 
-### `artifacts/api-server` (`@workspace/api-server`)
+## Key Design Decisions
+1. **NUMERIC(15,2)** for all monetary columns — never FLOAT
+2. **Per-unit year configs**: `scenario_year_configs.bargaining_unit_id` FK enables different rates per unit per year within one scenario
+3. **TRS gross-up rate** default: 0.8901% (employer picks up employee TRS contribution)
+4. **FICA-exempt licensed staff** (TRS members) — only Medicare tax (1.45%)
+5. **FICA-liable ESP/CM** (IMRF) — full 7.65% (with SS wage base cap at $176,100)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+## Color System (for Frontend)
+- Licensed (salary): Blue (#3b82f6)
+- ESP (hourly): Purple (#8b5cf6)
+- CM (custodial): Amber (#f59e0b)
+- Dark backgrounds: #0a0e14 (main), #111620 (card)
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+## Typography (for Frontend)
+- JetBrains Mono — all financial numbers, right-aligned
+- Inter — labels and non-numeric text
 
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+## Task Progress
+- **Task #1 (Foundation: DB + Engine + API)**: COMPLETE
+  - Drizzle schema pushed to Postgres (6 schema files)
+  - Full calculation engine (4 engine files)
+  - OpenAPI spec (all endpoints)
+  - Orval codegen run (React Query hooks + Zod schemas)
+  - All route handlers implemented
+  - Seed data loaded (District 21, 105 employees, 3 scenarios)
+  - API verified working (health, districts, employees, scenarios, calculate, heatmap, dashboard)
+- **Task #2 (Frontend)**: PENDING
+- **Task #3 (Reports: PDF + Excel)**: PENDING

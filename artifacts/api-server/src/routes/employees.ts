@@ -1,0 +1,223 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import {
+  employeesTable,
+  bargainingUnitsTable,
+  lanesTable,
+  scenarioYearConfigsTable,
+  employeeYearRecordsTable,
+} from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import {
+  calcRetirementOption1,
+  calcRetirementOption2,
+  calcRetirementOption3,
+} from "../lib/calculations/retirement-engine";
+
+const router = Router();
+
+router.get("/employees/retirement-eligible", async (req, res) => {
+  const { districtId } = req.query;
+
+  const rows = districtId
+    ? await db
+        .select({
+          employee: employeesTable,
+          unitName: bargainingUnitsTable.name,
+        })
+        .from(employeesTable)
+        .leftJoin(
+          bargainingUnitsTable,
+          eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id)
+        )
+        .where(
+          and(
+            eq(employeesTable.retirementEligible, true),
+            eq(employeesTable.districtId, districtId as string)
+          )
+        )
+    : await db
+        .select({
+          employee: employeesTable,
+          unitName: bargainingUnitsTable.name,
+        })
+        .from(employeesTable)
+        .leftJoin(
+          bargainingUnitsTable,
+          eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id)
+        )
+        .where(eq(employeesTable.retirementEligible, true));
+
+  const results = rows.map((row) => {
+    const emp = row.employee;
+    const age = emp.birthDate
+      ? new Date().getFullYear() - new Date(emp.birthDate).getFullYear()
+      : 55;
+    const opt1 = calcRetirementOption1(emp.currentAnnualSalary, emp.yearsInDistrict, emp.yearsTotalService, age);
+    const opt2 = calcRetirementOption2(emp.currentAnnualSalary, emp.yearsInDistrict, emp.yearsTotalService, age);
+    const opt3 = calcRetirementOption3(emp.currentAnnualSalary, emp.yearsInDistrict, age);
+    return { ...emp, bargainingUnitName: row.unitName, retirementOptions: { option1: opt1, option2: opt2, option3: opt3 } };
+  });
+
+  res.json(results);
+});
+
+router.post("/employees/import", async (req, res) => {
+  const { districtId, bargainingUnitId, employees, incremental: _incremental } = req.body;
+  if (!districtId || !employees?.length) {
+    res.status(400).json({ error: "districtId and employees are required" });
+    return;
+  }
+
+  let imported = 0;
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < employees.length; i++) {
+    try {
+      const emp = { ...employees[i], districtId, bargainingUnitId: bargainingUnitId || employees[i].bargainingUnitId };
+      await db.insert(employeesTable).values(emp);
+      imported++;
+    } catch (err: unknown) {
+      errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Unknown error" });
+    }
+  }
+
+  res.json({ imported, skipped: 0, errors });
+});
+
+router.get("/employees", async (req, res) => {
+  const { districtId, bargainingUnitId, status, contractYear, page = 1, pageSize = 50 } = req.query;
+
+  const conditions = [];
+  if (districtId) conditions.push(eq(employeesTable.districtId, districtId as string));
+  if (bargainingUnitId) conditions.push(eq(employeesTable.bargainingUnitId, bargainingUnitId as string));
+  if (status) conditions.push(eq(employeesTable.status, status as "active" | "new_hire" | "terminated" | "retired" | "on_leave"));
+  if (contractYear) conditions.push(eq(employeesTable.contractYear, Number(contractYear)));
+
+  const offset = (Number(page) - 1) * Number(pageSize);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [employees, countResult] = await Promise.all([
+    db
+      .select({
+        employee: employeesTable,
+        unitName: bargainingUnitsTable.name,
+        laneName: lanesTable.name,
+      })
+      .from(employeesTable)
+      .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
+      .leftJoin(lanesTable, eq(employeesTable.currentLaneId, lanesTable.id))
+      .where(whereClause)
+      .orderBy(employeesTable.lastName, employeesTable.firstName)
+      .limit(Number(pageSize))
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(employeesTable)
+      .where(whereClause),
+  ]);
+
+  const result = employees.map((row) => ({
+    ...row.employee,
+    bargainingUnitName: row.unitName,
+    laneName: row.laneName,
+  }));
+
+  res.json({ employees: result, total: countResult[0]?.count ?? 0, page: Number(page), pageSize: Number(pageSize) });
+});
+
+router.post("/employees", async (req, res) => {
+  const body = req.body;
+  if (!body.districtId || !body.bargainingUnitId || !body.firstName || !body.lastName) {
+    res.status(400).json({ error: "districtId, bargainingUnitId, firstName, lastName are required" });
+    return;
+  }
+  const [emp] = await db.insert(employeesTable).values(body).returning();
+  res.status(201).json(emp);
+});
+
+router.get("/employees/:id", async (req, res) => {
+  const { scenarioId } = req.query;
+
+  const rows = await db
+    .select({
+      employee: employeesTable,
+      unitName: bargainingUnitsTable.name,
+      laneName: lanesTable.name,
+    })
+    .from(employeesTable)
+    .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
+    .leftJoin(lanesTable, eq(employeesTable.currentLaneId, lanesTable.id))
+    .where(eq(employeesTable.id, req.params.id));
+
+  const row = rows[0];
+  if (!row) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
+
+  const emp = row.employee;
+  let yearProjections: unknown[] = [];
+
+  if (scenarioId) {
+    const yearConfigs = await db
+      .select()
+      .from(scenarioYearConfigsTable)
+      .where(
+        and(
+          eq(scenarioYearConfigsTable.scenarioId, scenarioId as string),
+          eq(scenarioYearConfigsTable.bargainingUnitId, emp.bargainingUnitId)
+        )
+      )
+      .orderBy(scenarioYearConfigsTable.contractYear);
+
+    const records = await db
+      .select()
+      .from(employeeYearRecordsTable)
+      .where(
+        and(
+          eq(employeeYearRecordsTable.employeeId, emp.id),
+          eq(employeeYearRecordsTable.scenarioId, scenarioId as string)
+        )
+      )
+      .orderBy(employeeYearRecordsTable.contractYear);
+
+    yearProjections = records.map((r) => {
+      const config = yearConfigs.find((c) => c.contractYear === r.contractYear);
+      return { ...r, yearLabel: config?.yearLabel ?? `Year ${r.contractYear}` };
+    });
+  }
+
+  const age = emp.birthDate ? new Date().getFullYear() - new Date(emp.birthDate).getFullYear() : 55;
+  let retirementOptions = null;
+  if (emp.retirementEligible) {
+    retirementOptions = {
+      option1: calcRetirementOption1(emp.currentAnnualSalary, emp.yearsInDistrict, emp.yearsTotalService, age),
+      option2: calcRetirementOption2(emp.currentAnnualSalary, emp.yearsInDistrict, emp.yearsTotalService, age),
+      option3: calcRetirementOption3(emp.currentAnnualSalary, emp.yearsInDistrict, age),
+    };
+  }
+
+  res.json({ ...emp, bargainingUnitName: row.unitName, laneName: row.laneName, yearProjections, retirementOptions });
+});
+
+router.put("/employees/:id", async (req, res) => {
+  const body = req.body;
+  const [emp] = await db
+    .update(employeesTable)
+    .set({ ...body, updatedAt: new Date() })
+    .where(eq(employeesTable.id, req.params.id))
+    .returning();
+  if (!emp) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
+  res.json(emp);
+});
+
+router.delete("/employees/:id", async (req, res) => {
+  await db.delete(employeesTable).where(eq(employeesTable.id, req.params.id));
+  res.status(204).send();
+});
+
+export default router;

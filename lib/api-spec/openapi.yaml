@@ -3,20 +3,35 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CollBar — Collective Bargaining Compensation Modeling API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: districts
+    description: District configuration
+  - name: bargaining-units
+    description: Bargaining unit management
+  - name: employees
+    description: Employee roster management
+  - name: salary-schedules
+    description: Salary schedule management
+  - name: hourly-schedules
+    description: Hourly schedule management
+  - name: scenarios
+    description: Scenario modeling
+  - name: heatmap
+    description: Heatmap visualization data
+  - name: dashboard
+    description: Dashboard overview data
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +39,681 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /districts:
+    get:
+      operationId: listDistricts
+      tags: [districts]
+      summary: List all districts
+      responses:
+        "200":
+          description: List of districts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/District"
+    post:
+      operationId: createDistrict
+      tags: [districts]
+      summary: Create a district
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDistrictRequest"
+      responses:
+        "201":
+          description: Created district
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/District"
+
+  /districts/{id}:
+    get:
+      operationId: getDistrict
+      tags: [districts]
+      summary: Get a district
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/District"
+    put:
+      operationId: updateDistrict
+      tags: [districts]
+      summary: Update a district
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDistrictRequest"
+      responses:
+        "200":
+          description: Updated district
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/District"
+
+  /bargaining-units:
+    get:
+      operationId: listBargainingUnits
+      tags: [bargaining-units]
+      summary: List bargaining units
+      parameters:
+        - name: districtId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of bargaining units
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BargainingUnit"
+    post:
+      operationId: createBargainingUnit
+      tags: [bargaining-units]
+      summary: Create a bargaining unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBargainingUnitRequest"
+      responses:
+        "201":
+          description: Created bargaining unit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BargainingUnit"
+
+  /bargaining-units/{id}:
+    get:
+      operationId: getBargainingUnit
+      tags: [bargaining-units]
+      summary: Get a bargaining unit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bargaining unit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BargainingUnit"
+    put:
+      operationId: updateBargainingUnit
+      tags: [bargaining-units]
+      summary: Update a bargaining unit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBargainingUnitRequest"
+      responses:
+        "200":
+          description: Updated bargaining unit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BargainingUnit"
+    delete:
+      operationId: deleteBargainingUnit
+      tags: [bargaining-units]
+      summary: Delete a bargaining unit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees
+      parameters:
+        - name: districtId
+          in: query
+          schema:
+            type: string
+        - name: bargainingUnitId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: contractYear
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: number
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: number
+            default: 50
+      responses:
+        "200":
+          description: Paginated list of employees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeList"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create an employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeRequest"
+      responses:
+        "201":
+          description: Created employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/retirement-eligible:
+    get:
+      operationId: listRetirementEligibleEmployees
+      tags: [employees]
+      summary: List retirement-eligible employees with incentive calculations
+      parameters:
+        - name: districtId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of retirement-eligible employees with calculations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RetirementEligibleEmployee"
+
+  /employees/import:
+    post:
+      operationId: importEmployees
+      tags: [employees]
+      summary: Bulk import employees from CSV/Excel data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportEmployeesRequest"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get an employee with projections
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scenarioId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee with projections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeWithProjections"
+    put:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeRequest"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /salary-schedules:
+    get:
+      operationId: listSalarySchedules
+      tags: [salary-schedules]
+      summary: List salary schedules
+      parameters:
+        - name: bargainingUnitId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of salary schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalarySchedule"
+    post:
+      operationId: createSalarySchedule
+      tags: [salary-schedules]
+      summary: Create a salary schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSalaryScheduleRequest"
+      responses:
+        "201":
+          description: Created schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalarySchedule"
+
+  /salary-schedules/{id}:
+    get:
+      operationId: getSalarySchedule
+      tags: [salary-schedules]
+      summary: Get a salary schedule with full grid
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Salary schedule with lanes, steps, cells
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalaryScheduleWithGrid"
+    delete:
+      operationId: deleteSalarySchedule
+      tags: [salary-schedules]
+      summary: Delete a salary schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /hourly-schedules:
+    get:
+      operationId: listHourlySchedules
+      tags: [hourly-schedules]
+      summary: List hourly schedules
+      parameters:
+        - name: bargainingUnitId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of hourly schedules with categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HourlyScheduleWithCategories"
+    post:
+      operationId: createHourlySchedule
+      tags: [hourly-schedules]
+      summary: Create a hourly schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHourlyScheduleRequest"
+      responses:
+        "201":
+          description: Created hourly schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HourlyScheduleWithCategories"
+
+  /scenarios:
+    get:
+      operationId: listScenarios
+      tags: [scenarios]
+      summary: List scenarios
+      parameters:
+        - name: districtId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScenarioSummary"
+    post:
+      operationId: createScenario
+      tags: [scenarios]
+      summary: Create a scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScenarioRequest"
+      responses:
+        "201":
+          description: Created scenario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scenario"
+
+  /scenarios/compare:
+    get:
+      operationId: compareScenarios
+      tags: [scenarios]
+      summary: Compare multiple scenarios side by side
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated scenario IDs
+        - name: districtId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Side-by-side scenario comparison
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioComparison"
+
+  /scenarios/{id}:
+    get:
+      operationId: getScenario
+      tags: [scenarios]
+      summary: Get a scenario with year configs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scenario with year configs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scenario"
+    put:
+      operationId: updateScenario
+      tags: [scenarios]
+      summary: Update a scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScenarioRequest"
+      responses:
+        "200":
+          description: Updated scenario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scenario"
+    delete:
+      operationId: deleteScenario
+      tags: [scenarios]
+      summary: Delete a scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /scenarios/{id}/calculate:
+    post:
+      operationId: calculateScenario
+      tags: [scenarios]
+      summary: Calculate projections for a scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Calculation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioCalculationResult"
+
+  /scenarios/{id}/apply:
+    post:
+      operationId: applyScenario
+      tags: [scenarios]
+      summary: Apply a scenario as final (locks in projections)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Applied scenario result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioCalculationResult"
+
+  /scenarios/{id}/year-configs:
+    post:
+      operationId: upsertScenarioYearConfigs
+      tags: [scenarios]
+      summary: Upsert year configs for a scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/ScenarioYearConfig"
+      responses:
+        "200":
+          description: Updated year configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScenarioYearConfig"
+
+  /scenarios/{id}/summary:
+    get:
+      operationId: getScenarioSummary
+      tags: [scenarios]
+      summary: Get year-by-year summary for a scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Year-by-year summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioCalculationResult"
+
+  /heatmap/{scenarioId}:
+    get:
+      operationId: getHeatmapData
+      tags: [heatmap]
+      summary: Get heatmap data for a scenario (all years)
+      parameters:
+        - name: scenarioId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: bargainingUnitId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Heatmap data for all contract years
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeatmapData"
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get dashboard overview data
+      parameters:
+        - name: districtId
+          in: query
+          schema:
+            type: string
+        - name: scenarioId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardData"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +724,1115 @@ components:
       required:
         - status
 
+    District:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        fiscalYearStart:
+          type: string
+        studentEnrollment:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - state
+        - fiscalYearStart
+        - createdAt
+        - updatedAt
+
+    CreateDistrictRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        state:
+          type: string
+        fiscalYearStart:
+          type: string
+        studentEnrollment:
+          type: number
+          nullable: true
+      required:
+        - name
+
+    UpdateDistrictRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        state:
+          type: string
+        fiscalYearStart:
+          type: string
+        studentEnrollment:
+          type: number
+          nullable: true
+
+    BargainingUnit:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        compensationType:
+          type: string
+          enum: [salary, hourly]
+        retirementSystem:
+          type: string
+          enum: [TRS, IMRF, other]
+        retirementEmployeeRate:
+          type: string
+        retirementEmployerRate:
+          type: string
+        retirementGrossUpRate:
+          type: string
+        ficaRate:
+          type: string
+        ficaExempt:
+          type: boolean
+        healthInsuranceSingleAnnual:
+          type: string
+        healthInsuranceFamilyAnnual:
+          type: string
+        dentalAnnual:
+          type: string
+        lifeInsuranceAnnual:
+          type: string
+        disabilityInsuranceAnnual:
+          type: string
+        hsaContributionSingle:
+          type: string
+        hsaContributionFamily:
+          type: string
+        workersCompRate:
+          type: string
+        contractStartDate:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          nullable: true
+        contractYears:
+          type: number
+        displayOrder:
+          type: number
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - name
+        - code
+        - compensationType
+        - retirementSystem
+        - contractYears
+        - createdAt
+        - updatedAt
+
+    CreateBargainingUnitRequest:
+      type: object
+      properties:
+        districtId:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+        compensationType:
+          type: string
+          enum: [salary, hourly]
+        retirementSystem:
+          type: string
+          enum: [TRS, IMRF, other]
+        retirementEmployeeRate:
+          type: string
+        retirementGrossUpRate:
+          type: string
+        ficaRate:
+          type: string
+        ficaExempt:
+          type: boolean
+        healthInsuranceSingleAnnual:
+          type: string
+        healthInsuranceFamilyAnnual:
+          type: string
+        hsaContributionSingle:
+          type: string
+        hsaContributionFamily:
+          type: string
+        workersCompRate:
+          type: string
+        contractStartDate:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          nullable: true
+        contractYears:
+          type: number
+        displayOrder:
+          type: number
+      required:
+        - districtId
+        - name
+        - code
+        - compensationType
+
+    UpdateBargainingUnitRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        retirementSystem:
+          type: string
+        retirementEmployeeRate:
+          type: string
+        retirementGrossUpRate:
+          type: string
+        ficaRate:
+          type: string
+        ficaExempt:
+          type: boolean
+        healthInsuranceSingleAnnual:
+          type: string
+        healthInsuranceFamilyAnnual:
+          type: string
+        hsaContributionSingle:
+          type: string
+        hsaContributionFamily:
+          type: string
+        workersCompRate:
+          type: string
+        contractStartDate:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          nullable: true
+        contractYears:
+          type: number
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        bargainingUnitId:
+          type: string
+        employeeNumber:
+          type: string
+          nullable: true
+        firstName:
+          type: string
+        lastName:
+          type: string
+        hireDate:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          nullable: true
+        yearsInDistrict:
+          type: number
+        yearsTotalService:
+          type: number
+        compensationType:
+          type: string
+        currentLaneId:
+          type: string
+          nullable: true
+        currentStep:
+          type: number
+          nullable: true
+        currentHourlyCategoryId:
+          type: string
+          nullable: true
+        currentHourlyRate:
+          type: string
+          nullable: true
+        annualHours:
+          type: string
+          nullable: true
+        currentAnnualSalary:
+          type: string
+        insuranceElection:
+          type: string
+        retirementEligible:
+          type: boolean
+        retirementPlan:
+          type: string
+        status:
+          type: string
+        contractYear:
+          type: number
+        bargainingUnitName:
+          type: string
+          nullable: true
+        laneName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - bargainingUnitId
+        - firstName
+        - lastName
+        - currentAnnualSalary
+        - insuranceElection
+        - status
+        - createdAt
+        - updatedAt
+
+    EmployeeList:
+      type: object
+      properties:
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+        total:
+          type: number
+        page:
+          type: number
+        pageSize:
+          type: number
+      required:
+        - employees
+        - total
+        - page
+        - pageSize
+
+    EmployeeWithProjections:
+      allOf:
+        - $ref: "#/components/schemas/Employee"
+        - type: object
+          properties:
+            yearProjections:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmployeeYearRecord"
+            retirementOptions:
+              $ref: "#/components/schemas/RetirementOptions"
+              nullable: true
+
+    EmployeeYearRecord:
+      type: object
+      properties:
+        contractYear:
+          type: number
+        yearLabel:
+          type: string
+        projectedStep:
+          type: number
+          nullable: true
+        projectedLaneId:
+          type: string
+          nullable: true
+        projectedLaneName:
+          type: string
+          nullable: true
+        projectedHourlyRate:
+          type: string
+          nullable: true
+        projectedBaseSalary:
+          type: string
+        retirementContribution:
+          type: string
+        ficaCost:
+          type: string
+        healthInsuranceCost:
+          type: string
+        otherBenefitsCost:
+          type: string
+        totalEmployerCost:
+          type: string
+        effectiveRate:
+          type: string
+          nullable: true
+      required:
+        - contractYear
+        - projectedBaseSalary
+        - retirementContribution
+        - ficaCost
+        - healthInsuranceCost
+        - otherBenefitsCost
+        - totalEmployerCost
+
+    CreateEmployeeRequest:
+      type: object
+      properties:
+        districtId:
+          type: string
+        bargainingUnitId:
+          type: string
+        employeeNumber:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        hireDate:
+          type: string
+        birthDate:
+          type: string
+        yearsInDistrict:
+          type: number
+        yearsTotalService:
+          type: number
+        compensationType:
+          type: string
+        currentLaneId:
+          type: string
+        currentStep:
+          type: number
+        currentHourlyCategoryId:
+          type: string
+        currentHourlyRate:
+          type: string
+        annualHours:
+          type: string
+        currentAnnualSalary:
+          type: string
+        insuranceElection:
+          type: string
+        retirementEligible:
+          type: boolean
+        retirementPlan:
+          type: string
+        status:
+          type: string
+        contractYear:
+          type: number
+      required:
+        - districtId
+        - bargainingUnitId
+        - firstName
+        - lastName
+        - currentAnnualSalary
+
+    UpdateEmployeeRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        yearsInDistrict:
+          type: number
+        yearsTotalService:
+          type: number
+        currentLaneId:
+          type: string
+        currentStep:
+          type: number
+        currentAnnualSalary:
+          type: string
+        currentHourlyRate:
+          type: string
+        annualHours:
+          type: string
+        insuranceElection:
+          type: string
+        retirementEligible:
+          type: boolean
+        retirementPlan:
+          type: string
+        retirementTargetYear:
+          type: number
+        status:
+          type: string
+        notes:
+          type: string
+
+    ImportEmployeesRequest:
+      type: object
+      properties:
+        districtId:
+          type: string
+        bargainingUnitId:
+          type: string
+        contractYear:
+          type: number
+        incremental:
+          type: boolean
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateEmployeeRequest"
+      required:
+        - districtId
+        - employees
+
+    ImportResult:
+      type: object
+      properties:
+        imported:
+          type: number
+        skipped:
+          type: number
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: number
+              message:
+                type: string
+      required:
+        - imported
+        - skipped
+        - errors
+
+    RetirementEligibleEmployee:
+      allOf:
+        - $ref: "#/components/schemas/Employee"
+        - type: object
+          properties:
+            retirementOptions:
+              $ref: "#/components/schemas/RetirementOptions"
+
+    RetirementOptions:
+      type: object
+      properties:
+        option1:
+          type: object
+          nullable: true
+        option2:
+          type: object
+          nullable: true
+        option3:
+          type: object
+          nullable: true
+
+    SalarySchedule:
+      type: object
+      properties:
+        id:
+          type: string
+        bargainingUnitId:
+          type: string
+        name:
+          type: string
+        effectiveYear:
+          type: number
+        baseSalary:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - bargainingUnitId
+        - name
+        - effectiveYear
+        - baseSalary
+        - createdAt
+
+    Lane:
+      type: object
+      properties:
+        id:
+          type: string
+        salaryScheduleId:
+          type: string
+        name:
+          type: string
+        displayOrder:
+          type: number
+        indexMultiplier:
+          type: string
+      required:
+        - id
+        - name
+        - displayOrder
+        - indexMultiplier
+
+    Step:
+      type: object
+      properties:
+        id:
+          type: string
+        salaryScheduleId:
+          type: string
+        stepNumber:
+          type: number
+        incrementMultiplier:
+          type: string
+      required:
+        - id
+        - stepNumber
+        - incrementMultiplier
+
+    ScheduleCell:
+      type: object
+      properties:
+        id:
+          type: string
+        laneId:
+          type: string
+        stepId:
+          type: string
+        stepNumber:
+          type: number
+        salaryAmount:
+          type: string
+      required:
+        - id
+        - laneId
+        - stepId
+        - stepNumber
+        - salaryAmount
+
+    SalaryScheduleWithGrid:
+      allOf:
+        - $ref: "#/components/schemas/SalarySchedule"
+        - type: object
+          properties:
+            lanes:
+              type: array
+              items:
+                $ref: "#/components/schemas/Lane"
+            steps:
+              type: array
+              items:
+                $ref: "#/components/schemas/Step"
+            cells:
+              type: array
+              items:
+                $ref: "#/components/schemas/ScheduleCell"
+
+    CreateSalaryScheduleRequest:
+      type: object
+      properties:
+        bargainingUnitId:
+          type: string
+        name:
+          type: string
+        effectiveYear:
+          type: number
+        baseSalary:
+          type: string
+        lanes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              displayOrder:
+                type: number
+              indexMultiplier:
+                type: string
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              stepNumber:
+                type: number
+              incrementMultiplier:
+                type: string
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              laneIndex:
+                type: number
+              stepNumber:
+                type: number
+              salaryAmount:
+                type: string
+      required:
+        - bargainingUnitId
+        - name
+
+    HourlyCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        hourlyScheduleId:
+          type: string
+        name:
+          type: string
+        baseHourlyRate:
+          type: string
+        annualHours:
+          type: string
+        displayOrder:
+          type: number
+      required:
+        - id
+        - name
+        - baseHourlyRate
+        - annualHours
+
+    HourlyScheduleWithCategories:
+      type: object
+      properties:
+        id:
+          type: string
+        bargainingUnitId:
+          type: string
+        effectiveYear:
+          type: number
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/HourlyCategory"
+        createdAt:
+          type: string
+      required:
+        - id
+        - bargainingUnitId
+        - effectiveYear
+        - categories
+        - createdAt
+
+    CreateHourlyScheduleRequest:
+      type: object
+      properties:
+        bargainingUnitId:
+          type: string
+        effectiveYear:
+          type: number
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              baseHourlyRate:
+                type: string
+              annualHours:
+                type: string
+              displayOrder:
+                type: number
+      required:
+        - bargainingUnitId
+
+    ScenarioYearConfig:
+      type: object
+      properties:
+        id:
+          type: string
+        scenarioId:
+          type: string
+        bargainingUnitId:
+          type: string
+        contractYear:
+          type: number
+        yearLabel:
+          type: string
+        increaseType:
+          type: string
+          enum: [fixed_percentage, cpi_formula, flat_dollar, step_only, custom]
+        fixedPercentage:
+          type: string
+          nullable: true
+        cpiValue:
+          type: string
+          nullable: true
+        cpiAdder:
+          type: string
+          nullable: true
+        cpiCap:
+          type: string
+          nullable: true
+        cpiFloor:
+          type: string
+          nullable: true
+        cpiIndexName:
+          type: string
+          nullable: true
+        highEarnerThreshold:
+          type: string
+          nullable: true
+        highEarnerFlatIncrease:
+          type: string
+          nullable: true
+        effectiveRate:
+          type: string
+          nullable: true
+        educationalAdvancementBa15:
+          type: string
+          nullable: true
+        educationalAdvancementMa:
+          type: string
+          nullable: true
+        educationalAdvancementMa15:
+          type: string
+          nullable: true
+        stepAdvancement:
+          type: boolean
+        healthPremiumIncreaseRate:
+          type: string
+          nullable: true
+        healthEmployerCapRate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - bargainingUnitId
+        - contractYear
+        - yearLabel
+        - increaseType
+        - stepAdvancement
+
+    Scenario:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isFinal:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, active, final, archived]
+        yearConfigs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioYearConfig"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - name
+        - isFinal
+        - status
+        - yearConfigs
+        - createdAt
+        - updatedAt
+
+    ScenarioSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isFinal:
+          type: boolean
+        status:
+          type: string
+        totalFiveYearCost:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - isFinal
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateScenarioRequest:
+      type: object
+      properties:
+        districtId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        yearConfigs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioYearConfig"
+      required:
+        - districtId
+        - name
+
+    UpdateScenarioRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        yearConfigs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioYearConfig"
+
+    ScenarioYearSummary:
+      type: object
+      properties:
+        contractYear:
+          type: number
+        yearLabel:
+          type: string
+        bargainingUnitId:
+          type: string
+        bargainingUnitName:
+          type: string
+          nullable: true
+        totalPayroll:
+          type: string
+        totalTRS:
+          type: string
+        totalIMRF:
+          type: string
+        totalFICA:
+          type: string
+        totalHealthInsurance:
+          type: string
+        totalOtherBenefits:
+          type: string
+        totalBenefits:
+          type: string
+        totalEmployerCost:
+          type: string
+        employeeCount:
+          type: number
+        avgSalary:
+          type: string
+        effectiveRate:
+          type: string
+          nullable: true
+      required:
+        - contractYear
+        - yearLabel
+        - bargainingUnitId
+        - totalPayroll
+        - totalEmployerCost
+        - employeeCount
+
+    ScenarioCalculationResult:
+      type: object
+      properties:
+        scenarioId:
+          type: string
+        scenarioName:
+          type: string
+        status:
+          type: string
+        yearSummaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioYearSummary"
+        districtWideSummary:
+          type: array
+          items:
+            type: object
+            properties:
+              contractYear:
+                type: number
+              yearLabel:
+                type: string
+              totalPayroll:
+                type: string
+              totalBenefits:
+                type: string
+              totalEmployerCost:
+                type: string
+              employeeCount:
+                type: number
+        totalFiveYearCost:
+          type: string
+        employeeCount:
+          type: number
+      required:
+        - scenarioId
+        - scenarioName
+        - status
+        - yearSummaries
+
+    ScenarioComparison:
+      type: object
+      properties:
+        scenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioCalculationResult"
+        cheapestScenarioId:
+          type: string
+          nullable: true
+        mostExpensiveScenarioId:
+          type: string
+          nullable: true
+        maxDeltaFiveYear:
+          type: string
+          nullable: true
+      required:
+        - scenarios
+
+    HeatmapYearData:
+      type: object
+      properties:
+        contractYear:
+          type: number
+        yearLabel:
+          type: string
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              laneId:
+                type: string
+              laneName:
+                type: string
+              stepNumber:
+                type: number
+              employeeCount:
+                type: number
+              totalSalary:
+                type: string
+              employees:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    salary:
+                      type: string
+        lanes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lane"
+        maxStep:
+          type: number
+        totalEmployees:
+          type: number
+        medianSalary:
+          type: string
+          nullable: true
+        avgStep:
+          type: number
+          nullable: true
+        employeesAtTopStep:
+          type: number
+      required:
+        - contractYear
+        - yearLabel
+        - cells
+        - lanes
+        - maxStep
+        - totalEmployees
+        - employeesAtTopStep
+
+    HeatmapData:
+      type: object
+      properties:
+        scenarioId:
+          type: string
+        bargainingUnitId:
+          type: string
+        bargainingUnitName:
+          type: string
+        years:
+          type: array
+          items:
+            $ref: "#/components/schemas/HeatmapYearData"
+      required:
+        - scenarioId
+        - bargainingUnitId
+        - years
+
+    DashboardData:
+      type: object
+      properties:
+        district:
+          $ref: "#/components/schemas/District"
+        employeeCountByUnit:
+          type: array
+          items:
+            type: object
+            properties:
+              bargainingUnitId:
+                type: string
+              bargainingUnitName:
+                type: string
+              employeeCount:
+                type: number
+              totalPayroll:
+                type: string
+        totalEmployees:
+          type: number
+        totalCurrentPayroll:
+          type: string
+        retirementEligibleCount:
+          type: number
+        highEarnerCount:
+          type: number
+        employeesAtTopStepCount:
+          type: number
+        activeScenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioSummary"
+        finalScenario:
+          $ref: "#/components/schemas/ScenarioSummary"
+          nullable: true
+        fiveYearProjection:
+          type: array
+          items:
+            type: object
+            properties:
+              contractYear:
+                type: number
+              yearLabel:
+                type: string
+              totalEmployerCost:
+                type: string
+          nullable: true
+      required:
+        - totalEmployees
+        - totalCurrentPayroll
+        - retirementEligibleCount
+        - highEarnerCount
+        - employeesAtTopStepCount
+        - activeScenarios
+        - employeeCountByUnit
