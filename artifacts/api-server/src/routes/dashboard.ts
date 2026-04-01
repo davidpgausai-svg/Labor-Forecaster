@@ -109,7 +109,13 @@ router.get("/dashboard", async (req, res) => {
   const finalScenarios = activeScenarios.filter((s) => s.isFinal);
   const finalScenario = finalScenarios[0] ?? null;
 
-  let fiveYearProjection = null;
+  let fiveYearProjection: Array<{
+    contractYear: number;
+    yearLabel: string;
+    totalEmployerCost: string;
+    byUnit: Array<{ bargainingUnitId: string; bargainingUnitName: string; cost: string }>;
+  }> | null = null;
+
   const targetScenarioId = (scenarioId as string) || finalScenario?.id;
   if (targetScenarioId) {
     const yearConfigs = await db
@@ -118,27 +124,44 @@ router.get("/dashboard", async (req, res) => {
       .where(eq(scenarioYearConfigsTable.scenarioId, targetScenarioId))
       .orderBy(scenarioYearConfigsTable.contractYear);
 
-    const yearRecords = await db
-      .select()
+    const yearRecordsWithUnit = await db
+      .select({
+        record: employeeYearRecordsTable,
+        bargainingUnitId: employeesTable.bargainingUnitId,
+      })
       .from(employeeYearRecordsTable)
+      .leftJoin(employeesTable, eq(employeeYearRecordsTable.employeeId, employeesTable.id))
       .where(eq(employeeYearRecordsTable.scenarioId, targetScenarioId));
 
-    if (yearRecords.length > 0) {
-      const yearMap = new Map<
-        number,
-        { contractYear: number; yearLabel: string; totalEmployerCost: Decimal }
-      >();
-      for (const r of yearRecords) {
+    if (yearRecordsWithUnit.length > 0) {
+      type YearEntry = {
+        contractYear: number;
+        yearLabel: string;
+        totalEmployerCost: Decimal;
+        unitCosts: Map<string, Decimal>;
+      };
+      const yearMap = new Map<number, YearEntry>();
+
+      for (const row of yearRecordsWithUnit) {
+        const r = row.record;
+        const buId = row.bargainingUnitId ?? "unknown";
         const config = yearConfigs.find((c) => c.contractYear === r.contractYear);
         const label = config?.yearLabel ?? `Year ${r.contractYear}`;
+        const cost = new Decimal(r.totalEmployerCostCents).dividedBy(100);
+
         const existing = yearMap.get(r.contractYear);
         if (existing) {
-          existing.totalEmployerCost = existing.totalEmployerCost.plus(new Decimal(r.totalEmployerCostCents).dividedBy(100));
+          existing.totalEmployerCost = existing.totalEmployerCost.plus(cost);
+          const buCost = existing.unitCosts.get(buId) ?? new Decimal(0);
+          existing.unitCosts.set(buId, buCost.plus(cost));
         } else {
+          const unitCosts = new Map<string, Decimal>();
+          unitCosts.set(buId, cost);
           yearMap.set(r.contractYear, {
             contractYear: r.contractYear,
             yearLabel: label,
-            totalEmployerCost: new Decimal(r.totalEmployerCostCents).dividedBy(100),
+            totalEmployerCost: cost,
+            unitCosts,
           });
         }
       }
@@ -149,6 +172,11 @@ router.get("/dashboard", async (req, res) => {
           contractYear: y.contractYear,
           yearLabel: y.yearLabel,
           totalEmployerCost: y.totalEmployerCost.toDecimalPlaces(2).toString(),
+          byUnit: units.map((u) => ({
+            bargainingUnitId: u.id,
+            bargainingUnitName: u.name,
+            cost: (y.unitCosts.get(u.id) ?? new Decimal(0)).toDecimalPlaces(2).toString(),
+          })),
         }));
     }
   }

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useListDistricts, useListScenarios } from "@workspace/api-client-react";
+import { useListDistricts, useListScenarios, getListScenariosQueryKey } from "@workspace/api-client-react";
 
 interface DistrictContextType {
   districtId: string | null;
@@ -23,7 +23,7 @@ export function DistrictProvider({ children }: { children: ReactNode }) {
 
   const { data: scenarios, isLoading: scenariosLoading } = useListScenarios(
     { districtId: districtId! },
-    { query: { enabled: !!districtId } }
+    { query: { enabled: !!districtId, queryKey: getListScenariosQueryKey({ districtId: districtId! }) } }
   );
 
   useEffect(() => {

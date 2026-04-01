@@ -1,4 +1,13 @@
-import { useListSalarySchedules, getListSalarySchedulesQueryKey, useListBargainingUnits, getListBargainingUnitsQueryKey } from "@workspace/api-client-react";
+import {
+  useListSalarySchedules,
+  getListSalarySchedulesQueryKey,
+  useListBargainingUnits,
+  getListBargainingUnitsQueryKey,
+  SalaryScheduleWithGrid,
+  Lane,
+  Step,
+  ScheduleCell,
+} from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +34,9 @@ export default function Schedules() {
       {unitsLoading ? (
         <Skeleton className="h-96 w-full" />
       ) : salaryUnits.length === 0 ? (
-        <Card className="bg-card border-border"><CardContent className="py-12 text-center text-muted-foreground">No salary units found.</CardContent></Card>
+        <Card className="bg-card border-border">
+          <CardContent className="py-12 text-center text-muted-foreground">No salary units found.</CardContent>
+        </Card>
       ) : (
         <Tabs defaultValue={salaryUnits[0]?.id} className="w-full">
           <TabsList className="bg-muted border-border">
@@ -52,13 +63,20 @@ function ScheduleGrid({ unitId }: { unitId: string }) {
     { query: { enabled: !!unitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: unitId }) } }
   );
 
-  const schedule = schedules?.[0] as any; // Cast to access cells/lanes/steps
+  const schedule = schedules?.[0] as SalaryScheduleWithGrid | undefined;
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
-  if (!schedule || !schedule.lanes || !schedule.steps) return <Card className="bg-card border-border"><CardContent className="py-12 text-center text-muted-foreground">No grid data found.</CardContent></Card>;
+  if (!schedule || !schedule.lanes || !schedule.steps) {
+    return (
+      <Card className="bg-card border-border">
+        <CardContent className="py-12 text-center text-muted-foreground">No grid data found.</CardContent>
+      </Card>
+    );
+  }
 
-  const lanes = [...schedule.lanes].sort((a, b) => a.displayOrder - b.displayOrder);
-  const steps = [...schedule.steps].sort((a, b) => a.stepNumber - b.stepNumber);
+  const lanes: Lane[] = [...schedule.lanes].sort((a, b) => a.displayOrder - b.displayOrder);
+  const steps: Step[] = [...schedule.steps].sort((a, b) => a.stepNumber - b.stepNumber);
+  const cells: ScheduleCell[] = schedule.cells ?? [];
 
   return (
     <Card className="bg-card border-border overflow-hidden">
@@ -68,7 +86,9 @@ function ScheduleGrid({ unitId }: { unitId: string }) {
             <TableRow className="border-border">
               <TableHead className="w-20 border-r border-border">Step</TableHead>
               {lanes.map(lane => (
-                <TableHead key={lane.id} className="text-right border-r border-border min-w-[120px]">{lane.name}</TableHead>
+                <TableHead key={lane.id} className="text-right border-r border-border min-w-[120px]">
+                  {lane.name}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -77,9 +97,12 @@ function ScheduleGrid({ unitId }: { unitId: string }) {
               <TableRow key={step.id} className="border-border hover:bg-muted/30">
                 <TableCell className="font-bold border-r border-border text-center">{step.stepNumber}</TableCell>
                 {lanes.map(lane => {
-                  const cell = schedule.cells?.find((c: any) => c.stepId === step.id && c.laneId === lane.id);
+                  const cell = cells.find((c: ScheduleCell) => c.stepId === step.id && c.laneId === lane.id);
                   return (
-                    <TableCell key={lane.id} className="text-right font-mono text-sm border-r border-border last:border-r-0 text-muted-foreground hover:text-foreground hover:bg-primary/5 transition-colors">
+                    <TableCell
+                      key={lane.id}
+                      className="text-right font-mono text-sm border-r border-border last:border-r-0 text-muted-foreground hover:text-foreground hover:bg-primary/5 transition-colors"
+                    >
                       {cell ? formatCurrency(cell.salaryAmount) : "—"}
                     </TableCell>
                   );

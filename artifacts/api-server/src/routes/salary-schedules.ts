@@ -49,7 +49,23 @@ router.get("/salary-schedules", async (req, res) => {
         .where(eq(salarySchedulesTable.bargainingUnitId, bargainingUnitId as string))
         .orderBy(salarySchedulesTable.effectiveYear)
     : await db.select().from(salarySchedulesTable).orderBy(salarySchedulesTable.effectiveYear);
-  res.json(schedules);
+
+  const schedulesWithGrid = await Promise.all(
+    schedules.map(async (schedule) => {
+      const [lanes, steps, cells] = await Promise.all([
+        db.select().from(lanesTable).where(eq(lanesTable.salaryScheduleId, schedule.id)).orderBy(lanesTable.displayOrder),
+        db.select().from(stepsTable).where(eq(stepsTable.salaryScheduleId, schedule.id)).orderBy(stepsTable.stepNumber),
+        db.select().from(scheduleCellsTable).where(eq(scheduleCellsTable.salaryScheduleId, schedule.id)),
+      ]);
+      const cellsWithStepNumber = cells.map((c) => {
+        const step = steps.find((s) => s.id === c.stepId);
+        return { ...c, stepNumber: step?.stepNumber ?? 0 };
+      });
+      return { ...schedule, lanes, steps, cells: cellsWithStepNumber };
+    })
+  );
+
+  res.json(schedulesWithGrid);
 });
 
 router.post("/salary-schedules", async (req, res) => {

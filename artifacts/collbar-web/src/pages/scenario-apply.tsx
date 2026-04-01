@@ -1,45 +1,88 @@
 import { useParams, useLocation } from "wouter";
-import { useGetScenarioSummary, getGetScenarioSummaryQueryKey, useApplyScenario } from "@workspace/api-client-react";
+import { useGetScenario, getGetScenarioQueryKey, useApplyScenario } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2 } from "lucide-react";
-import { formatCurrency } from "@/lib/format";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 
 export default function ScenarioApply() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
-  // NOTE: Assuming useGetScenarioSummary exists based on prompt
-  // In API it might just be the scenario detail or calculation result
-  // If it's missing, we fall back to generic UI.
+
+  const { data: scenario, isLoading } = useGetScenario(id!, {
+    query: { enabled: !!id, queryKey: getGetScenarioQueryKey(id!) }
+  });
+
+  const applyMutation = useApplyScenario();
 
   const handleApply = () => {
-    toast({ title: "Scenario Applied", description: "This scenario is now the Final Agreement." });
-    setTimeout(() => setLocation("/scenarios"), 1500);
+    if (!id) return;
+    applyMutation.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Scenario Applied", description: `"${scenario?.name}" is now the Final Agreement.` });
+          setLocation("/scenarios");
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Failed to apply scenario.", variant: "destructive" });
+        },
+      }
+    );
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 max-w-3xl mx-auto mt-12">
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!scenario) return <div className="text-destructive p-8">Scenario not found.</div>;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto mt-12">
-      <Card className="border-green-500/30 bg-green-500/5">
+      <Card className="border-amber-500/30 bg-amber-500/5">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-            <CheckCircle2 className="w-6 h-6 text-green-500" />
+          <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mb-4">
+            <AlertTriangle className="w-6 h-6 text-amber-500" />
           </div>
-          <CardTitle className="text-2xl text-green-500">Apply as Final Agreement</CardTitle>
+          <CardTitle className="text-2xl text-amber-500">Apply as Final Agreement</CardTitle>
           <CardDescription className="text-base text-muted-foreground mt-2">
-            Are you sure you want to mark this scenario as the final approved agreement? This will archive all other scenarios.
+            You are about to mark <span className="font-semibold text-foreground">{scenario.name}</span> as the final approved agreement.
+            This will lock the scenario and archive all other draft scenarios.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center pt-6 space-y-6">
-          <Button size="lg" className="w-full max-w-sm bg-green-600 hover:bg-green-700 text-white font-bold" onClick={handleApply}>
-            Confirm Final Agreement
-          </Button>
-          <Button variant="ghost" onClick={() => setLocation(`/scenarios/${id}`)}>
-            Cancel
-          </Button>
+        <CardContent className="pt-6 space-y-4">
+          {scenario.description && (
+            <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground border border-border">
+              {scenario.description}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 p-4 bg-muted/30 border border-border rounded-lg">
+            <CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+            <div className="text-sm text-muted-foreground">
+              Created {new Date(scenario.createdAt).toLocaleDateString()} &bull; Status: <span className="capitalize font-medium text-foreground">{scenario.status}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2">
+            <Button
+              size="lg"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold"
+              onClick={handleApply}
+              disabled={applyMutation.isPending}
+            >
+              {applyMutation.isPending ? "Applying..." : "Confirm Final Agreement"}
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={() => setLocation(`/scenarios/${id}`)}>
+              Cancel
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

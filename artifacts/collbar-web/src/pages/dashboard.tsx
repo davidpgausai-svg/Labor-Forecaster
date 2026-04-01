@@ -2,12 +2,30 @@ import { useGetDashboard, getGetDashboardQueryKey } from "@workspace/api-client-
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getBadgeColorClass, getStatusBadgeClass } from "@/lib/badges";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DollarSign, ArrowUpRight, Award, History } from "lucide-react";
 import { Link } from "wouter";
+
+type ProjectionRow = {
+  contractYear?: number;
+  yearLabel?: string;
+  totalEmployerCost?: string;
+  byUnit?: Array<{ bargainingUnitId: string; bargainingUnitName: string; cost: string }>;
+};
+
+const UNIT_COLORS: Record<string, string> = {
+  "Licensed Staff": "hsl(217,91%,60%)",
+  "Educational Support Personnel": "hsl(258,90%,66%)",
+  "Custodial & Maintenance": "hsl(38,92%,50%)",
+};
+
+function getUnitColor(name: string, idx: number): string {
+  const fallbacks = ["hsl(173,58%,39%)", "hsl(349,89%,60%)", "hsl(221,83%,53%)"];
+  return UNIT_COLORS[name] ?? fallbacks[idx % fallbacks.length];
+}
 
 export default function Dashboard() {
   const { districtId, scenarioId } = useDistrictContext();
@@ -24,7 +42,10 @@ export default function Dashboard() {
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
         </div>
       </div>
     );
@@ -33,6 +54,17 @@ export default function Dashboard() {
   if (isError || !data) {
     return <div className="text-destructive">Failed to load dashboard data.</div>;
   }
+
+  const projection = data.fiveYearProjection as ProjectionRow[] | null | undefined;
+  const unitNames = projection?.[0]?.byUnit?.map(u => u.bargainingUnitName) ?? [];
+
+  const chartData = projection?.map(row => {
+    const point: Record<string, string | number | null | undefined> = { yearLabel: row.yearLabel };
+    for (const u of (row.byUnit ?? [])) {
+      point[u.bargainingUnitName] = parseFloat(u.cost);
+    }
+    return point;
+  }) ?? [];
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -87,27 +119,50 @@ export default function Dashboard() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle>5-Year Cost Projection</CardTitle>
-              <CardDescription>Total employer cost across all units</CardDescription>
+              <CardDescription>Total employer cost by bargaining unit</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
-                {data.fiveYearProjection && data.fiveYearProjection.length > 0 ? (
+                {chartData.length > 0 && unitNames.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.fiveYearProjection} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                      <XAxis dataKey="yearLabel" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
+                      <XAxis
+                        dataKey="yearLabel"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
                         tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12, fontFamily: "var(--app-font-mono)" }}
-                        tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+                        tickFormatter={(v: number) => `$${(v / 1000000).toFixed(1)}M`}
                       />
-                      <Tooltip 
+                      <Tooltip
                         cursor={{ fill: "hsl(var(--muted))" }}
-                        contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", color: "hsl(var(--popover-foreground))", borderRadius: "8px", fontFamily: "var(--app-font-mono)" }}
-                        formatter={(value: any) => [formatCurrency(value), "Total Cost"]}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--popover))",
+                          borderColor: "hsl(var(--border))",
+                          color: "hsl(var(--popover-foreground))",
+                          borderRadius: "8px",
+                          fontFamily: "var(--app-font-mono)",
+                        }}
+                        formatter={(value: number | string) => [formatCurrency(value), ""]}
                       />
-                      <Bar dataKey="totalEmployerCost" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                      <Legend
+                        wrapperStyle={{ paddingTop: "12px", fontFamily: "var(--app-font-sans)", fontSize: "12px" }}
+                      />
+                      {unitNames.map((name, idx) => (
+                        <Bar
+                          key={name}
+                          dataKey={name}
+                          stackId="a"
+                          fill={getUnitColor(name, idx)}
+                          radius={idx === unitNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                          maxBarSize={60}
+                        />
+                      ))}
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
