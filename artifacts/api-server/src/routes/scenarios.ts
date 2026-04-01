@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import {
   scenariosTable,
@@ -22,6 +23,42 @@ import type {
   ScheduleCell,
   EmployeeYearResult,
 } from "../lib/calculations/types";
+
+const yearConfigSchema = z.object({
+  bargainingUnitId: z.string().uuid(),
+  contractYear: z.number().int().min(0),
+  yearLabel: z.string().min(1),
+  increaseType: z.enum(["fixed_percentage", "cpi_formula", "flat_dollar", "step_only", "custom"]),
+  fixedPercentage: z.string().nullable().optional(),
+  cpiValue: z.string().nullable().optional(),
+  cpiAdder: z.string().nullable().optional(),
+  cpiCap: z.string().nullable().optional(),
+  cpiFloor: z.string().nullable().optional(),
+  cpiIndexName: z.string().nullable().optional(),
+  highEarnerThreshold: z.string().nullable().optional(),
+  highEarnerFlatIncrease: z.string().nullable().optional(),
+  educationalAdvancementBa15: z.string().nullable().optional(),
+  educationalAdvancementMa: z.string().nullable().optional(),
+  educationalAdvancementMa15: z.string().nullable().optional(),
+  stepAdvancement: z.boolean().optional(),
+  healthPremiumIncreaseRate: z.string().nullable().optional(),
+  healthEmployerCapRate: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+const createScenarioSchema = z.object({
+  districtId: z.string().uuid(),
+  name: z.string().min(1),
+  description: z.string().nullable().optional(),
+  yearConfigs: z.array(yearConfigSchema).optional(),
+});
+
+const updateScenarioSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  status: z.enum(["draft", "active", "final", "archived"]).optional(),
+  yearConfigs: z.array(yearConfigSchema).optional(),
+});
 
 const router = Router();
 
@@ -77,11 +114,12 @@ router.get("/scenarios", async (req, res) => {
 });
 
 router.post("/scenarios", async (req, res) => {
-  const { districtId, name, description, yearConfigs } = req.body;
-  if (!districtId || !name) {
-    res.status(400).json({ error: "districtId and name are required" });
+  const parsed = createScenarioSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
+  const { districtId, name, description, yearConfigs } = parsed.data;
 
   const [scenario] = await db
     .insert(scenariosTable)
@@ -124,7 +162,11 @@ router.get("/scenarios/compare", async (req, res) => {
     res.status(400).json({ error: "ids query param is required" });
     return;
   }
-  const scenarioIds = (ids as string).split(",").filter(Boolean);
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const scenarioIds = (ids as string)
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => UUID_RE.test(s));
   if (scenarioIds.length === 0) {
     res.status(400).json({ error: "No valid scenario IDs provided" });
     return;
@@ -133,13 +175,18 @@ router.get("/scenarios/compare", async (req, res) => {
   const results = await Promise.all(scenarioIds.map((id) => runCalculation(id)));
   const validResults = results.filter((r): r is NonNullable<typeof r> => r !== null);
 
+  if (validResults.length === 0) {
+    res.status(404).json({ error: "No valid scenarios found for the provided IDs" });
+    return;
+  }
+
   const fiveYearCosts = validResults.map((r) => ({
     id: r.scenarioId,
     cost: new Decimal(r.totalFiveYearCost ?? "0"),
   }));
 
-  const cheapest = fiveYearCosts.reduce((min, c) => (c.cost.lt(min.cost) ? c : min), fiveYearCosts[0]);
-  const mostExpensive = fiveYearCosts.reduce((max, c) => (c.cost.gt(max.cost) ? c : max), fiveYearCosts[0]);
+  const cheapest = fiveYearCosts.reduce((min, c) => (c.cost.lt(min.cost) ? c : min));
+  const mostExpensive = fiveYearCosts.reduce((max, c) => (c.cost.gt(max.cost) ? c : max));
 
   const delta =
     fiveYearCosts.length >= 2
@@ -148,8 +195,8 @@ router.get("/scenarios/compare", async (req, res) => {
 
   res.json({
     scenarios: validResults,
-    cheapestScenarioId: cheapest?.id ?? null,
-    mostExpensiveScenarioId: mostExpensive?.id ?? null,
+    cheapestScenarioId: cheapest.id,
+    mostExpensiveScenarioId: mostExpensive.id,
     maxDeltaFiveYear: delta,
   });
 });
@@ -164,7 +211,12 @@ router.get("/scenarios/:id", async (req, res) => {
 });
 
 router.put("/scenarios/:id", async (req, res) => {
-  const { name, description, status, yearConfigs } = req.body;
+  const parsed = updateScenarioSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+  const { name, description, status, yearConfigs } = parsed.data;
   const updated = await db
     .update(scenariosTable)
     .set({ name, description, status, updatedAt: new Date() })

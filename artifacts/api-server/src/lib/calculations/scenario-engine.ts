@@ -1,11 +1,13 @@
 import Decimal from "decimal.js";
-import { calcSalariedEmployeeYear, calcHourlyEmployeeYear } from "./salary-engine";
+import { calcSalariedEmployeeYear } from "./salary-engine";
+import { calcHourlyEmployeeYear } from "./hourly-engine";
 import { calcBenefits } from "./benefits-engine";
 import type {
   YearConfig,
   EmployeeInput,
   BargainingUnitConfig,
   SalaryScheduleData,
+  LaneInfo,
   EmployeeYearResult,
   ScenarioYearSummary,
   HeatmapCell,
@@ -31,6 +33,9 @@ export function calcEmployeeProjection(
   let currentStep = employee.currentStep ?? null;
   const currentLaneId = employee.currentLaneId ?? null;
 
+  const laneInfo: LaneInfo | null =
+    schedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
+
   for (let yearIdx = 0; yearIdx <= Math.max(unitConfig.contractYears - 1, yearConfigs.length - 1); yearIdx++) {
     const config = yearConfigs[yearIdx];
     if (!config) break;
@@ -47,12 +52,14 @@ export function calcEmployeeProjection(
         currentAnnualSalary: currentSalary.toString(),
         currentStep,
       };
+      // Step 6: benefits calculated on the rounded salary
       const result = calcSalariedEmployeeYear(
         tempEmployee,
         yearIdx,
         config,
         schedule,
-        MAX_STEPS
+        MAX_STEPS,
+        laneInfo
       );
       projectedBaseSalary = result.salary;
       projectedStep = result.projectedStep;
@@ -72,6 +79,7 @@ export function calcEmployeeProjection(
       currentSalary = result.annualSalary;
     }
 
+    // Step 6: Employer costs calculated on rounded salary
     const benefits = calcBenefits(
       projectedBaseSalary,
       unitConfig,
@@ -86,15 +94,15 @@ export function calcEmployeeProjection(
       contractYear: yearIdx,
       projectedStep,
       projectedLaneId,
-      projectedHourlyRate: projectedHourlyRate?.toString() ?? null,
-      projectedBaseSalary: projectedBaseSalary.toString(),
-      projectedTotalCompensation: projectedBaseSalary.toString(),
-      retirementContribution: benefits.retirementContribution.toString(),
-      ficaCost: benefits.ficaCost.toString(),
-      healthInsuranceCost: benefits.healthInsuranceCost.toString(),
-      otherBenefitsCost: benefits.otherBenefitsCost.toString(),
-      totalEmployerCost: benefits.totalEmployerCost.toString(),
-      effectiveRate: effectiveRate?.toString() ?? null,
+      projectedHourlyRate: projectedHourlyRate?.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toString() ?? null,
+      projectedBaseSalary: projectedBaseSalary.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      projectedTotalCompensation: projectedBaseSalary.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      retirementContribution: benefits.retirementContribution.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      ficaCost: benefits.ficaCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      healthInsuranceCost: benefits.healthInsuranceCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      otherBenefitsCost: benefits.otherBenefitsCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      totalEmployerCost: benefits.totalEmployerCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      effectiveRate: effectiveRate?.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toString() ?? null,
       isRetirementYear: false,
       retirementIncentiveAmount: null,
     });
@@ -176,7 +184,6 @@ export function buildHeatmapData(
   contractYear: number,
   lanesInfo: Array<{ id: string; name: string; displayOrder: number }>
 ): HeatmapCell[] {
-  const cells: HeatmapCell[] = [];
   const yearData = yearRecords.filter((r) => r.contractYear === contractYear);
 
   const cellMap = new Map<string, HeatmapCell>();
@@ -203,6 +210,7 @@ export function buildHeatmapData(
     cell.employeeCount++;
     cell.totalSalary = new Decimal(cell.totalSalary)
       .plus(record.projectedBaseSalary)
+      .toDecimalPlaces(2)
       .toString();
 
     const emp = employees.find((e) => e.id === record.employeeId);

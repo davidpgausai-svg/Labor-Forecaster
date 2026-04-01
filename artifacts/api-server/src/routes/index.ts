@@ -8,6 +8,8 @@ import hourlySchedulesRouter from "./hourly-schedules";
 import scenariosRouter from "./scenarios";
 import heatmapRouter from "./heatmap";
 import dashboardRouter from "./dashboard";
+import reportsRouter from "./reports";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(hourlySchedulesRouter);
 router.use(scenariosRouter);
 router.use(heatmapRouter);
 router.use(dashboardRouter);
+router.use(reportsRouter);
+router.use(settingsRouter);
 
 export default router;

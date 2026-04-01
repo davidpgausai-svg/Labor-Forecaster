@@ -397,9 +397,9 @@ async function seed() {
 
   const scenarioDefs = [
     {
-      name: "Board Scenario A – 3% Flat",
+      name: "Board Proposal A",
       description:
-        "Conservative: 3% fixed salary increase all years with no step advancement Year 1",
+        "Conservative: 3% fixed salary increase all years with high-earner $3,000 flat override",
       yearConfigs: [
         { contractYear: 0, yearLabel: "2025-2026", increaseType: "fixed_percentage" as const, fixedPercentage: "0", stepAdvancement: false },
         { contractYear: 1, yearLabel: "2026-2027", increaseType: "fixed_percentage" as const, fixedPercentage: "3.0", stepAdvancement: true, highEarnerThreshold: "125000", highEarnerFlatIncrease: "3000" },
@@ -409,7 +409,7 @@ async function seed() {
       ],
     },
     {
-      name: "Board Scenario B – CPI+0.5% (2-5% cap/floor)",
+      name: "Union Counter-Proposal",
       description:
         "CPI-linked with 0.5% adder, floored at 2%, capped at 5%. High earner $3,000 flat.",
       yearConfigs: [
@@ -421,7 +421,7 @@ async function seed() {
       ],
     },
     {
-      name: "Board Scenario C – Step Only (Base Freeze)",
+      name: "Conservative Baseline",
       description:
         "No base salary increase. Step movement only. Freeze base in all years.",
       yearConfigs: [
@@ -433,6 +433,8 @@ async function seed() {
       ],
     },
   ];
+
+  const seededScenarioIds: string[] = [];
 
   for (const scenarioDef of scenarioDefs) {
     const [scenario] = await db
@@ -470,7 +472,36 @@ async function seed() {
     }
 
     await db.insert(scenarioYearConfigsTable).values(yearConfigInserts);
+    seededScenarioIds.push(scenario.id);
     console.log(`✅ Scenario: ${scenario.name}`);
+  }
+
+  console.log("\n⚡ Pre-computing scenario projections...");
+  const API_BASE = `http://localhost:${process.env.PORT ?? 8080}/api`;
+
+  let allCalculated = true;
+  for (const scenarioId of seededScenarioIds) {
+    try {
+      const resp = await fetch(`${API_BASE}/scenarios/${scenarioId}/calculate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (resp.ok) {
+        const result = await resp.json() as { scenarioName: string; employeeCount: number; totalFiveYearCost: string };
+        console.log(`   ✅ Calculated: ${result.scenarioName} — ${result.employeeCount} employees, $${parseFloat(result.totalFiveYearCost).toLocaleString()} 5-yr cost`);
+      } else {
+        const err = await resp.text();
+        console.warn(`   ⚠️  Calculation failed for ${scenarioId}: ${resp.status} ${err}`);
+        allCalculated = false;
+      }
+    } catch (e) {
+      console.warn(`   ⚠️  Could not reach API server for ${scenarioId}: ${e}`);
+      allCalculated = false;
+    }
+  }
+
+  if (!allCalculated) {
+    console.log("\n   Note: Run POST /api/scenarios/:id/calculate for each scenario manually if server was not available.");
   }
 
   console.log("\n🎉 Seed complete! District 21 is ready.");

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import {
   employeesTable,
@@ -13,6 +14,34 @@ import {
   calcRetirementOption2,
   calcRetirementOption3,
 } from "../lib/calculations/retirement-engine";
+
+const createEmployeeSchema = z.object({
+  districtId: z.string().uuid(),
+  bargainingUnitId: z.string().uuid(),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  employeeNumber: z.string().optional(),
+  compensationType: z.enum(["salary", "hourly"]).default("salary"),
+  currentAnnualSalary: z.string().default("0"),
+  currentStep: z.number().int().min(1).optional(),
+  currentLaneId: z.string().uuid().optional(),
+  currentHourlyRate: z.string().optional(),
+  annualHours: z.string().optional(),
+  currentHourlyCategoryId: z.string().uuid().optional(),
+  insuranceElection: z.enum(["single", "single_plus_spouse", "single_plus_child", "family", "waived"]).default("single"),
+  retirementEligible: z.boolean().default(false),
+  retirementPlan: z.enum(["none", "option1_4year", "option2_2year", "option3_longevity"]).default("none"),
+  retirementTargetYear: z.number().int().optional(),
+  hireDate: z.string().optional(),
+  birthDate: z.string().optional(),
+  effectiveDate: z.string().optional(),
+  terminationDate: z.string().optional(),
+  yearsInDistrict: z.number().int().default(0),
+  yearsTotalService: z.number().int().default(0),
+  status: z.enum(["active", "new_hire", "terminated", "retired", "on_leave"]).default("active"),
+  contractYear: z.number().int().default(0),
+  notes: z.string().optional(),
+});
 
 const router = Router();
 
@@ -127,13 +156,90 @@ router.get("/employees", async (req, res) => {
 });
 
 router.post("/employees", async (req, res) => {
-  const body = req.body;
-  if (!body.districtId || !body.bargainingUnitId || !body.firstName || !body.lastName) {
-    res.status(400).json({ error: "districtId, bargainingUnitId, firstName, lastName are required" });
+  const parsed = createEmployeeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
-  const [emp] = await db.insert(employeesTable).values(body).returning();
+  const [emp] = await db.insert(employeesTable).values(parsed.data).returning();
   res.status(201).json(emp);
+});
+
+router.get("/employees/export", async (req, res) => {
+  const { districtId, bargainingUnitId, scenarioId } = req.query;
+
+  const conditions = [];
+  if (districtId) conditions.push(eq(employeesTable.districtId, districtId as string));
+  if (bargainingUnitId) conditions.push(eq(employeesTable.bargainingUnitId, bargainingUnitId as string));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const rows = await db
+    .select({
+      employee: employeesTable,
+      unitName: bargainingUnitsTable.name,
+      laneName: lanesTable.name,
+    })
+    .from(employeesTable)
+    .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
+    .leftJoin(lanesTable, eq(employeesTable.currentLaneId, lanesTable.id))
+    .where(whereClause)
+    .orderBy(employeesTable.lastName, employeesTable.firstName);
+
+  const csvHeaders = [
+    "Employee Number",
+    "Last Name",
+    "First Name",
+    "Bargaining Unit",
+    "Compensation Type",
+    "Current Annual Salary",
+    "Current Hourly Rate",
+    "Annual Hours",
+    "Lane",
+    "Step",
+    "Insurance Election",
+    "Retirement Eligible",
+    "Retirement Plan",
+    "Years in District",
+    "Years Total Service",
+    "Status",
+    "Hire Date",
+  ];
+
+  const csvRows = rows.map((row) => {
+    const e = row.employee;
+    return [
+      e.employeeNumber ?? "",
+      e.lastName,
+      e.firstName,
+      row.unitName ?? "",
+      e.compensationType,
+      e.currentAnnualSalary,
+      e.currentHourlyRate ?? "",
+      e.annualHours ?? "",
+      row.laneName ?? "",
+      e.currentStep ?? "",
+      e.insuranceElection,
+      e.retirementEligible ? "Yes" : "No",
+      e.retirementPlan,
+      e.yearsInDistrict,
+      e.yearsTotalService,
+      e.status,
+      e.hireDate ?? "",
+    ]
+      .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+      .join(",");
+  });
+
+  const csv = [csvHeaders.join(","), ...csvRows].join("\n");
+
+  const filename = `employees-export-${new Date().toISOString().split("T")[0]}.csv`;
+  if (scenarioId) {
+    res.setHeader("X-Scenario-Id", scenarioId as string);
+  }
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(csv);
 });
 
 router.get("/employees/:id", async (req, res) => {
