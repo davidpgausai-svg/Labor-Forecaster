@@ -37,8 +37,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-const BASE_URL = import.meta.env.BASE_URL ?? "/collbar-web/";
-
 type ViewMode = "single" | "compare";
 
 export default function Schedules() {
@@ -235,7 +233,7 @@ function FormulaBuilder({
           return { stepId: step.id, laneId: lane.id, salaryAmount: val.toFixed(2) };
         })
       );
-      const res = await fetch(`${BASE_URL}api/salary-schedules/${scheduleId}/cells`, {
+      const res = await fetch(`/api/salary-schedules/${scheduleId}/cells`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cells }),
