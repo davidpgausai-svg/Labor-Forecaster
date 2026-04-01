@@ -199,10 +199,12 @@ router.put("/salary-schedules/:id/cells", async (req, res) => {
     return;
   }
 
+  const scheduleId = req.params.id;
+
   const schedules = await db
     .select()
     .from(salarySchedulesTable)
-    .where(eq(salarySchedulesTable.id, req.params.id));
+    .where(eq(salarySchedulesTable.id, scheduleId));
   if (!schedules[0]) {
     res.status(404).json({ error: "Schedule not found" });
     return;
@@ -210,18 +212,44 @@ router.put("/salary-schedules/:id/cells", async (req, res) => {
 
   const { cells } = parsed.data;
 
-  await db.delete(scheduleCellsTable).where(eq(scheduleCellsTable.salaryScheduleId, req.params.id));
-
   if (cells.length > 0) {
-    await db.insert(scheduleCellsTable).values(
-      cells.map((c) => ({
-        salaryScheduleId: req.params.id,
-        stepId: c.stepId,
-        laneId: c.laneId,
-        salaryAmount: c.salaryAmount,
-      }))
-    );
+    const stepIds = [...new Set(cells.map(c => c.stepId))];
+    const laneIds = [...new Set(cells.map(c => c.laneId))];
+
+    const [ownedSteps, ownedLanes] = await Promise.all([
+      db.select({ id: stepsTable.id }).from(stepsTable).where(
+        eq(stepsTable.salaryScheduleId, scheduleId)
+      ),
+      db.select({ id: lanesTable.id }).from(lanesTable).where(
+        eq(lanesTable.salaryScheduleId, scheduleId)
+      ),
+    ]);
+
+    const ownedStepIds = new Set(ownedSteps.map(s => s.id));
+    const ownedLaneIds = new Set(ownedLanes.map(l => l.id));
+
+    const invalidStep = stepIds.find(id => !ownedStepIds.has(id));
+    const invalidLane = laneIds.find(id => !ownedLaneIds.has(id));
+
+    if (invalidStep || invalidLane) {
+      res.status(400).json({ error: "One or more stepId/laneId values do not belong to this schedule." });
+      return;
+    }
   }
+
+  await db.transaction(async (tx) => {
+    await tx.delete(scheduleCellsTable).where(eq(scheduleCellsTable.salaryScheduleId, scheduleId));
+    if (cells.length > 0) {
+      await tx.insert(scheduleCellsTable).values(
+        cells.map((c) => ({
+          salaryScheduleId: scheduleId,
+          stepId: c.stepId,
+          laneId: c.laneId,
+          salaryAmount: c.salaryAmount,
+        }))
+      );
+    }
+  });
 
   res.json({ updated: cells.length });
 });
