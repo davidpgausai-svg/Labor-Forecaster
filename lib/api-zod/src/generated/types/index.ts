@@ -82,6 +82,7 @@ export * from "./scenarioComparison";
 export * from "./scenarioStatus";
 export * from "./scenarioSummary";
 export * from "./scenarioYearConfig";
+export * from "./scenarioYearConfigBaseAdjustmentType";
 export * from "./scenarioYearConfigIncreaseType";
 export * from "./scenarioYearSummary";
 export * from "./scheduleCell";

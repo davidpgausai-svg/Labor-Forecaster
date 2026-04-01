@@ -5,6 +5,7 @@
  * CollBar — Collective Bargaining Compensation Modeling API
  * OpenAPI spec version: 0.1.0
  */
+import type { ScenarioYearConfigBaseAdjustmentType } from "./scenarioYearConfigBaseAdjustmentType";
 import type { ScenarioYearConfigIncreaseType } from "./scenarioYearConfigIncreaseType";
 
 export interface ScenarioYearConfig {
@@ -30,4 +31,8 @@ export interface ScenarioYearConfig {
   healthPremiumIncreaseRate?: string | null;
   healthEmployerCapRate?: string | null;
   notes?: string | null;
+  employeeGroupId?: string | null;
+  compensationScheduleId?: string | null;
+  baseAdjustmentType?: ScenarioYearConfigBaseAdjustmentType;
+  baseAdjustmentValue?: string | null;
 }

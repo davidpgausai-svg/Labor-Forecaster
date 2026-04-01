@@ -2,8 +2,10 @@ import Decimal from "decimal.js";
 import { calcSalariedEmployeeYear } from "./salary-engine.js";
 import { calcHourlyEmployeeYear } from "./hourly-engine.js";
 import { calcBenefits, calcProRateFraction } from "./benefits-engine.js";
+import { calcIndexBasedEmployeeYear } from "./index-based-engine.js";
 import type {
   YearConfig,
+  YearConfigWithSchedule,
   EmployeeInput,
   BargainingUnitConfig,
   SalaryScheduleData,
@@ -11,6 +13,7 @@ import type {
   EmployeeYearResult,
   ScenarioYearSummary,
   HeatmapCell,
+  IndexGridConfig,
 } from "./types.js";
 
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP, precision: 28 });
@@ -19,10 +22,11 @@ const MAX_STEPS = 15;
 
 export function calcEmployeeProjection(
   employee: EmployeeInput,
-  yearConfigs: YearConfig[],
+  yearConfigs: (YearConfig | YearConfigWithSchedule)[],
   unitConfig: BargainingUnitConfig,
   schedule: SalaryScheduleData | null,
-  scenarioId: string
+  scenarioId: string,
+  indexGridConfig?: IndexGridConfig | null
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -52,7 +56,26 @@ export function calcEmployeeProjection(
         ? calcProRateFraction(employee.effectiveDate, employee.terminationDate)
         : new Decimal("1");
 
-    if (employee.compensationType === "salary") {
+    const scheduleType = (config as YearConfigWithSchedule).scheduleType;
+
+    if (scheduleType === "index_based_grid" && indexGridConfig) {
+      const indexResult = calcIndexBasedEmployeeYear(
+        employee,
+        yearIdx,
+        yearConfigs as YearConfigWithSchedule[],
+        indexGridConfig,
+        currentLaneId,
+        currentStep,
+        proRateFraction
+      );
+      projectedBaseSalary = indexResult.salary;
+      projectedStep = indexResult.projectedStep;
+      effectiveRate = indexResult.effectiveRate;
+      currentStep = indexResult.projectedStep;
+      currentSalary = yearIdx === 0 && proRateFraction.lt("1")
+        ? new Decimal(employee.currentAnnualSalary)
+        : indexResult.salary;
+    } else if (employee.compensationType === "salary") {
       const tempEmployee: EmployeeInput = {
         ...employee,
         currentAnnualSalary: currentSalary.toString(),

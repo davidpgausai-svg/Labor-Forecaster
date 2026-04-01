@@ -5,6 +5,8 @@ import {
   getGetHeatmapDataQueryKey,
   useListBargainingUnits,
   getListBargainingUnitsQueryKey,
+  useListEmployeeGroups,
+  getListEmployeeGroupsQueryKey,
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
@@ -66,8 +68,23 @@ export default function HeatmapPage() {
     }
   );
 
+  const { data: employeeGroups } = useListEmployeeGroups(
+    { districtId: districtId! },
+    {
+      query: {
+        enabled: !!districtId,
+        queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }),
+      },
+    }
+  );
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+
   const salaryUnits = units?.filter((u) => u.compensationType === "salary") || [];
   const hourlyUnits = units?.filter((u) => u.compensationType !== "salary") || [];
+
+  const selectedGroup = employeeGroups?.find((g) => g.id === selectedGroupId) ?? employeeGroups?.[0];
+  const primarySchedule = selectedGroup?.compensationSchedules?.find((s) => s.isPrimary);
 
   return (
     <div className="space-y-8 max-w-[1400px] mx-auto">
@@ -84,32 +101,123 @@ export default function HeatmapPage() {
 
       {unitsLoading ? (
         <Skeleton className="h-[600px] w-full" />
-      ) : salaryUnits.length === 0 ? (
+      ) : salaryUnits.length === 0 && (!employeeGroups || employeeGroups.length === 0) ? (
         <Card className="bg-card border-border">
           <CardContent className="py-12 text-center text-muted-foreground">
-            No salary bargaining units found.
+            No salary bargaining units or employee groups found.
           </CardContent>
         </Card>
       ) : (
         <>
-          <Tabs defaultValue={salaryUnits[0]?.id} className="w-full">
-            <TabsList className="bg-muted border-border">
-              {salaryUnits.map((unit) => (
-                <TabsTrigger
-                  key={unit.id}
-                  value={unit.id}
-                  className="data-[state=active]:bg-background"
+          {salaryUnits.length > 0 && (
+            <>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Bargaining Units</h3>
+              <Tabs defaultValue={salaryUnits[0]?.id} className="w-full">
+                <TabsList className="bg-muted border-border">
+                  {salaryUnits.map((unit) => (
+                    <TabsTrigger
+                      key={unit.id}
+                      value={unit.id}
+                      className="data-[state=active]:bg-background"
+                    >
+                      {unit.name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {salaryUnits.map((unit) => (
+                  <TabsContent key={unit.id} value={unit.id} className="mt-6">
+                    <HeatmapViewer unitId={unit.id} unitName={unit.name} />
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </>
+          )}
+
+          {employeeGroups && employeeGroups.length > 0 && (
+            <div className="space-y-4 border-t border-border pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight mb-1">Employee Groups</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Compensation schedule assignment and structure per group.
+                  </p>
+                </div>
+                <Select
+                  value={selectedGroupId || selectedGroup?.id || ""}
+                  onValueChange={setSelectedGroupId}
                 >
-                  {unit.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {salaryUnits.map((unit) => (
-              <TabsContent key={unit.id} value={unit.id} className="mt-6">
-                <HeatmapViewer unitId={unit.id} unitName={unit.name} />
-              </TabsContent>
-            ))}
-          </Tabs>
+                  <SelectTrigger className="w-52 bg-background/50 h-8 text-sm">
+                    <SelectValue placeholder="Select group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedGroup && (
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-3 pt-4 px-5">
+                    <CardTitle className="text-sm font-medium flex items-center gap-3">
+                      {selectedGroup.name}
+                      {primarySchedule && (
+                        <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          {primarySchedule.name} &mdash; {primarySchedule.scheduleType?.replace(/_/g, " ")}
+                        </span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-5 pb-5">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Code</div>
+                        <div className="text-sm font-medium">{selectedGroup.code}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Contract Years</div>
+                        <div className="text-sm font-medium">{selectedGroup.contractYears}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Retirement System</div>
+                        <div className="text-sm font-medium">{selectedGroup.retirementSystem ?? "—"}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">FICA Exempt</div>
+                        <div className="text-sm font-medium">{selectedGroup.ficaExempt ? "Yes" : "No"}</div>
+                      </div>
+                    </div>
+
+                    {selectedGroup.compensationSchedules && selectedGroup.compensationSchedules.length > 0 && (
+                      <div className="mt-4 border-t border-border pt-4">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">Compensation Schedules</div>
+                        <div className="space-y-2">
+                          {selectedGroup.compensationSchedules.map((s) => (
+                            <div key={s.id} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <span>{s.name}</span>
+                                {s.isPrimary && (
+                                  <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">Primary</span>
+                                )}
+                              </div>
+                              <span className="text-xs text-muted-foreground">{s.scheduleType?.replace(/_/g, " ")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(!selectedGroup.compensationSchedules || selectedGroup.compensationSchedules.length === 0) && (
+                      <div className="mt-4 text-sm text-muted-foreground italic">
+                        No compensation schedules configured. Add one in Settings.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
 
           {hourlyUnits.length > 0 && (
             <div className="space-y-4">

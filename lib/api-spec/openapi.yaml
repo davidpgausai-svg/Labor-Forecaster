@@ -1982,6 +1982,19 @@ components:
         notes:
           type: string
           nullable: true
+        employeeGroupId:
+          type: string
+          nullable: true
+        compensationScheduleId:
+          type: string
+          nullable: true
+        baseAdjustmentType:
+          type: string
+          nullable: true
+          enum: [percentage, dollar, set_directly]
+        baseAdjustmentValue:
+          type: string
+          nullable: true
       required:
         - bargainingUnitId
         - contractYear

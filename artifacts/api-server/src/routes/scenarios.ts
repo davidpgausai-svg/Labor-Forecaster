@@ -6,12 +6,14 @@ import {
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
   bargainingUnitsTable,
+  employeeGroupsTable,
+  compensationSchedulesTable,
   districtsTable,
 } from "@workspace/db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import Decimal from "decimal.js";
 import { runScenarioCalculation } from "@workspace/calc-engine";
-import type { YearConfig } from "@workspace/calc-engine";
+import type { YearConfig, YearConfigWithSchedule } from "@workspace/calc-engine";
 
 const yearConfigSchema = z.object({
   bargainingUnitId: z.string().uuid(),
@@ -151,17 +153,20 @@ router.post("/scenarios", async (req, res) => {
     }));
     await db.insert(scenarioYearConfigsTable).values(configsToInsert);
   } else {
-    // Auto-generate year configs for all bargaining units in the district
-    const [district, units] = await Promise.all([
+    // Auto-generate year configs for all bargaining units + employee groups in the district
+    const [district, units, employeeGroups] = await Promise.all([
       db.select().from(districtsTable).where(eq(districtsTable.id, districtId)).then((r) => r[0]),
       db.select().from(bargainingUnitsTable).where(eq(bargainingUnitsTable.districtId, districtId)),
+      db.select().from(employeeGroupsTable).where(eq(employeeGroupsTable.districtId, districtId)),
     ]);
 
-    if (units.length > 0) {
-      // Derive base fiscal year robustly — handles ISO ("2026-07-01") and text ("July 1") formats
-      const baseYear = extractFiscalYear(district?.fiscalYearStart);
+    // Derive base fiscal year robustly — handles ISO ("2026-07-01") and text ("July 1") formats
+    const baseYear = extractFiscalYear(district?.fiscalYearStart);
 
-      const autoConfigs = units.flatMap((unit) => {
+    const allAutoConfigs: (typeof scenarioYearConfigsTable.$inferInsert)[] = [];
+
+    if (units.length > 0) {
+      const buConfigs = units.flatMap((unit) => {
         const numYears = unit.contractYears && unit.contractYears > 0 ? unit.contractYears : 5;
         return Array.from({ length: numYears }, (_, i) => ({
           scenarioId: scenario.id,
@@ -186,10 +191,64 @@ router.post("/scenarios", async (req, res) => {
           notes: null,
         }));
       });
+      allAutoConfigs.push(...buConfigs);
+    }
 
-      if (autoConfigs.length > 0) {
-        await db.insert(scenarioYearConfigsTable).values(autoConfigs);
-      }
+    if (employeeGroups.length > 0) {
+      // Load primary compensation schedules for each group
+      const primarySchedules = await db
+        .select()
+        .from(compensationSchedulesTable)
+        .where(
+          and(
+            inArray(
+              compensationSchedulesTable.employeeGroupId,
+              employeeGroups.map((g) => g.id)
+            ),
+            eq(compensationSchedulesTable.isPrimary, true)
+          )
+        );
+
+      const groupConfigs = employeeGroups.flatMap((group) => {
+        const primarySchedule = primarySchedules.find(
+          (s) => s.employeeGroupId === group.id
+        );
+        const numYears = group.contractYears && group.contractYears > 0 ? group.contractYears : 5;
+        const scheduleType = primarySchedule?.scheduleType ?? null;
+
+        return Array.from({ length: numYears }, (_, i) => ({
+          scenarioId: scenario.id,
+          bargainingUnitId: group.id,
+          employeeGroupId: group.id,
+          compensationScheduleId: primarySchedule?.id ?? null,
+          contractYear: i,
+          yearLabel: buildYearLabel(baseYear, i),
+          increaseType: "fixed_percentage" as const,
+          fixedPercentage: "0",
+          stepAdvancement: true,
+          baseAdjustmentType:
+            scheduleType === "index_based_grid" ? ("percentage" as const) : null,
+          baseAdjustmentValue: scheduleType === "index_based_grid" ? "0" : null,
+          cpiValue: null,
+          cpiAdder: null,
+          cpiCap: null,
+          cpiFloor: null,
+          cpiIndexName: null,
+          highEarnerThreshold: null,
+          highEarnerFlatIncrease: null,
+          educationalAdvancementBa15: null,
+          educationalAdvancementMa: null,
+          educationalAdvancementMa15: null,
+          healthPremiumIncreaseRate: null,
+          healthEmployerCapRate: null,
+          notes: null,
+        }));
+      });
+      allAutoConfigs.push(...groupConfigs);
+    }
+
+    if (allAutoConfigs.length > 0) {
+      await db.insert(scenarioYearConfigsTable).values(allAutoConfigs);
     }
   }
 

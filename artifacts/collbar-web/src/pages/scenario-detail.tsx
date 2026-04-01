@@ -5,6 +5,8 @@ import {
   getGetScenarioQueryKey,
   useListBargainingUnits,
   getListBargainingUnitsQueryKey,
+  useListEmployeeGroups,
+  getListEmployeeGroupsQueryKey,
   useUpdateScenario,
   useCalculateScenario,
   ScenarioYearConfig,
@@ -52,6 +54,11 @@ export default function ScenarioDetail() {
   const { data: units, isLoading: unitsLoading } = useListBargainingUnits(
     { districtId: districtId! },
     { query: { enabled: !!districtId, queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }) } }
+  );
+
+  const { data: employeeGroups } = useListEmployeeGroups(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }) } }
   );
 
   const updateMutation = useUpdateScenario();
@@ -214,44 +221,100 @@ export default function ScenarioDetail() {
       </Card>
 
       {units && units.length > 0 && (
-        <Tabs defaultValue={units[0].id} className="w-full">
-          <TabsList className="bg-muted border-border flex-wrap h-auto">
-            {units.map(unit => (
-              <TabsTrigger key={unit.id} value={unit.id} className="data-[state=active]:bg-background">
-                {unit.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <>
+          <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">Bargaining Units</h3>
+          <Tabs defaultValue={units[0].id} className="w-full">
+            <TabsList className="bg-muted border-border flex-wrap h-auto">
+              {units.map(unit => (
+                <TabsTrigger key={unit.id} value={unit.id} className="data-[state=active]:bg-background">
+                  {unit.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          {units.map(unit => {
-            const unitConfigs = formData.yearConfigs
-              .filter(yc => yc.bargainingUnitId === unit.id)
-              .sort((a, b) => a.contractYear - b.contractYear);
+            {units.map(unit => {
+              const unitConfigs = formData.yearConfigs
+                .filter(yc => yc.bargainingUnitId === unit.id && !yc.employeeGroupId)
+                .sort((a, b) => a.contractYear - b.contractYear);
 
-            return (
-              <TabsContent key={unit.id} value={unit.id} className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold">{unit.name}</h3>
-                {unitConfigs.length === 0 ? (
-                  <Card className="bg-card border-border">
-                    <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                      No year configurations for this unit.
-                    </CardContent>
-                  </Card>
-                ) : (
-                  unitConfigs.map(yc => (
-                    <YearConfigCard
-                      key={`${yc.bargainingUnitId}-${yc.contractYear}`}
-                      config={yc}
-                      bargainingUnit={unit}
-                      lastCalcResult={lastCalcResult ?? undefined}
-                      onChange={patch => updateYearConfig(yc.bargainingUnitId, yc.contractYear, patch)}
-                    />
-                  ))
-                )}
-              </TabsContent>
-            );
-          })}
-        </Tabs>
+              return (
+                <TabsContent key={unit.id} value={unit.id} className="mt-6 space-y-4">
+                  <h3 className="text-lg font-semibold">{unit.name}</h3>
+                  {unitConfigs.length === 0 ? (
+                    <Card className="bg-card border-border">
+                      <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                        No year configurations for this unit.
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    unitConfigs.map(yc => (
+                      <YearConfigCard
+                        key={`${yc.bargainingUnitId}-${yc.contractYear}`}
+                        config={yc}
+                        bargainingUnit={unit}
+                        lastCalcResult={lastCalcResult ?? undefined}
+                        onChange={patch => updateYearConfig(yc.bargainingUnitId, yc.contractYear, patch)}
+                      />
+                    ))
+                  )}
+                </TabsContent>
+              );
+            })}
+          </Tabs>
+        </>
+      )}
+
+      {employeeGroups && employeeGroups.length > 0 && (
+        <>
+          <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide mt-6">Employee Groups</h3>
+          <Tabs defaultValue={employeeGroups[0].id} className="w-full">
+            <TabsList className="bg-muted border-border flex-wrap h-auto">
+              {employeeGroups.map(group => (
+                <TabsTrigger key={group.id} value={group.id} className="data-[state=active]:bg-background">
+                  {group.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {employeeGroups.map(group => {
+              const groupConfigs = formData.yearConfigs
+                .filter(yc => yc.employeeGroupId === group.id)
+                .sort((a, b) => a.contractYear - b.contractYear);
+
+              const primarySchedule = group.compensationSchedules?.find(s => s.isPrimary);
+
+              return (
+                <TabsContent key={group.id} value={group.id} className="mt-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-semibold">{group.name}</h3>
+                    {primarySchedule && (
+                      <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
+                        {primarySchedule.name} &mdash; {primarySchedule.scheduleType?.replace(/_/g, " ")}
+                      </span>
+                    )}
+                  </div>
+                  {groupConfigs.length === 0 ? (
+                    <Card className="bg-card border-border">
+                      <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                        No year configurations for this group. Create a scenario to auto-generate them.
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    groupConfigs.map(yc => (
+                      <GroupYearConfigCard
+                        key={`${group.id}-${yc.contractYear}`}
+                        config={yc}
+                        groupName={group.name}
+                        scheduleType={primarySchedule?.scheduleType ?? null}
+                        onChange={patch => updateYearConfig(yc.bargainingUnitId, yc.contractYear, patch)}
+                      />
+                    ))
+                  )}
+                </TabsContent>
+              );
+            })}
+          </Tabs>
+        </>
       )}
     </div>
   );
@@ -736,5 +799,152 @@ function RetirementModelingSection({
         </div>
       )}
     </div>
+  );
+}
+
+function GroupYearConfigCard({
+  config,
+  groupName,
+  scheduleType,
+  onChange,
+}: {
+  config: ScenarioYearConfig;
+  groupName: string;
+  scheduleType: string | null;
+  onChange: (patch: Partial<ScenarioYearConfig>) => void;
+}) {
+  const isIndexBased = scheduleType === "index_based_grid";
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3 pt-4 px-5">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium">
+            {groupName} &mdash; {config.yearLabel ?? `Year ${config.contractYear}`}
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">Year {config.contractYear}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-4 space-y-4">
+        {isIndexBased ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Base Adjustment Type</label>
+              <Select
+                value={config.baseAdjustmentType ?? "percentage"}
+                onValueChange={val => onChange({ baseAdjustmentType: val as ScenarioYearConfig["baseAdjustmentType"] })}
+              >
+                <SelectTrigger className="bg-background/50 h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  <SelectItem value="dollar">Dollar ($)</SelectItem>
+                  <SelectItem value="set_directly">Set Directly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                {config.baseAdjustmentType === "dollar"
+                  ? "Dollar Amount"
+                  : config.baseAdjustmentType === "set_directly"
+                  ? "New Base Salary"
+                  : "Percentage"}
+              </label>
+              <div className="relative">
+                {(config.baseAdjustmentType === "dollar" || config.baseAdjustmentType === "set_directly") && (
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                )}
+                <Input
+                  className={`bg-background/50 h-8 text-sm ${config.baseAdjustmentType === "dollar" || config.baseAdjustmentType === "set_directly" ? "pl-6" : ""}`}
+                  type="number"
+                  step={config.baseAdjustmentType === "percentage" ? "0.01" : "1"}
+                  value={config.baseAdjustmentValue ?? ""}
+                  onChange={e => onChange({ baseAdjustmentValue: e.target.value })}
+                  placeholder={config.baseAdjustmentType === "percentage" ? "e.g. 3.00" : "0.00"}
+                />
+                {config.baseAdjustmentType === "percentage" && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                )}
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Step Advancement</label>
+              <div className="flex items-center gap-2 h-8">
+                <button
+                  type="button"
+                  onClick={() => onChange({ stepAdvancement: !config.stepAdvancement })}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${config.stepAdvancement ? "bg-primary" : "bg-muted"}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${config.stepAdvancement ? "translate-x-4" : "translate-x-1"}`} />
+                </button>
+                <span className="text-xs text-muted-foreground">{config.stepAdvancement ? "Enabled" : "Disabled"}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Increase Type</label>
+              <Select
+                value={config.increaseType}
+                onValueChange={val => onChange({ increaseType: val as ScenarioYearConfigIncreaseType })}
+              >
+                <SelectTrigger className="bg-background/50 h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(INCREASE_TYPE_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {config.increaseType === "fixed_percentage" && (
+              <div className="grid gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Fixed Percentage</label>
+                <div className="relative">
+                  <Input
+                    className="bg-background/50 h-8 text-sm pr-6"
+                    type="number"
+                    step="0.01"
+                    value={config.fixedPercentage ?? ""}
+                    onChange={e => onChange({ fixedPercentage: e.target.value })}
+                    placeholder="e.g. 3.00"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                </div>
+              </div>
+            )}
+            {config.increaseType === "flat_dollar" && (
+              <div className="grid gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Flat Dollar Amount</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input
+                    className="bg-background/50 h-8 text-sm pl-6"
+                    type="number"
+                    step="1"
+                    value={config.fixedPercentage ?? ""}
+                    onChange={e => onChange({ fixedPercentage: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="grid gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Notes</label>
+          <Input
+            className="bg-background/50 h-8 text-sm"
+            value={config.notes ?? ""}
+            onChange={e => onChange({ notes: e.target.value })}
+            placeholder="Optional notes for this year"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

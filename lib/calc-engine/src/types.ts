@@ -5,6 +5,18 @@ export type IncreaseType =
   | "step_only"
   | "custom";
 
+export type CompensationScheduleType =
+  | "index_based_grid"
+  | "individual_salary"
+  | "direct_import_grid"
+  | "hourly"
+  | "per_diem"
+  | "flat_rate"
+  | "stipend_table"
+  | "range_based";
+
+export type BaseAdjustmentType = "percentage" | "dollar" | "set_directly";
+
 export interface YearConfig {
   contractYear: number;
   yearLabel: string;
@@ -49,6 +61,50 @@ export interface EmployeeInput {
   contractYear: number;
   effectiveDate?: string | null;
   terminationDate?: string | null;
+}
+
+export interface IndexGridIndex {
+  laneId: string;
+  stepNumber: number;
+  indexValue: string;
+  isCapped: boolean;
+}
+
+export interface IndexGridConfig {
+  baseAnchorSalary: string;
+  maxSteps: number;
+  indices: IndexGridIndex[];
+}
+
+export interface YearConfigWithSchedule extends YearConfig {
+  employeeGroupId?: string | null;
+  compensationScheduleId?: string | null;
+  scheduleType?: CompensationScheduleType | null;
+  baseAdjustmentType?: BaseAdjustmentType | null;
+  baseAdjustmentValue?: string | null;
+}
+
+export interface EmployeeGroupConfig {
+  id: string;
+  name: string;
+  code: string;
+  contractYears: number;
+  contractDays?: number | null;
+  retirementSystem: string;
+  retirementEmployeeRate: string;
+  retirementEmployerRate: string;
+  retirementGrossUpRate: string;
+  ficaRate: string;
+  ficaExempt: boolean;
+  healthInsuranceSingleAnnual: string;
+  healthInsuranceFamilyAnnual: string;
+  healthInsuranceEmployerCapRate?: string | null;
+  dentalAnnual: string;
+  lifeInsuranceAnnual: string;
+  disabilityInsuranceAnnual: string;
+  hsaContributionSingle: string;
+  hsaContributionFamily: string;
+  workersCompRate: string;
 }
 
 export interface BargainingUnitConfig {

@@ -15,6 +15,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { calcEmployeeProjection, calcScenarioSummary } from "./scenario-engine.js";
 import type {
   YearConfig,
+  YearConfigWithSchedule,
   EmployeeInput,
   BargainingUnitConfig,
   SalaryScheduleData,
@@ -72,7 +73,7 @@ async function loadScheduleForUnit(bargainingUnitId: string): Promise<SalarySche
   };
 }
 
-function toYearConfigs(dbConfigs: (typeof scenarioYearConfigsTable.$inferSelect)[]): YearConfig[] {
+function toYearConfigs(dbConfigs: (typeof scenarioYearConfigsTable.$inferSelect)[]): YearConfigWithSchedule[] {
   return dbConfigs.map((c) => ({
     contractYear: c.contractYear,
     yearLabel: c.yearLabel,
@@ -92,6 +93,11 @@ function toYearConfigs(dbConfigs: (typeof scenarioYearConfigsTable.$inferSelect)
     stepAdvancement: c.stepAdvancement,
     healthPremiumIncreaseRate: c.healthPremiumIncreaseRate,
     healthEmployerCapRate: c.healthEmployerCapRate,
+    employeeGroupId: c.employeeGroupId ?? null,
+    compensationScheduleId: c.compensationScheduleId ?? null,
+    scheduleType: null,
+    baseAdjustmentType: c.baseAdjustmentType as YearConfigWithSchedule["baseAdjustmentType"] ?? null,
+    baseAdjustmentValue: c.baseAdjustmentValue ?? null,
   }));
 }
 

@@ -760,6 +760,12 @@ export const CreateScenarioBody = zod.object({
         healthPremiumIncreaseRate: zod.string().nullish(),
         healthEmployerCapRate: zod.string().nullish(),
         notes: zod.string().nullish(),
+        employeeGroupId: zod.string().nullish(),
+        compensationScheduleId: zod.string().nullish(),
+        baseAdjustmentType: zod
+          .enum(["percentage", "dollar", "set_directly"])
+          .nullish(),
+        baseAdjustmentValue: zod.string().nullish(),
       }),
     )
     .optional(),
@@ -863,6 +869,12 @@ export const GetScenarioResponse = zod.object({
       healthPremiumIncreaseRate: zod.string().nullish(),
       healthEmployerCapRate: zod.string().nullish(),
       notes: zod.string().nullish(),
+      employeeGroupId: zod.string().nullish(),
+      compensationScheduleId: zod.string().nullish(),
+      baseAdjustmentType: zod
+        .enum(["percentage", "dollar", "set_directly"])
+        .nullish(),
+      baseAdjustmentValue: zod.string().nullish(),
     }),
   ),
   createdAt: zod.string(),
@@ -911,6 +923,12 @@ export const UpdateScenarioBody = zod.object({
         healthPremiumIncreaseRate: zod.string().nullish(),
         healthEmployerCapRate: zod.string().nullish(),
         notes: zod.string().nullish(),
+        employeeGroupId: zod.string().nullish(),
+        compensationScheduleId: zod.string().nullish(),
+        baseAdjustmentType: zod
+          .enum(["percentage", "dollar", "set_directly"])
+          .nullish(),
+        baseAdjustmentValue: zod.string().nullish(),
       }),
     )
     .optional(),
@@ -953,6 +971,12 @@ export const UpdateScenarioResponse = zod.object({
       healthPremiumIncreaseRate: zod.string().nullish(),
       healthEmployerCapRate: zod.string().nullish(),
       notes: zod.string().nullish(),
+      employeeGroupId: zod.string().nullish(),
+      compensationScheduleId: zod.string().nullish(),
+      baseAdjustmentType: zod
+        .enum(["percentage", "dollar", "set_directly"])
+        .nullish(),
+      baseAdjustmentValue: zod.string().nullish(),
     }),
   ),
   createdAt: zod.string(),
@@ -1094,6 +1118,12 @@ export const UpsertScenarioYearConfigsBodyItem = zod.object({
   healthPremiumIncreaseRate: zod.string().nullish(),
   healthEmployerCapRate: zod.string().nullish(),
   notes: zod.string().nullish(),
+  employeeGroupId: zod.string().nullish(),
+  compensationScheduleId: zod.string().nullish(),
+  baseAdjustmentType: zod
+    .enum(["percentage", "dollar", "set_directly"])
+    .nullish(),
+  baseAdjustmentValue: zod.string().nullish(),
 });
 export const UpsertScenarioYearConfigsBody = zod.array(
   UpsertScenarioYearConfigsBodyItem,
@@ -1128,6 +1158,12 @@ export const UpsertScenarioYearConfigsResponseItem = zod.object({
   healthPremiumIncreaseRate: zod.string().nullish(),
   healthEmployerCapRate: zod.string().nullish(),
   notes: zod.string().nullish(),
+  employeeGroupId: zod.string().nullish(),
+  compensationScheduleId: zod.string().nullish(),
+  baseAdjustmentType: zod
+    .enum(["percentage", "dollar", "set_directly"])
+    .nullish(),
+  baseAdjustmentValue: zod.string().nullish(),
 });
 export const UpsertScenarioYearConfigsResponse = zod.array(
   UpsertScenarioYearConfigsResponseItem,

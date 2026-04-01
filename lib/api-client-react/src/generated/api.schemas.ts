@@ -404,6 +404,16 @@ export const ScenarioYearConfigIncreaseType = {
   custom: "custom",
 } as const;
 
+export type ScenarioYearConfigBaseAdjustmentType =
+  | (typeof ScenarioYearConfigBaseAdjustmentType)[keyof typeof ScenarioYearConfigBaseAdjustmentType]
+  | null;
+
+export const ScenarioYearConfigBaseAdjustmentType = {
+  percentage: "percentage",
+  dollar: "dollar",
+  set_directly: "set_directly",
+} as const;
+
 export interface ScenarioYearConfig {
   id?: string;
   scenarioId?: string;
@@ -427,6 +437,10 @@ export interface ScenarioYearConfig {
   healthPremiumIncreaseRate?: string | null;
   healthEmployerCapRate?: string | null;
   notes?: string | null;
+  employeeGroupId?: string | null;
+  compensationScheduleId?: string | null;
+  baseAdjustmentType?: ScenarioYearConfigBaseAdjustmentType;
+  baseAdjustmentValue?: string | null;
 }
 
 export type ScenarioStatus =
