@@ -179,31 +179,26 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
   };
 
   const exportPdf = async () => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !scenarioId) return;
     try {
       const dataUrl = await toPng(containerRef.current, { backgroundColor: "#111620" });
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) return;
-      printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>Heatmap — ${unitName} — ${yearData?.yearLabel ?? "Year"}</title>
-  <style>
-    body { margin: 0; background: #0a0e14; display: flex; justify-content: center; align-items: flex-start; padding: 20px; }
-    img { max-width: 100%; height: auto; }
-    h2 { color: #e2e8f0; font-family: sans-serif; font-size: 14px; margin: 0 0 12px; }
-    @media print { body { padding: 0; } }
-  </style>
-</head>
-<body>
-  <div>
-    <h2>Demographic Heatmap — ${unitName} — ${yearData?.yearLabel ?? "Year"}</h2>
-    <img src="${dataUrl}" />
-  </div>
-  <script>window.onload = function() { window.print(); }<\/script>
-</body>
-</html>`);
-      printWindow.document.close();
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+      const BASE_URL = import.meta.env.BASE_URL ?? "/collbar-web/";
+      const res = await fetch(`${BASE_URL}api/reports/${scenarioId}/download/heatmap-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heatmapPng: base64 }),
+      });
+      if (!res.ok) throw new Error("PDF generation failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      link.download = match?.[1] ?? `Heatmap_${unitName}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch {
     }
   };

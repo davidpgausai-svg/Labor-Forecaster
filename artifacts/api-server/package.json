@@ -19,9 +19,12 @@
     "decimal.js": "^10.6.0",
     "drizzle-orm": "catalog:",
     "express": "^5",
-    "zod": "catalog:",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "pino": "^9",
-    "pino-http": "^10"
+    "pino-http": "^10",
+    "xlsx": "^0.18.5",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
