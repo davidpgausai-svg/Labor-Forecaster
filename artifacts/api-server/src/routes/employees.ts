@@ -13,7 +13,7 @@ import {
   calcRetirementOption1,
   calcRetirementOption2,
   calcRetirementOption3,
-} from "../lib/calculations/retirement-engine";
+} from "@workspace/calc-engine";
 
 const createEmployeeSchema = z.object({
   districtId: z.string().uuid(),

@@ -4,3 +4,4 @@ export * from "./hourly-engine.js";
 export * from "./benefits-engine.js";
 export * from "./scenario-engine.js";
 export * from "./run-calculation.js";
+export * from "./retirement-engine.js";
