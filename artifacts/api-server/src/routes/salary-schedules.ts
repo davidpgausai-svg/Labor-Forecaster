@@ -182,4 +182,48 @@ router.delete("/salary-schedules/:id", async (req, res) => {
   res.status(204).send();
 });
 
+const updateCellsSchema = z.object({
+  cells: z.array(
+    z.object({
+      stepId: z.string().uuid(),
+      laneId: z.string().uuid(),
+      salaryAmount: numericString,
+    })
+  ),
+});
+
+router.put("/salary-schedules/:id/cells", async (req, res) => {
+  const parsed = updateCellsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
+    return;
+  }
+
+  const schedules = await db
+    .select()
+    .from(salarySchedulesTable)
+    .where(eq(salarySchedulesTable.id, req.params.id));
+  if (!schedules[0]) {
+    res.status(404).json({ error: "Schedule not found" });
+    return;
+  }
+
+  const { cells } = parsed.data;
+
+  await db.delete(scheduleCellsTable).where(eq(scheduleCellsTable.salaryScheduleId, req.params.id));
+
+  if (cells.length > 0) {
+    await db.insert(scheduleCellsTable).values(
+      cells.map((c) => ({
+        salaryScheduleId: req.params.id,
+        stepId: c.stepId,
+        laneId: c.laneId,
+        salaryAmount: c.salaryAmount,
+      }))
+    );
+  }
+
+  res.json({ updated: cells.length });
+});
+
 export default router;

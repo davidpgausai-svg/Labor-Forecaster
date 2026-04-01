@@ -119,7 +119,8 @@ export default function ScenarioDetail() {
       {
         onSuccess: (result) => {
           const total = result.totalFiveYearCost ? formatCurrency(result.totalFiveYearCost) : "—";
-          setCalcSummary({ total, years: result.yearSummaries?.length ?? 0 });
+          const distinctYears = new Set(result.yearSummaries?.map(s => s.contractYear) ?? []).size;
+          setCalcSummary({ total, years: distinctYears });
           setLastCalcResult(result);
           if (showToast) {
             toastRef.current({
@@ -337,16 +338,47 @@ function YearConfigCard({
   const effectiveRate = useMemo(() => computeEffectiveRate(config), [config]);
 
   const yearCost = useMemo(() => {
-    if (!lastCalcResult?.yearSummaries || effectiveRate === null) return null;
+    if (!lastCalcResult?.yearSummaries) return null;
     const yearSummary = lastCalcResult.yearSummaries.find(
       s => s.contractYear === config.contractYear && s.bargainingUnitId === config.bargainingUnitId
     );
     return yearSummary?.totalEmployerCost ? parseFloat(yearSummary.totalEmployerCost) : null;
-  }, [lastCalcResult, config.contractYear, config.bargainingUnitId, effectiveRate]);
+  }, [lastCalcResult, config.contractYear, config.bargainingUnitId]);
 
   const estimatedDelta = yearCost !== null && effectiveRate !== null
     ? yearCost * (effectiveRate / 100)
     : null;
+
+  const isBaseline = config.contractYear === 0;
+
+  if (isBaseline) {
+    return (
+      <Card className="bg-card border-border opacity-80">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              {config.yearLabel} — Baseline Year (Current)
+            </CardTitle>
+            {yearCost !== null && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-muted border border-border rounded-md">
+                <span className="text-xs font-mono text-muted-foreground">
+                  {formatCurrency(yearCost.toFixed(0))} employer cost
+                </span>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-3 py-2">
+            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span>
+              Year 0 is the current baseline year. No salary increases or step advancement are applied — it reflects actual current compensation. Increase parameters only apply starting from Year 1.
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-card border-border">
@@ -367,7 +399,7 @@ function YearConfigCard({
             {estimatedDelta !== null && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 rounded-md">
                 <span className="text-xs font-mono text-amber-400">
-                  ~+{formatCurrency(estimatedDelta.toFixed(0))} est.
+                  ~+{formatCurrency(estimatedDelta.toFixed(0))} (% increase est.)
                 </span>
               </div>
             )}
@@ -519,6 +551,7 @@ function YearConfigCard({
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Step Advancement</div>
             <div className="text-xs text-muted-foreground mt-0.5">Eligible employees advance one step this year</div>
+            <div className="text-xs text-muted-foreground/60 mt-0.5 italic">Full step cost reflected after Calculate</div>
           </div>
           <button
             type="button"

@@ -32,8 +32,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { getBadgeColorClass } from "@/lib/badges";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutGrid, SplitSquareHorizontal, Clock, DollarSign, AlertTriangle, ChevronDown, ChevronUp, Wand2, GitCompare } from "lucide-react";
+import { LayoutGrid, SplitSquareHorizontal, Clock, DollarSign, AlertTriangle, ChevronDown, ChevronUp, Wand2, GitCompare, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+
+const BASE_URL = import.meta.env.BASE_URL ?? "/collbar-web/";
 
 type ViewMode = "single" | "compare";
 
@@ -187,14 +191,21 @@ function OffScheduleIndicator({
 function FormulaBuilder({
   lanes,
   steps,
+  scheduleId,
+  unitId,
 }: {
   lanes: Lane[];
   steps: Step[];
+  scheduleId: string;
+  unitId: string;
 }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [baseValue, setBaseValue] = useState("40000");
   const [stepPct, setStepPct] = useState("2.0");
   const [lanePct, setLanePct] = useState("4.0");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   const computedCells = useMemo(() => {
     const base = parseFloat(baseValue.replace(/,/g, "")) || 0;
@@ -214,15 +225,51 @@ function FormulaBuilder({
     return result;
   }, [baseValue, stepPct, lanePct, overrides, steps, lanes]);
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const cells = steps.flatMap(step =>
+        lanes.map(lane => {
+          const key = `${step.id}-${lane.id}`;
+          const val = computedCells[key] ?? 0;
+          return { stepId: step.id, laneId: lane.id, salaryAmount: val.toFixed(2) };
+        })
+      );
+      const res = await fetch(`${BASE_URL}api/salary-schedules/${scheduleId}/cells`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cells }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      await queryClient.invalidateQueries({ queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: unitId }) });
+      toast({ title: "Schedule saved", description: `${cells.length} cells written to the schedule.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save schedule cells.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <Card className="bg-card border-border border-dashed">
       <CardHeader className="py-3 px-4 border-b border-border">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <Wand2 className="w-4 h-4 text-primary" />
-            Formula Builder Preview
+            Formula Builder
           </CardTitle>
-          <span className="text-xs text-muted-foreground">Preview only — not saved</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Adjust parameters, then save to apply to this schedule</span>
+            <Button
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? "Saving..." : "Save to Schedule"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-4 space-y-4">
@@ -256,7 +303,7 @@ function FormulaBuilder({
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Click any cell below to override its computed value. Preview only — values are not saved to the database.
+          Click any cell below to override its computed value. Click "Save to Schedule" to write these values to the database, replacing all existing cells.
         </p>
         <div className="overflow-x-auto rounded border border-border">
           <Table>
@@ -363,7 +410,7 @@ function ScheduleGrid({ unitId }: { unitId: string }) {
         </Button>
       </div>
 
-      {showFormula && <FormulaBuilder lanes={lanes} steps={steps} />}
+      {showFormula && <FormulaBuilder lanes={lanes} steps={steps} scheduleId={schedule.id} unitId={unitId} />}
 
       <Card className="bg-card border-border overflow-hidden">
         <div className="overflow-x-auto">
