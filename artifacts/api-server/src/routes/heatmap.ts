@@ -107,6 +107,8 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
 
     let salaryTotal = new Decimal("0");
     const stepCounts: number[] = [];
+    const laneCountMap = new Map<string, number>();
+    const allSalaryValues: number[] = [];
 
     for (const record of yearData) {
       const emp = employees.find((e) => e.id === record.employeeId);
@@ -123,10 +125,13 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       }
       cell.employeeCount++;
       const salaryDollars = (record.projectedBaseSalaryCents / 100).toFixed(2);
+      const salaryNum = parseFloat(salaryDollars);
       cell.totalSalary = cell.totalSalary.plus(salaryDollars);
       cell.employees.push({ id: emp.id, name: `${emp.firstName} ${emp.lastName}`, salary: salaryDollars });
       salaryTotal = salaryTotal.plus(salaryDollars);
       stepCounts.push(record.projectedStep);
+      allSalaryValues.push(salaryNum);
+      laneCountMap.set(lane.name, (laneCountMap.get(lane.name) ?? 0) + 1);
     }
 
     const flatCells = Array.from(cellMap.values()).map((c) => ({
@@ -139,7 +144,6 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     }));
 
     // Build 2D matrix: rows = steps (ascending), columns = lanes (by displayOrder)
-    // matrix[stepIdx][laneIdx] = { count, totalSalary } | null
     const matrix: Array<Array<{ count: number; totalSalary: string } | null>> = stepNumbers.map((stepNum) =>
       lanes.map((lane) => {
         const cell = flatCells.find((c) => c.stepNumber === stepNum && c.laneId === lane.id);
@@ -157,6 +161,35 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       (r) => r.projectedStep === maxStep && employees.find((e) => e.id === r.employeeId)
     ).length;
 
+    // True median salary
+    allSalaryValues.sort((a, b) => a - b);
+    let medianSalary: string | null = null;
+    if (allSalaryValues.length > 0) {
+      const mid = Math.floor(allSalaryValues.length / 2);
+      const medianVal = allSalaryValues.length % 2 === 0
+        ? (allSalaryValues[mid - 1] + allSalaryValues[mid]) / 2
+        : allSalaryValues[mid];
+      medianSalary = medianVal.toFixed(2);
+    }
+
+    // Average lane (most common lane by employee count)
+    let avgLane: string | null = null;
+    if (laneCountMap.size > 0) {
+      let maxCount = 0;
+      laneCountMap.forEach((count, laneName) => {
+        if (count > maxCount) { maxCount = count; avgLane = laneName; }
+      });
+    }
+
+    // Top-3 and bottom-3 step concentration
+    const sortedSteps = [...new Set(stepCounts)].sort((a, b) => a - b);
+    const top3Steps = new Set(sortedSteps.slice(-3));
+    const bottom3Steps = new Set(sortedSteps.slice(0, 3));
+    const top3Count = stepCounts.filter(s => top3Steps.has(s)).length;
+    const bottom3Count = stepCounts.filter(s => bottom3Steps.has(s)).length;
+    const top3StepsPct = stepCounts.length > 0 ? Math.round((top3Count / stepCounts.length) * 1000) / 10 : null;
+    const bottom3StepsPct = stepCounts.length > 0 ? Math.round((bottom3Count / stepCounts.length) * 1000) / 10 : null;
+
     return {
       contractYear,
       yearLabel: config?.yearLabel ?? `Year ${contractYear}`,
@@ -166,9 +199,12 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       cells: flatCells,
       maxStep,
       totalEmployees,
-      medianSalary: totalEmployees > 0 ? salaryTotal.dividedBy(totalEmployees).toDecimalPlaces(2).toString() : null,
+      medianSalary,
       avgStep: stepCounts.length > 0 ? Math.round((stepCounts.reduce((a, b) => a + b, 0) / stepCounts.length) * 10) / 10 : null,
       employeesAtTopStep,
+      avgLane,
+      top3StepsPct,
+      bottom3StepsPct,
     };
   });
 

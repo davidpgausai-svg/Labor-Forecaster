@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import {
   useGetScenario,
@@ -9,6 +9,8 @@ import {
   useCalculateScenario,
   ScenarioYearConfig,
   ScenarioYearConfigIncreaseType,
+  BargainingUnit,
+  ScenarioCalculationResult,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,8 @@ export default function ScenarioDetail() {
   });
 
   const [calcSummary, setCalcSummary] = useState<{ total: string; years: number } | null>(null);
+  const [lastCalcResult, setLastCalcResult] = useState<ScenarioCalculationResult | null>(null);
+  const autoCalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (scenario) {
@@ -102,22 +106,46 @@ export default function ScenarioDetail() {
     );
   };
 
-  const handleCalculate = () => {
-    calculateMutation.mutate(
-      { id: id! },
+  const idRef = useRef(id);
+  const calcMutRef = useRef(calculateMutation);
+  const toastRef = useRef(toast);
+  idRef.current = id;
+  calcMutRef.current = calculateMutation;
+  toastRef.current = toast;
+
+  const runCalculation = useCallback((showToast = true) => {
+    calcMutRef.current.mutate(
+      { id: idRef.current! },
       {
         onSuccess: (result) => {
           const total = result.totalFiveYearCost ? formatCurrency(result.totalFiveYearCost) : "—";
           setCalcSummary({ total, years: result.yearSummaries?.length ?? 0 });
-          toast({
-            title: "Calculation complete",
-            description: `5-Year total: ${total}`,
-          });
+          setLastCalcResult(result);
+          if (showToast) {
+            toastRef.current({
+              title: "Calculation complete",
+              description: `5-Year total: ${total}`,
+            });
+          }
         },
-        onError: () => toast({ title: "Error", description: "Calculation failed.", variant: "destructive" }),
+        onError: () => {
+          if (showToast) toastRef.current({ title: "Error", description: "Calculation failed.", variant: "destructive" });
+        },
       }
     );
-  };
+  }, []);
+
+  const handleCalculate = () => runCalculation(true);
+
+  useEffect(() => {
+    if (!id || formData.yearConfigs.length === 0) return;
+    if (autoCalcTimerRef.current) clearTimeout(autoCalcTimerRef.current);
+    autoCalcTimerRef.current = setTimeout(() => runCalculation(false), 1800);
+    return () => {
+      if (autoCalcTimerRef.current) clearTimeout(autoCalcTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.yearConfigs]);
 
   if (isLoading || unitsLoading) {
     return (
@@ -213,6 +241,8 @@ export default function ScenarioDetail() {
                     <YearConfigCard
                       key={`${yc.bargainingUnitId}-${yc.contractYear}`}
                       config={yc}
+                      bargainingUnit={unit}
+                      lastCalcResult={lastCalcResult ?? undefined}
                       onChange={patch => updateYearConfig(yc.bargainingUnitId, yc.contractYear, patch)}
                     />
                   ))
@@ -296,27 +326,52 @@ function RangeWithInput({
 function YearConfigCard({
   config,
   onChange,
+  bargainingUnit,
+  lastCalcResult,
 }: {
   config: ScenarioYearConfig;
   onChange: (patch: Partial<ScenarioYearConfig>) => void;
+  bargainingUnit?: BargainingUnit;
+  lastCalcResult?: ScenarioCalculationResult;
 }) {
   const effectiveRate = useMemo(() => computeEffectiveRate(config), [config]);
+
+  const yearCost = useMemo(() => {
+    if (!lastCalcResult?.yearSummaries || effectiveRate === null) return null;
+    const yearSummary = lastCalcResult.yearSummaries.find(
+      s => s.contractYear === config.contractYear && s.bargainingUnitId === config.bargainingUnitId
+    );
+    return yearSummary?.totalEmployerCost ? parseFloat(yearSummary.totalEmployerCost) : null;
+  }, [lastCalcResult, config.contractYear, config.bargainingUnitId, effectiveRate]);
+
+  const estimatedDelta = yearCost !== null && effectiveRate !== null
+    ? yearCost * (effectiveRate / 100)
+    : null;
 
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
             {config.yearLabel} — Year {config.contractYear}
           </CardTitle>
-          {effectiveRate !== null && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-md">
-              <TrendingUp className="w-3 h-3 text-primary" />
-              <span className="text-xs font-mono font-semibold text-primary">
-                {effectiveRate.toFixed(2)}% effective
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {effectiveRate !== null && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-md">
+                <TrendingUp className="w-3 h-3 text-primary" />
+                <span className="text-xs font-mono font-semibold text-primary">
+                  {effectiveRate.toFixed(2)}% effective
+                </span>
+              </div>
+            )}
+            {estimatedDelta !== null && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                <span className="text-xs font-mono text-amber-400">
+                  ~+{formatCurrency(estimatedDelta.toFixed(0))} est.
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -474,7 +529,7 @@ function YearConfigCard({
           </button>
         </div>
 
-        <RetirementModelingSection config={config} onChange={onChange} />
+        <RetirementModelingSection config={config} onChange={onChange} bargainingUnit={bargainingUnit} />
 
         <div className="border-t border-border pt-4">
           <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Notes</div>
@@ -553,21 +608,31 @@ function HighEarnerSection({
 function RetirementModelingSection({
   config,
   onChange,
+  bargainingUnit,
 }: {
   config: ScenarioYearConfig;
   onChange: (patch: Partial<ScenarioYearConfig>) => void;
+  bargainingUnit?: BargainingUnit;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  const retirementSystem = bargainingUnit?.retirementSystem ?? "TRS";
+  const ficaRate = bargainingUnit?.ficaRate ?? (retirementSystem === "TRS" ? null : "7.65");
+  const ficaExempt = bargainingUnit?.ficaExempt ?? false;
+  const workersCompRate = bargainingUnit?.workersCompRate ?? null;
+  const dentalAnnual = bargainingUnit?.dentalAnnual ?? null;
+  const lifeInsuranceAnnual = bargainingUnit?.lifeInsuranceAnnual ?? null;
+  const disabilityInsuranceAnnual = bargainingUnit?.disabilityInsuranceAnnual ?? null;
 
   return (
     <div className="border-t border-border pt-4 space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Retirement Modeling
+            Benefits & Retirement Modeling
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            TRS / IMRF / FICA rates and replacement assumptions for this year
+            {retirementSystem === "TRS" ? "TRS" : retirementSystem === "IMRF" ? "IMRF" : "Retirement"} / {ficaExempt ? "FICA Exempt" : "FICA"} · Year-over-year benefit cost inputs
           </div>
         </div>
         <button
@@ -582,7 +647,7 @@ function RetirementModelingSection({
         <div className="space-y-4 pt-1">
           <div className="grid grid-cols-2 gap-3">
             <RangeWithInput
-              label="Health Premium Increase Rate"
+              label="Health Premium Increase Rate %"
               value={config.healthPremiumIncreaseRate ?? ""}
               onChange={v => onChange({ healthPremiumIncreaseRate: v })}
               min={0}
@@ -590,7 +655,7 @@ function RetirementModelingSection({
               step={0.5}
             />
             <RangeWithInput
-              label="Employer Health Cap Rate"
+              label="Employer Health Cap Rate %"
               value={config.healthEmployerCapRate ?? ""}
               onChange={v => onChange({ healthEmployerCapRate: v })}
               min={0}
@@ -598,19 +663,41 @@ function RetirementModelingSection({
               step={1}
             />
           </div>
-          <div className="p-3 rounded-md bg-muted/30 border border-border/40 text-xs text-muted-foreground space-y-1">
-            <div className="font-medium text-foreground/70 mb-2">Statutory Contribution Rates (Reference)</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <span>TRS Employer (Licensed):</span><span className="font-mono text-right">9.00%</span>
-              <span>IMRF Employer (ESP/CM):</span><span className="font-mono text-right">variable</span>
-              <span>FICA / Medicare:</span><span className="font-mono text-right">7.65%</span>
-              <span>Workers' Comp (est.):</span><span className="font-mono text-right">~1.50%</span>
-              <span>Dental / Vision (annual):</span><span className="font-mono text-right">~$650</span>
-              <span>Life Insurance (annual):</span><span className="font-mono text-right">~$300</span>
-              <span>LTD / Disability:</span><span className="font-mono text-right">~0.50%</span>
+          <div className="p-3 rounded-md bg-muted/30 border border-border/40 text-xs space-y-1">
+            <div className="font-medium text-foreground/70 mb-2 flex items-center gap-2">
+              Statutory Contribution Rates
+              {bargainingUnit && (
+                <span className="text-[10px] bg-muted rounded px-1.5 py-0.5 text-muted-foreground">
+                  {bargainingUnit.name}
+                </span>
+              )}
             </div>
-            <div className="mt-2 text-[10px] text-muted-foreground/70 italic">
-              These reference rates are applied by the calculation engine. Use the Health Premium and Cap fields above to model year-over-year benefit cost changes.
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+              <span>Retirement System:</span>
+              <span className="font-mono font-medium text-foreground text-right">{retirementSystem}</span>
+              <span>FICA / Medicare:</span>
+              <span className="font-mono text-right">
+                {ficaExempt ? "Exempt" : ficaRate ? `${ficaRate}%` : "7.65%"}
+              </span>
+              <span>Workers' Comp Rate:</span>
+              <span className="font-mono text-right">
+                {workersCompRate ? `${workersCompRate}%` : "~1.50%"}
+              </span>
+              <span>Dental / Vision (annual):</span>
+              <span className="font-mono text-right">
+                {dentalAnnual ? `$${parseFloat(dentalAnnual).toLocaleString()}` : "~$650"}
+              </span>
+              <span>Life Insurance (annual):</span>
+              <span className="font-mono text-right">
+                {lifeInsuranceAnnual ? `$${parseFloat(lifeInsuranceAnnual).toLocaleString()}` : "~$300"}
+              </span>
+              <span>LTD / Disability (annual):</span>
+              <span className="font-mono text-right">
+                {disabilityInsuranceAnnual ? `$${parseFloat(disabilityInsuranceAnnual).toLocaleString()}` : "~$500"}
+              </span>
+            </div>
+            <div className="mt-2 text-[10px] text-muted-foreground/70 italic border-t border-border/30 pt-1.5">
+              Statutory rates are configured per bargaining unit in Settings. Adjust Health Premium and Cap above to model benefit cost changes year-over-year.
             </div>
           </div>
         </div>

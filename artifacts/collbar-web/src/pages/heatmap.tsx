@@ -323,20 +323,26 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
           </div>
           <div className="flex flex-col items-end">
             <span className="text-muted-foreground text-xs uppercase tracking-wider">Avg Step</span>
-            <span className="font-mono font-bold text-base text-blue-400">{avgStep}</span>
+            <span className="font-mono font-bold text-base text-blue-400">{(yearData.avgStep ?? "—").toString()}</span>
           </div>
           <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">At Top Step</span>
-            <span className="font-mono font-bold text-base text-amber-500">
-              {yearData.employeesAtTopStep}
-              <span className="text-xs font-normal text-muted-foreground ml-1">({topStepPct}%)</span>
+            <span className="text-muted-foreground text-xs uppercase tracking-wider">Modal Lane</span>
+            <span className="font-mono font-bold text-base text-purple-400 truncate max-w-[80px]" title={(yearData as any).avgLane ?? "—"}>
+              {(yearData as any).avgLane ?? "—"}
             </span>
           </div>
           <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Concentration</span>
-            <span className="font-mono font-bold text-base">
-              {concentrationPct}%
-              <span className="text-xs font-normal text-muted-foreground ml-1">of cells</span>
+            <span className="text-muted-foreground text-xs uppercase tracking-wider">Top-3 Steps</span>
+            <span className="font-mono font-bold text-base text-amber-500">
+              {(yearData as any).top3StepsPct != null ? `${(yearData as any).top3StepsPct}%` : "—"}
+              <span className="text-xs font-normal text-muted-foreground ml-1">of staff</span>
+            </span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-muted-foreground text-xs uppercase tracking-wider">Bot-3 Steps</span>
+            <span className="font-mono font-bold text-base text-green-400">
+              {(yearData as any).bottom3StepsPct != null ? `${(yearData as any).bottom3StepsPct}%` : "—"}
+              <span className="text-xs font-normal text-muted-foreground ml-1">of staff</span>
             </span>
           </div>
 
@@ -505,8 +511,8 @@ function HourlyUnitDataFetcher({
 }
 
 function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }) {
-  const CONTRACT_YEARS = [2025, 2026, 2027, 2028, 2029];
-  const [selectedYear, setSelectedYear] = useState<number>(CONTRACT_YEARS[0]);
+  const { contractYears, yearLabelMap } = useDistrictContext();
+  const [selectedYear, setSelectedYear] = useState<number>(contractYears[0] ?? 0);
   const [unitDataMap, setUnitDataMap] = useState<Record<string, HourlyUnitData>>({});
 
   const handleUnitData = (d: HourlyUnitData) => {
@@ -531,6 +537,8 @@ function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }
     units.some((u) => typeof row[u.name] === "number" && (row[u.name] as number) > 0)
   );
 
+  const yearLabel = yearLabelMap.get(selectedYear) ?? `Year ${selectedYear}`;
+
   return (
     <>
       {units.map((unit) => (
@@ -544,12 +552,14 @@ function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }
             </CardTitle>
             <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
               <SelectTrigger className="w-36 bg-background/50 h-8 text-xs">
-                <SelectValue />
+                <SelectValue>
+                  {yearLabel}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {CONTRACT_YEARS.map((y) => (
+                {contractYears.map((y) => (
                   <SelectItem key={y} value={String(y)}>
-                    {y}–{y + 1}
+                    {yearLabelMap.get(y) ?? `Year ${y}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -561,7 +571,7 @@ function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }
             <Skeleton className="h-64 w-full" />
           ) : !hasData ? (
             <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-              No step data for {selectedYear}–{selectedYear + 1}. Run scenario calculation to populate.
+              No step data for {yearLabel}. Run scenario calculation to populate.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
