@@ -709,10 +709,24 @@ export interface UpdateEmployeeGroupRequest {
   active?: boolean;
 }
 
+export type CreateCompensationScheduleRequestScheduleType =
+  (typeof CreateCompensationScheduleRequestScheduleType)[keyof typeof CreateCompensationScheduleRequestScheduleType];
+
+export const CreateCompensationScheduleRequestScheduleType = {
+  index_based_grid: "index_based_grid",
+  individual_salary: "individual_salary",
+  direct_import_grid: "direct_import_grid",
+  hourly: "hourly",
+  per_diem: "per_diem",
+  flat_rate: "flat_rate",
+  stipend_table: "stipend_table",
+  range_based: "range_based",
+} as const;
+
 export interface CreateCompensationScheduleRequest {
   employeeGroupId: string;
   name: string;
-  scheduleType: string;
+  scheduleType: CreateCompensationScheduleRequestScheduleType;
   isPrimary?: boolean;
   displayOrder?: number;
   description?: string | null;
@@ -721,9 +735,23 @@ export interface CreateCompensationScheduleRequest {
   active?: boolean;
 }
 
+export type UpdateCompensationScheduleRequestScheduleType =
+  (typeof UpdateCompensationScheduleRequestScheduleType)[keyof typeof UpdateCompensationScheduleRequestScheduleType];
+
+export const UpdateCompensationScheduleRequestScheduleType = {
+  index_based_grid: "index_based_grid",
+  individual_salary: "individual_salary",
+  direct_import_grid: "direct_import_grid",
+  hourly: "hourly",
+  per_diem: "per_diem",
+  flat_rate: "flat_rate",
+  stipend_table: "stipend_table",
+  range_based: "range_based",
+} as const;
+
 export interface UpdateCompensationScheduleRequest {
   name?: string;
-  scheduleType?: string;
+  scheduleType?: UpdateCompensationScheduleRequestScheduleType;
   isPrimary?: boolean;
   displayOrder?: number;
   description?: string | null;

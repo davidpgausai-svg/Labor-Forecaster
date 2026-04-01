@@ -12,6 +12,16 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { districtsTable } from "./districts";
 
+export const EMPLOYEE_RETIREMENT_SYSTEMS = [
+  "TRS",
+  "IMRF",
+  "PSRS",
+  "other",
+] as const;
+
+export type EmployeeRetirementSystem =
+  (typeof EMPLOYEE_RETIREMENT_SYSTEMS)[number];
+
 export const employeeGroupsTable = pgTable("employee_groups", {
   id: uuid("id").primaryKey().defaultRandom(),
   districtId: uuid("district_id")

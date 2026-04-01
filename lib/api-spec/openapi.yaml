@@ -2612,6 +2612,15 @@ components:
           type: string
         scheduleType:
           type: string
+          enum:
+            - index_based_grid
+            - individual_salary
+            - direct_import_grid
+            - hourly
+            - per_diem
+            - flat_rate
+            - stipend_table
+            - range_based
         isPrimary:
           type: boolean
         displayOrder:
@@ -2639,6 +2648,15 @@ components:
           type: string
         scheduleType:
           type: string
+          enum:
+            - index_based_grid
+            - individual_salary
+            - direct_import_grid
+            - hourly
+            - per_diem
+            - flat_rate
+            - stipend_table
+            - range_based
         isPrimary:
           type: boolean
         displayOrder:

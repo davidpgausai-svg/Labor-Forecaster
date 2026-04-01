@@ -1865,7 +1865,16 @@ export const ListCompensationSchedulesResponse = zod.array(
 export const CreateCompensationScheduleBody = zod.object({
   employeeGroupId: zod.string(),
   name: zod.string(),
-  scheduleType: zod.string(),
+  scheduleType: zod.enum([
+    "index_based_grid",
+    "individual_salary",
+    "direct_import_grid",
+    "hourly",
+    "per_diem",
+    "flat_rate",
+    "stipend_table",
+    "range_based",
+  ]),
   isPrimary: zod.boolean().optional(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -1914,7 +1923,18 @@ export const UpdateCompensationScheduleParams = zod.object({
 
 export const UpdateCompensationScheduleBody = zod.object({
   name: zod.string().optional(),
-  scheduleType: zod.string().optional(),
+  scheduleType: zod
+    .enum([
+      "index_based_grid",
+      "individual_salary",
+      "direct_import_grid",
+      "hourly",
+      "per_diem",
+      "flat_rate",
+      "stipend_table",
+      "range_based",
+    ])
+    .optional(),
   isPrimary: zod.boolean().optional(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
