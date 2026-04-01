@@ -88,6 +88,18 @@ export default function ScenarioDetail() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const updateYearConfigById = (
+    id: string,
+    patch: Partial<ScenarioYearConfig>
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      yearConfigs: prev.yearConfigs.map(yc =>
+        yc.id === id ? { ...yc, ...patch } : yc
+      ),
+    }));
+  };
+
   const updateYearConfig = (
     bargainingUnitId: string,
     contractYear: number,
@@ -302,11 +314,11 @@ export default function ScenarioDetail() {
                   ) : (
                     groupConfigs.map(yc => (
                       <GroupYearConfigCard
-                        key={`${group.id}-${yc.contractYear}`}
+                        key={yc.id ?? `${group.id}-${yc.contractYear}`}
                         config={yc}
                         groupName={group.name}
                         scheduleType={primarySchedule?.scheduleType ?? null}
-                        onChange={patch => updateYearConfig(yc.bargainingUnitId, yc.contractYear, patch)}
+                        onChange={patch => updateYearConfigById(yc.id!, patch)}
                       />
                     ))
                   )}

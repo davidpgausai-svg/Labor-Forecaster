@@ -10,6 +10,7 @@ import {
   compensationSchedulesTable,
   districtsTable,
 } from "@workspace/db";
+import type { ScenarioYearConfigInsert } from "@workspace/db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import Decimal from "decimal.js";
 import { runScenarioCalculation } from "@workspace/calc-engine";
@@ -137,11 +138,11 @@ router.post("/scenarios", async (req, res) => {
     .returning();
 
   if (yearConfigs?.length) {
-    const configsToInsert = (yearConfigs as YearConfigInput[]).map((c) => ({
+    const configsToInsert: ScenarioYearConfigInsert[] = (yearConfigs as YearConfigInput[]).map((c) => ({
       scenarioId: scenario.id,
-      bargainingUnitId: c.bargainingUnitId ?? undefined,
-      employeeGroupId: c.employeeGroupId ?? undefined,
-      compensationScheduleId: c.compensationScheduleId ?? undefined,
+      bargainingUnitId: c.bargainingUnitId ?? null,
+      employeeGroupId: c.employeeGroupId ?? null,
+      compensationScheduleId: c.compensationScheduleId ?? null,
       contractYear: c.contractYear,
       yearLabel: c.yearLabel,
       increaseType: c.increaseType as "fixed_percentage" | "cpi_formula" | "flat_dollar" | "step_only" | "custom",
@@ -163,7 +164,7 @@ router.post("/scenarios", async (req, res) => {
       baseAdjustmentValue: c.baseAdjustmentValue ?? null,
       notes: c.notes ?? null,
     }));
-    await db.insert(scenarioYearConfigsTable).values(configsToInsert as any);
+    await db.insert(scenarioYearConfigsTable).values(configsToInsert as ScenarioYearConfigInsert[]);
   } else {
     // Auto-generate year configs for all bargaining units + employee groups in the district
     const [district, units, employeeGroups] = await Promise.all([
@@ -175,8 +176,7 @@ router.post("/scenarios", async (req, res) => {
     // Derive base fiscal year robustly — handles ISO ("2026-07-01") and text ("July 1") formats
     const baseYear = extractFiscalYear(district?.fiscalYearStart);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allAutoConfigs: any[] = [];
+    const allAutoConfigs: ScenarioYearConfigInsert[] = [];
 
     if (units.length > 0) {
       const buConfigs = units.flatMap((unit) => {
@@ -232,7 +232,7 @@ router.post("/scenarios", async (req, res) => {
         return Array.from({ length: numYears }, (_, i) => ({
           scenarioId: scenario.id,
           employeeGroupId: group.id,
-          compensationScheduleId: primarySchedule?.id ?? undefined,
+          compensationScheduleId: primarySchedule?.id ?? null,
           contractYear: i,
           yearLabel: buildYearLabel(baseYear, i),
           increaseType: "fixed_percentage" as const,
@@ -260,7 +260,7 @@ router.post("/scenarios", async (req, res) => {
     }
 
     if (allAutoConfigs.length > 0) {
-      await db.insert(scenarioYearConfigsTable).values(allAutoConfigs as any);
+      await db.insert(scenarioYearConfigsTable).values(allAutoConfigs as ScenarioYearConfigInsert[]);
     }
   }
 
@@ -406,11 +406,11 @@ router.put("/scenarios/:id", async (req, res) => {
       .delete(scenarioYearConfigsTable)
       .where(eq(scenarioYearConfigsTable.scenarioId, req.params.id));
 
-    const configsToInsert = (yearConfigs as YearConfigInput[]).map((c) => ({
+    const configsToInsert: ScenarioYearConfigInsert[] = (yearConfigs as YearConfigInput[]).map((c) => ({
       scenarioId: req.params.id,
-      bargainingUnitId: c.bargainingUnitId ?? undefined,
-      employeeGroupId: c.employeeGroupId ?? undefined,
-      compensationScheduleId: c.compensationScheduleId ?? undefined,
+      bargainingUnitId: c.bargainingUnitId ?? null,
+      employeeGroupId: c.employeeGroupId ?? null,
+      compensationScheduleId: c.compensationScheduleId ?? null,
       contractYear: c.contractYear,
       yearLabel: c.yearLabel,
       increaseType: c.increaseType as "fixed_percentage" | "cpi_formula" | "flat_dollar" | "step_only" | "custom",
@@ -432,7 +432,7 @@ router.put("/scenarios/:id", async (req, res) => {
       baseAdjustmentValue: c.baseAdjustmentValue ?? null,
       notes: c.notes ?? null,
     }));
-    await db.insert(scenarioYearConfigsTable).values(configsToInsert as any);
+    await db.insert(scenarioYearConfigsTable).values(configsToInsert as ScenarioYearConfigInsert[]);
   }
 
   const result = await getScenarioWithConfigs(req.params.id);
@@ -504,11 +504,11 @@ router.post("/scenarios/:id/year-configs", async (req, res) => {
     .delete(scenarioYearConfigsTable)
     .where(eq(scenarioYearConfigsTable.scenarioId, req.params.id));
 
-  const configsToInsert = (yearConfigs as YearConfigInput[]).map((c) => ({
+  const configsToInsert: ScenarioYearConfigInsert[] = (yearConfigs as YearConfigInput[]).map((c) => ({
     scenarioId: req.params.id,
-    bargainingUnitId: c.bargainingUnitId ?? undefined,
-    employeeGroupId: c.employeeGroupId ?? undefined,
-    compensationScheduleId: c.compensationScheduleId ?? undefined,
+    bargainingUnitId: c.bargainingUnitId ?? null,
+    employeeGroupId: c.employeeGroupId ?? null,
+    compensationScheduleId: c.compensationScheduleId ?? null,
     contractYear: c.contractYear,
     yearLabel: c.yearLabel,
     increaseType: c.increaseType as "fixed_percentage" | "cpi_formula" | "flat_dollar" | "step_only" | "custom",
@@ -531,7 +531,7 @@ router.post("/scenarios/:id/year-configs", async (req, res) => {
     notes: c.notes ?? null,
   }));
 
-  const inserted = await db.insert(scenarioYearConfigsTable).values(configsToInsert as any).returning();
+  const inserted = await db.insert(scenarioYearConfigsTable).values(configsToInsert as ScenarioYearConfigInsert[]).returning();
   res.json(inserted);
 });
 

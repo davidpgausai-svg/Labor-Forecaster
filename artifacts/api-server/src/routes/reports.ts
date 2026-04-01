@@ -383,7 +383,7 @@ router.get("/reports/:scenarioId/detail", async (req, res) => {
     return {
       yearLabel: yc.yearLabel,
       contractYear: yc.contractYear,
-      bargainingUnit: unit?.name ?? yc.bargainingUnitId,
+      bargainingUnit: unit?.name ?? yc.bargainingUnitId ?? "Unknown",
       increaseType: yc.increaseType,
       fixedPercentage: yc.fixedPercentage,
       cpiValue: yc.cpiValue,
@@ -527,7 +527,7 @@ async function buildReportDetail(scenarioId: string): Promise<ReportDetail | nul
 
   const yearConfigsFormatted = yearConfigs.map(yc => {
     const unit = units.find(u => u.id === yc.bargainingUnitId);
-    return { yearLabel: yc.yearLabel, contractYear: yc.contractYear, bargainingUnit: unit?.name ?? yc.bargainingUnitId, increaseType: yc.increaseType, fixedPercentage: yc.fixedPercentage, cpiValue: yc.cpiValue, cpiAdder: yc.cpiAdder, cpiCap: yc.cpiCap, cpiFloor: yc.cpiFloor, highEarnerThreshold: yc.highEarnerThreshold, highEarnerFlatIncrease: yc.highEarnerFlatIncrease, stepAdvancement: yc.stepAdvancement, healthPremiumIncreaseRate: yc.healthPremiumIncreaseRate };
+    return { yearLabel: yc.yearLabel, contractYear: yc.contractYear, bargainingUnit: unit?.name ?? yc.bargainingUnitId ?? "Unknown", increaseType: yc.increaseType, fixedPercentage: yc.fixedPercentage, cpiValue: yc.cpiValue, cpiAdder: yc.cpiAdder, cpiCap: yc.cpiCap, cpiFloor: yc.cpiFloor, highEarnerThreshold: yc.highEarnerThreshold, highEarnerFlatIncrease: yc.highEarnerFlatIncrease, stepAdvancement: yc.stepAdvancement, healthPremiumIncreaseRate: yc.healthPremiumIncreaseRate };
   });
 
   const schedules: ReportDetail["schedules"] = [];

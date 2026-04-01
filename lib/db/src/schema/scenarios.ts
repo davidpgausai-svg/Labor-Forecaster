@@ -153,6 +153,15 @@ export type InsertScenarioYearConfig = z.infer<
   typeof insertScenarioYearConfigSchema
 >;
 export type ScenarioYearConfig = typeof scenarioYearConfigsTable.$inferSelect;
+
+export type ScenarioYearConfigInsert = Omit<
+  typeof scenarioYearConfigsTable.$inferInsert,
+  "bargainingUnitId" | "employeeGroupId" | "compensationScheduleId"
+> & {
+  bargainingUnitId?: string | null;
+  employeeGroupId?: string | null;
+  compensationScheduleId?: string | null;
+};
 export type InsertEmployeeYearRecord = z.infer<
   typeof insertEmployeeYearRecordSchema
 >;

@@ -454,6 +454,58 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     allYearSummaries.push(...summaries.map((s) => ({ ...s, bargainingUnitName: unit?.name ?? null })));
   }
 
+  // Add employee-group summaries to the district totals
+  const employeeGroupsForSummary = employeeGroupIds.length > 0
+    ? await db.select().from(employeeGroupsTable).where(inArray(employeeGroupsTable.id, employeeGroupIds))
+    : [];
+
+  for (const employeeGroupId of employeeGroupIds) {
+    const groupData = employeeGroupsForSummary.find((g) => g.id === employeeGroupId);
+    const dbYearConfigs = groupYearConfigs
+      .filter((c) => c.employeeGroupId === employeeGroupId)
+      .sort((a, b) => a.contractYear - b.contractYear);
+    const typedConfigs = toYearConfigs(dbYearConfigs, scheduleTypeMap);
+
+    const groupEmployeeIds = new Set(
+      groupEmployees
+        .filter((r) => r.employee.employeeGroupId === employeeGroupId)
+        .map((r) => r.employee.id)
+    );
+    const groupRecords = savedRecords.filter((r) => groupEmployeeIds.has(r.employeeId));
+
+    const fromCents = (c: number | null) => c != null ? (c / 100).toFixed(2) : null;
+    const retirementSystem = (groupData?.retirementSystem as "TRS" | "IMRF" | "other") ?? "TRS";
+    const summaries = calcScenarioSummary(
+      groupRecords.map((r): EmployeeYearResult => ({
+        employeeId: r.employeeId,
+        scenarioId: r.scenarioId,
+        contractYear: r.contractYear,
+        projectedStep: r.projectedStep,
+        projectedLaneId: r.projectedLaneId,
+        projectedHourlyRate: r.projectedHourlyRate,
+        projectedBaseSalary: (r.projectedBaseSalaryCents / 100).toFixed(2),
+        projectedTotalCompensation: (r.projectedTotalCompensationCents / 100).toFixed(2),
+        retirementContribution: (r.retirementContributionCents / 100).toFixed(2),
+        ficaCost: (r.ficaCostCents / 100).toFixed(2),
+        healthInsuranceCost: (r.healthInsuranceCostCents / 100).toFixed(2),
+        otherBenefitsCost: (r.otherBenefitsCostCents / 100).toFixed(2),
+        totalEmployerCost: (r.totalEmployerCostCents / 100).toFixed(2),
+        effectiveRate: r.effectiveRate,
+        isRetirementYear: r.isRetirementYear,
+        retirementIncentiveAmount: fromCents(r.retirementIncentiveAmountCents),
+      })),
+      typedConfigs,
+      employeeGroupId,
+      retirementSystem
+    );
+
+    allYearSummaries.push(...summaries.map((s) => ({
+      ...s,
+      bargainingUnitName: groupData?.name ?? null,
+      employeeGroupId,
+    })));
+  }
+
   const districtWideSummary = groupDistrictWide(allYearSummaries);
 
   const totalFiveYearCost = districtWideSummary
