@@ -5,6 +5,8 @@ import {
   scenariosTable,
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
+  bargainingUnitsTable,
+  districtsTable,
 } from "@workspace/db";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import Decimal from "decimal.js";
@@ -100,6 +102,10 @@ router.get("/scenarios", async (req, res) => {
   res.json(scenarios);
 });
 
+function buildYearLabel(baseYear: number, offset: number): string {
+  return `${baseYear + offset}-${baseYear + offset + 1}`;
+}
+
 router.post("/scenarios", async (req, res) => {
   const parsed = createScenarioSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -137,6 +143,49 @@ router.post("/scenarios", async (req, res) => {
       notes: c.notes ?? null,
     }));
     await db.insert(scenarioYearConfigsTable).values(configsToInsert);
+  } else {
+    // Auto-generate year configs for all bargaining units in the district
+    const [district, units] = await Promise.all([
+      db.select().from(districtsTable).where(eq(districtsTable.id, districtId)).then((r) => r[0]),
+      db.select().from(bargainingUnitsTable).where(eq(bargainingUnitsTable.districtId, districtId)),
+    ]);
+
+    if (units.length > 0) {
+      // Derive base fiscal year from fiscalYearStart date (e.g. "2026-07-01" → 2026)
+      const baseYear = district?.fiscalYearStart
+        ? new Date(district.fiscalYearStart).getFullYear()
+        : new Date().getFullYear();
+
+      const autoConfigs = units.flatMap((unit) => {
+        const numYears = unit.contractYears ?? 5;
+        return Array.from({ length: numYears }, (_, i) => ({
+          scenarioId: scenario.id,
+          bargainingUnitId: unit.id,
+          contractYear: i,
+          yearLabel: buildYearLabel(baseYear, i),
+          increaseType: "fixed_percentage" as const,
+          fixedPercentage: "0",
+          stepAdvancement: true,
+          cpiValue: null,
+          cpiAdder: null,
+          cpiCap: null,
+          cpiFloor: null,
+          cpiIndexName: null,
+          highEarnerThreshold: null,
+          highEarnerFlatIncrease: null,
+          educationalAdvancementBa15: null,
+          educationalAdvancementMa: null,
+          educationalAdvancementMa15: null,
+          healthPremiumIncreaseRate: null,
+          healthEmployerCapRate: null,
+          notes: null,
+        }));
+      });
+
+      if (autoConfigs.length > 0) {
+        await db.insert(scenarioYearConfigsTable).values(autoConfigs);
+      }
+    }
   }
 
   const result = await getScenarioWithConfigs(scenario.id);

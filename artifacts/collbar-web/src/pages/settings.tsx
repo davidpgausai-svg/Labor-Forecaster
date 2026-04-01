@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDistrictContext } from "@/context/DistrictContext";
 import {
   useGetDistrict,
@@ -173,7 +174,10 @@ function BargainingUnitEditDialog({
   onClose: () => void;
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const updateMutation = useUpdateBargainingUnit();
+
+  const [contractYears, setContractYears] = useState<number>(unit.contractYears ?? 5);
 
   const [rates, setRates] = useState<BenefitRates>({
     retirementEmployeeRate: unit.retirementEmployeeRate ?? "",
@@ -192,6 +196,7 @@ function BargainingUnitEditDialog({
   });
 
   useEffect(() => {
+    setContractYears(unit.contractYears ?? 5);
     setRates({
       retirementEmployeeRate: unit.retirementEmployeeRate ?? "",
       retirementEmployerRate: unit.retirementEmployerRate ?? "",
@@ -217,7 +222,9 @@ function BargainingUnitEditDialog({
   };
 
   const handleSave = () => {
-    const payload: Record<string, string | boolean | undefined> = {};
+    const payload: Record<string, string | boolean | number | undefined> = {
+      contractYears,
+    };
     for (const [k, v] of Object.entries(rates)) {
       if (v === "") continue;
       payload[k] = v;
@@ -226,7 +233,10 @@ function BargainingUnitEditDialog({
       { id: unit.id, data: payload as Parameters<typeof updateMutation.mutate>[0]["data"] },
       {
         onSuccess: () => {
-          toast({ title: "Saved", description: `${unit.name} benefit rates updated.` });
+          queryClient.invalidateQueries({
+            queryKey: getListBargainingUnitsQueryKey({ districtId: unit.districtId }),
+          });
+          toast({ title: "Saved", description: `${unit.name} settings updated.` });
           onClose();
         },
         onError: () =>
@@ -271,6 +281,33 @@ function BargainingUnitEditDialog({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Contract
+            </h4>
+            <div className="grid grid-cols-2 gap-3 items-start">
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium">Contract Years (1–10)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={contractYears}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v >= 1 && v <= 10) setContractYears(v);
+                  }}
+                  className="font-mono text-right h-8 text-sm bg-background/50 w-24"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Number of years to model in forecasting scenarios
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Separator className="bg-border/50" />
+
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
               Retirement
@@ -359,7 +396,7 @@ function BargainingUnitEditDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? "Saving..." : "Save Rates"}
+            {updateMutation.isPending ? "Saving..." : "Save Settings"}
           </Button>
         </DialogFooter>
       </DialogContent>
