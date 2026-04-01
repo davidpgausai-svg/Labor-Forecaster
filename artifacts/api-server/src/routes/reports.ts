@@ -369,6 +369,7 @@ router.get("/reports/:scenarioId/detail", async (req, res) => {
     bargainingUnitId: row.unit?.id ?? "",
     contractYear: row.record.contractYear,
     projectedStep: row.record.projectedStep,
+    projectedLaneName: null as string | null,
     projectedSalary: (row.record.projectedBaseSalaryCents / 100).toFixed(2),
     retirementContribution: (row.record.retirementContributionCents / 100).toFixed(2),
     ficaCost: (row.record.ficaCostCents / 100).toFixed(2),

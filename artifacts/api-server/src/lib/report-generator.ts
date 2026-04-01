@@ -536,7 +536,8 @@ export function generateNegotiationComparisonPdf(details: ReportDetail[]): Buffe
     margin: { left: MARGIN, right: MARGIN }, tableWidth: COL_W,
     didParseCell: (data) => {
       if (data.section === "body") {
-        const lastCol = data.row.cells[data.row.cells.length - 1];
+        const cells = Object.values(data.row.cells);
+        const lastCol = cells[cells.length - 1];
         if (lastCol?.text?.[0] === "LOWEST") { data.cell.styles.textColor = [16, 122, 87]; data.cell.styles.fontStyle = "bold"; }
         const [r, g, b] = scenarioColors[data.row.index % scenarioColors.length];
         if (data.column.index === 0) data.cell.styles.textColor = [r, g, b];
@@ -611,7 +612,7 @@ export function generateNegotiationComparisonPdf(details: ReportDetail[]): Buffe
         if (!yc) return "—";
         if (yc.increaseType === "fixed_percentage") return `Fixed ${fmtPct(yc.fixedPercentage)}${yc.stepAdvancement ? " + Step" : ""}`;
         if (yc.increaseType === "cpi_formula") return `CPI+${fmtPct(yc.cpiAdder)} [${fmtPct(yc.cpiFloor)}–${fmtPct(yc.cpiCap)}]`;
-        if (yc.increaseType === "flat_dollar") return `Flat ${fmt$(yc.fixedPercentage)}`;
+        if (yc.increaseType === "flat_dollar") return `Flat ${fmt$(yc.fixedPercentage ?? 0)}`;
         return yc.increaseType;
       });
       return [unit, ...rates];

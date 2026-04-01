@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useDistrictContext } from "@/context/DistrictContext";
-import { useGetScenario, getGetScenarioQueryKey, useListScenarios } from "@workspace/api-client-react";
+import { useGetScenario, getGetScenarioQueryKey, useListScenarios, getListScenariosQueryKey } from "@workspace/api-client-react";
 import {
   Card,
   CardHeader,
@@ -120,7 +120,7 @@ export default function Reports() {
   });
 
   const { data: allScenarios } = useListScenarios(undefined, {
-    query: { enabled: true },
+    query: { enabled: true, queryKey: getListScenariosQueryKey() },
   });
 
   const handleGenerate = async (id: string) => {
