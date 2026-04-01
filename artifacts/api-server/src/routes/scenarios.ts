@@ -106,6 +106,13 @@ function buildYearLabel(baseYear: number, offset: number): string {
   return `${baseYear + offset}-${baseYear + offset + 1}`;
 }
 
+function extractFiscalYear(fiscalYearStart: string | null | undefined): number {
+  if (!fiscalYearStart) return new Date().getFullYear();
+  const match = fiscalYearStart.match(/\b(19|20)\d{2}\b/);
+  if (match) return parseInt(match[0], 10);
+  return new Date().getFullYear();
+}
+
 router.post("/scenarios", async (req, res) => {
   const parsed = createScenarioSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -151,10 +158,8 @@ router.post("/scenarios", async (req, res) => {
     ]);
 
     if (units.length > 0) {
-      // Derive base fiscal year from fiscalYearStart date (e.g. "2026-07-01" → 2026)
-      const baseYear = district?.fiscalYearStart
-        ? new Date(district.fiscalYearStart).getFullYear()
-        : new Date().getFullYear();
+      // Derive base fiscal year robustly — handles ISO ("2026-07-01") and text ("July 1") formats
+      const baseYear = extractFiscalYear(district?.fiscalYearStart);
 
       const autoConfigs = units.flatMap((unit) => {
         const numYears = unit.contractYears && unit.contractYears > 0 ? unit.contractYears : 5;
