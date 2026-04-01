@@ -160,12 +160,9 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     return {
       contractYear,
       yearLabel: config?.yearLabel ?? `Year ${contractYear}`,
-      // Lane and step headers for 2D matrix interpretation
-      laneHeaders: lanes.map((l) => ({ id: l.id, name: l.name })),
+      lanes: lanes.map((l) => ({ id: l.id, name: l.name })),
       stepHeaders: stepNumbers,
-      // 2D matrix: matrix[stepIdx][laneIdx] (nulls for empty cells)
       matrix,
-      // Flat cells list (for easier filtering/rendering)
       cells: flatCells,
       maxStep,
       totalEmployees,

@@ -1,0 +1,170 @@
+import { useGetDashboard, getGetDashboardQueryKey } from "@workspace/api-client-react";
+import { useDistrictContext } from "@/context/DistrictContext";
+import { formatCurrency, formatNumber } from "@/lib/format";
+import { getBadgeColorClass, getStatusBadgeClass } from "@/lib/badges";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DollarSign, ArrowUpRight, Award, History } from "lucide-react";
+import { Link } from "wouter";
+
+export default function Dashboard() {
+  const { districtId, scenarioId } = useDistrictContext();
+
+  const { data, isLoading, isError } = useGetDashboard(
+    { districtId: districtId!, scenarioId: scenarioId || undefined },
+    { query: { enabled: !!districtId, queryKey: getGetDashboardQueryKey({ districtId: districtId!, scenarioId: scenarioId || undefined }) } }
+  );
+
+  if (!districtId) return null;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return <div className="text-destructive">Failed to load dashboard data.</div>;
+  }
+
+  return (
+    <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{data.district?.name || "District"}</h1>
+          <p className="text-muted-foreground mt-1">Financial Cockpit • {data.totalEmployees} Employees</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-card border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Payroll</CardTitle>
+            <DollarSign className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono">{formatCurrency(data.totalCurrentPayroll)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Retirement Eligible</CardTitle>
+            <History className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono">{formatNumber(data.retirementEligibleCount)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">High Earners</CardTitle>
+            <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono">{formatNumber(data.highEarnerCount)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">At Top Step</CardTitle>
+            <Award className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono">{formatNumber(data.employeesAtTopStepCount)}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>5-Year Cost Projection</CardTitle>
+              <CardDescription>Total employer cost across all units</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] w-full">
+                {data.fiveYearProjection && data.fiveYearProjection.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.fiveYearProjection} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                      <XAxis dataKey="yearLabel" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12, fontFamily: "var(--app-font-mono)" }}
+                        tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: "hsl(var(--muted))" }}
+                        contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", color: "hsl(var(--popover-foreground))", borderRadius: "8px", fontFamily: "var(--app-font-mono)" }}
+                        formatter={(value: any) => [formatCurrency(value), "Total Cost"]}
+                      />
+                      <Bar dataKey="totalEmployerCost" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                    No projection data available
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Units</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {data.employeeCountByUnit.map((unit) => (
+                <div key={unit.bargainingUnitId} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={getBadgeColorClass(unit.bargainingUnitName || "")}>
+                      {unit.bargainingUnitName}
+                    </Badge>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono font-medium">{formatNumber(unit.employeeCount)}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{formatCurrency(unit.totalPayroll)}</div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle>Active Scenarios</CardTitle>
+              <Link href="/scenarios" className="text-xs text-primary hover:underline">View all</Link>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 mt-4">
+                {data.activeScenarios.slice(0, 4).map(sc => (
+                  <div key={sc.id} className="flex items-center justify-between group">
+                    <Link href={`/scenarios/${sc.id}`} className="font-medium hover:text-primary transition-colors truncate pr-4">
+                      {sc.name}
+                    </Link>
+                    <Badge variant="outline" className={getStatusBadgeClass(sc.status)}>{sc.status}</Badge>
+                  </div>
+                ))}
+                {data.activeScenarios.length === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-4">No active scenarios</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
