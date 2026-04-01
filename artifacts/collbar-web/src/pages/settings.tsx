@@ -5,11 +5,17 @@ import {
   useGetDistrict,
   getGetDistrictQueryKey,
   useUpdateDistrict,
-  useListBargainingUnits,
-  getListBargainingUnitsQueryKey,
-  useUpdateBargainingUnit,
-  useCreateBargainingUnit,
-  BargainingUnit,
+  useListEmployeeGroups,
+  getListEmployeeGroupsQueryKey,
+  useCreateEmployeeGroup,
+  useUpdateEmployeeGroup,
+  useCreateCompensationSchedule,
+  useUpdateCompensationSchedule,
+  useDeleteCompensationSchedule,
+  useSetCompensationSchedulePrimary,
+  EmployeeGroupWithSchedules,
+  CompensationSchedule,
+  CreateCompensationScheduleRequestScheduleType,
 } from "@workspace/api-client-react";
 import {
   Card,
@@ -31,11 +37,102 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Star,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type BenefitRates = {
+const GROUP_INDEX_COLORS = [
+  "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "bg-green-500/10 text-green-400 border-green-500/20",
+  "bg-pink-500/10 text-pink-400 border-pink-500/20",
+  "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+];
+
+const SCHEDULE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  index_based_grid: {
+    label: "Index-Based Grid",
+    color: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  },
+  individual_salary: {
+    label: "Individual Salary",
+    color: "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  },
+  direct_import_grid: {
+    label: "Direct Import Grid",
+    color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  },
+  hourly: {
+    label: "Hourly",
+    color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  },
+  per_diem: {
+    label: "Per-Diem",
+    color: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  },
+  flat_rate: {
+    label: "Flat Rate",
+    color: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  },
+  stipend_table: {
+    label: "Stipend Table",
+    color: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  },
+  range_based: {
+    label: "Range-Based",
+    color: "bg-pink-500/10 text-pink-400 border-pink-500/20",
+  },
+};
+
+const SCHEDULE_TYPE_OPTIONS = [
+  { value: "index_based_grid", label: "Index-Based Salary Grid" },
+  { value: "individual_salary", label: "Individual Salary + Formula" },
+  { value: "direct_import_grid", label: "Direct Import Grid (paste matrix)" },
+  { value: "hourly", label: "Hourly Rate Schedule" },
+  { value: "per_diem", label: "Per-Diem Rate Schedule" },
+  { value: "range_based", label: "Salary Range Schedule" },
+  { value: "flat_rate", label: "Flat Rate Schedule" },
+  { value: "stipend_table", label: "Stipend Table" },
+];
+
+type GroupFormState = {
+  name: string;
+  code: string;
+  contractDays: string;
+  isUnionized: boolean;
+  bargainingUnitName: string;
+  contractStartDate: string;
+  contractEndDate: string;
+  contractYears: string;
+  retirementSystem: string;
   retirementEmployeeRate: string;
   retirementEmployerRate: string;
   retirementGrossUpRate: string;
@@ -43,230 +140,506 @@ type BenefitRates = {
   ficaExempt: boolean;
   healthInsuranceSingleAnnual: string;
   healthInsuranceFamilyAnnual: string;
+  healthInsuranceEmployerCapRate: string;
+  hsaContributionSingle: string;
+  hsaContributionFamily: string;
   dentalAnnual: string;
   lifeInsuranceAnnual: string;
   disabilityInsuranceAnnual: string;
-  hsaContributionSingle: string;
-  hsaContributionFamily: string;
   workersCompRate: string;
+  notes: string;
 };
 
-function AddBargainingUnitDialog({
-  open,
-  onClose,
-  districtId,
-}: {
-  open: boolean;
-  onClose: () => void;
-  districtId: string;
-}) {
-  const { toast } = useToast();
-  const createMutation = useCreateBargainingUnit();
+const DEFAULT_GROUP_FORM: GroupFormState = {
+  name: "",
+  code: "",
+  contractDays: "",
+  isUnionized: true,
+  bargainingUnitName: "",
+  contractStartDate: "",
+  contractEndDate: "",
+  contractYears: "5",
+  retirementSystem: "TRS",
+  retirementEmployeeRate: "",
+  retirementEmployerRate: "",
+  retirementGrossUpRate: "",
+  ficaRate: "",
+  ficaExempt: false,
+  healthInsuranceSingleAnnual: "",
+  healthInsuranceFamilyAnnual: "",
+  healthInsuranceEmployerCapRate: "",
+  hsaContributionSingle: "",
+  hsaContributionFamily: "",
+  dentalAnnual: "",
+  lifeInsuranceAnnual: "",
+  disabilityInsuranceAnnual: "",
+  workersCompRate: "",
+  notes: "",
+};
 
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    compensationType: "salary" as "salary" | "hourly",
-    retirementSystem: "TRS" as "TRS" | "IMRF" | "other",
+function groupToForm(g: EmployeeGroupWithSchedules): GroupFormState {
+  return {
+    name: g.name,
+    code: g.code,
+    contractDays: g.contractDays != null ? String(g.contractDays) : "",
+    isUnionized: g.isUnionized,
+    bargainingUnitName: g.bargainingUnitName ?? "",
+    contractStartDate: g.contractStartDate
+      ? g.contractStartDate.substring(0, 10)
+      : "",
+    contractEndDate: g.contractEndDate
+      ? g.contractEndDate.substring(0, 10)
+      : "",
+    contractYears: String(g.contractYears ?? 5),
+    retirementSystem: g.retirementSystem ?? "TRS",
+    retirementEmployeeRate: g.retirementEmployeeRate ?? "",
+    retirementEmployerRate: g.retirementEmployerRate ?? "",
+    retirementGrossUpRate: g.retirementGrossUpRate ?? "",
+    ficaRate: g.ficaRate ?? "",
+    ficaExempt: g.ficaExempt ?? false,
+    healthInsuranceSingleAnnual: g.healthInsuranceSingleAnnual ?? "",
+    healthInsuranceFamilyAnnual: g.healthInsuranceFamilyAnnual ?? "",
+    healthInsuranceEmployerCapRate: g.healthInsuranceEmployerCapRate ?? "",
+    hsaContributionSingle: g.hsaContributionSingle ?? "",
+    hsaContributionFamily: g.hsaContributionFamily ?? "",
+    dentalAnnual: g.dentalAnnual ?? "",
+    lifeInsuranceAnnual: g.lifeInsuranceAnnual ?? "",
+    disabilityInsuranceAnnual: g.disabilityInsuranceAnnual ?? "",
+    workersCompRate: g.workersCompRate ?? "",
+    notes: g.notes ?? "",
+  };
+}
+
+function buildGroupPayload(
+  form: GroupFormState,
+  districtId?: string
+): Record<string, string | boolean | number | null | undefined> {
+  const payload: Record<string, string | boolean | number | null | undefined> =
+    {
+      name: form.name,
+      code: form.code,
+      contractDays: form.contractDays ? Number(form.contractDays) : null,
+      isUnionized: form.isUnionized,
+      bargainingUnitName: form.bargainingUnitName || null,
+      contractStartDate: form.contractStartDate || null,
+      contractEndDate: form.contractEndDate || null,
+      contractYears: form.contractYears ? Number(form.contractYears) : 5,
+      retirementSystem: form.retirementSystem,
+      ficaExempt: form.ficaExempt,
+      notes: form.notes || null,
+    };
+  if (districtId) payload.districtId = districtId;
+  const numFields = [
+    "retirementEmployeeRate",
+    "retirementEmployerRate",
+    "retirementGrossUpRate",
+    "ficaRate",
+    "healthInsuranceSingleAnnual",
+    "healthInsuranceFamilyAnnual",
+    "healthInsuranceEmployerCapRate",
+    "hsaContributionSingle",
+    "hsaContributionFamily",
+    "dentalAnnual",
+    "lifeInsuranceAnnual",
+    "disabilityInsuranceAnnual",
+    "workersCompRate",
+  ] as const;
+  for (const f of numFields) {
+    if (form[f] !== "") payload[f] = form[f];
+  }
+  return payload;
+}
+
+type SectionConfig = {
+  key: string;
+  label: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+};
+
+function CollapsibleSections({ sections }: { sections: SectionConfig[] }) {
+  const [open, setOpen] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const s of sections) init[s.key] = s.defaultOpen ?? false;
+    return init;
   });
-
-  const set = (field: keyof typeof form) => (value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleCreate = () => {
-    if (!form.name || !form.code) return;
-    createMutation.mutate(
-      {
-        data: {
-          districtId,
-          name: form.name,
-          code: form.code,
-          compensationType: form.compensationType as "salary" | "hourly",
-          retirementSystem: form.retirementSystem as "TRS" | "IMRF" | "other",
-        },
-      },
-      {
-        onSuccess: () => {
-          toast({ title: "Bargaining unit created", description: `${form.name} has been added.` });
-          setForm({ name: "", code: "", compensationType: "salary", retirementSystem: "TRS" });
-          onClose();
-        },
-        onError: () =>
-          toast({ title: "Error", description: "Failed to create bargaining unit.", variant: "destructive" }),
-      }
-    );
-  };
-
+  const toggle = (key: string) =>
+    setOpen((p) => ({ ...p, [key]: !p[key] }));
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md bg-card border-border">
-        <DialogHeader>
-          <DialogTitle>Add Bargaining Unit</DialogTitle>
-          <p className="text-sm text-muted-foreground">Define a new unit for contract modeling.</p>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>Unit Name</Label>
-            <Input
-              value={form.name}
-              onChange={e => set("name")(e.target.value)}
-              placeholder="e.g. Paraprofessionals"
-              className="bg-background/50"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Short Code</Label>
-            <Input
-              value={form.code}
-              onChange={e => set("code")(e.target.value)}
-              placeholder="e.g. PARA"
-              className="bg-background/50 uppercase"
-              maxLength={10}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Compensation Type</Label>
-              <Select value={form.compensationType} onValueChange={set("compensationType")}>
-                <SelectTrigger className="bg-background/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="salary">Salary (Lane/Step)</SelectItem>
-                  <SelectItem value="hourly">Hourly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Retirement System</Label>
-              <Select value={form.retirementSystem} onValueChange={set("retirementSystem")}>
-                <SelectTrigger className="bg-background/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TRS">TRS</SelectItem>
-                  <SelectItem value="IMRF">IMRF</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+    <div className="space-y-2">
+      {sections.map((s) => (
+        <div
+          key={s.key}
+          className="border border-border rounded-md overflow-hidden"
+        >
+          <button
+            type="button"
+            onClick={() => toggle(s.key)}
+            className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium text-left bg-muted/30 hover:bg-muted/50 transition-colors"
+          >
+            {s.label}
+            {open[s.key] ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+          {open[s.key] && (
+            <div className="px-4 py-4 space-y-4">{s.children}</div>
+          )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!form.name || !form.code || createMutation.isPending}>
-            {createMutation.isPending ? "Creating..." : "Create Unit"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      ))}
+    </div>
   );
 }
 
-function BargainingUnitEditDialog({
-  unit,
-  open,
-  onClose,
+function NumField({
+  label,
+  value,
+  onChange,
+  placeholder,
 }: {
-  unit: BargainingUnit;
-  open: boolean;
-  onClose: () => void;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
 }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const updateMutation = useUpdateBargainingUnit();
-
-  const [contractYears, setContractYears] = useState<number>(unit.contractYears ?? 5);
-
-  const [rates, setRates] = useState<BenefitRates>({
-    retirementEmployeeRate: unit.retirementEmployeeRate ?? "",
-    retirementEmployerRate: unit.retirementEmployerRate ?? "",
-    retirementGrossUpRate: unit.retirementGrossUpRate ?? "",
-    ficaRate: unit.ficaRate ?? "",
-    ficaExempt: unit.ficaExempt ?? false,
-    healthInsuranceSingleAnnual: unit.healthInsuranceSingleAnnual ?? "",
-    healthInsuranceFamilyAnnual: unit.healthInsuranceFamilyAnnual ?? "",
-    dentalAnnual: unit.dentalAnnual ?? "",
-    lifeInsuranceAnnual: unit.lifeInsuranceAnnual ?? "",
-    disabilityInsuranceAnnual: unit.disabilityInsuranceAnnual ?? "",
-    hsaContributionSingle: unit.hsaContributionSingle ?? "",
-    hsaContributionFamily: unit.hsaContributionFamily ?? "",
-    workersCompRate: unit.workersCompRate ?? "",
-  });
-
-  useEffect(() => {
-    setContractYears(unit.contractYears ?? 5);
-    setRates({
-      retirementEmployeeRate: unit.retirementEmployeeRate ?? "",
-      retirementEmployerRate: unit.retirementEmployerRate ?? "",
-      retirementGrossUpRate: unit.retirementGrossUpRate ?? "",
-      ficaRate: unit.ficaRate ?? "",
-      ficaExempt: unit.ficaExempt ?? false,
-      healthInsuranceSingleAnnual: unit.healthInsuranceSingleAnnual ?? "",
-      healthInsuranceFamilyAnnual: unit.healthInsuranceFamilyAnnual ?? "",
-      dentalAnnual: unit.dentalAnnual ?? "",
-      lifeInsuranceAnnual: unit.lifeInsuranceAnnual ?? "",
-      disabilityInsuranceAnnual: unit.disabilityInsuranceAnnual ?? "",
-      hsaContributionSingle: unit.hsaContributionSingle ?? "",
-      hsaContributionFamily: unit.hsaContributionFamily ?? "",
-      workersCompRate: unit.workersCompRate ?? "",
-    });
-  }, [unit]);
-
-  const set = (field: keyof BenefitRates) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRates((prev) => ({
-      ...prev,
-      [field]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
-    }));
-  };
-
-  const handleSave = () => {
-    const payload: Record<string, string | boolean | number | undefined> = {
-      contractYears,
-    };
-    for (const [k, v] of Object.entries(rates)) {
-      if (v === "") continue;
-      payload[k] = v;
-    }
-    updateMutation.mutate(
-      { id: unit.id, data: payload as Parameters<typeof updateMutation.mutate>[0]["data"] },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({
-            queryKey: getListBargainingUnitsQueryKey({ districtId: unit.districtId }),
-          });
-          toast({ title: "Saved", description: `${unit.name} settings updated.` });
-          onClose();
-        },
-        onError: () =>
-          toast({
-            title: "Error",
-            description: "Failed to save changes.",
-            variant: "destructive",
-          }),
-      }
-    );
-  };
-
-  const NumField = ({
-    label,
-    field,
-    help,
-  }: {
-    label: string;
-    field: keyof BenefitRates;
-    help?: string;
-  }) => (
+  return (
     <div className="grid gap-1.5">
       <Label className="text-xs font-medium">{label}</Label>
       <Input
-        value={rates[field] as string}
-        onChange={set(field)}
-        placeholder="0.00"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? "0.00"}
         className="font-mono text-right h-8 text-sm bg-background/50"
       />
-      {help && <p className="text-[10px] text-muted-foreground">{help}</p>}
+    </div>
+  );
+}
+
+function GroupEditDialog({
+  group,
+  districtId,
+  open,
+  onClose,
+  onCreated,
+}: {
+  group: EmployeeGroupWithSchedules | null;
+  districtId: string;
+  open: boolean;
+  onClose: () => void;
+  onCreated?: (newGroup: EmployeeGroupWithSchedules) => void;
+}) {
+  const isEdit = group != null;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createMutation = useCreateEmployeeGroup();
+  const updateMutation = useUpdateEmployeeGroup();
+
+  const [form, setForm] = useState<GroupFormState>(
+    isEdit ? groupToForm(group!) : { ...DEFAULT_GROUP_FORM }
+  );
+
+  useEffect(() => {
+    if (open) {
+      setForm(isEdit ? groupToForm(group!) : { ...DEFAULT_GROUP_FORM });
+    }
+  }, [open, group, isEdit]);
+
+  const set =
+    <K extends keyof GroupFormState>(field: K) =>
+    (value: GroupFormState[K]) =>
+      setForm((p) => ({ ...p, [field]: value }));
+
+  const handleSave = () => {
+    if (!form.name || !form.code) return;
+    if (isEdit) {
+      const payload = buildGroupPayload(form);
+      updateMutation.mutate(
+        {
+          id: group!.id,
+          data: payload as Parameters<typeof updateMutation.mutate>[0]["data"],
+        },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({
+              queryKey: getListEmployeeGroupsQueryKey({ districtId }),
+            });
+            toast({ title: "Saved", description: `${form.name} updated.` });
+            onClose();
+          },
+          onError: () =>
+            toast({
+              title: "Error",
+              description: "Failed to save group.",
+              variant: "destructive",
+            }),
+        }
+      );
+    } else {
+      const payload = buildGroupPayload(form, districtId);
+      createMutation.mutate(
+        {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: payload as any,
+        },
+        {
+          onSuccess: (created) => {
+            queryClient.invalidateQueries({
+              queryKey: getListEmployeeGroupsQueryKey({ districtId }),
+            });
+            toast({
+              title: "Group created",
+              description: `${form.name} has been added.`,
+            });
+            onClose();
+            onCreated?.(created);
+          },
+          onError: () =>
+            toast({
+              title: "Error",
+              description: "Failed to create group.",
+              variant: "destructive",
+            }),
+        }
+      );
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  const identityContent = (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label>
+            Group Name <span className="text-red-400">*</span>
+          </Label>
+          <Input
+            value={form.name}
+            onChange={(e) => set("name")(e.target.value)}
+            placeholder="e.g. Licensed Staff"
+            className="bg-background/50"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>
+            Short Code <span className="text-red-400">*</span>
+          </Label>
+          <Input
+            value={form.code}
+            onChange={(e) => set("code")(e.target.value.toUpperCase())}
+            placeholder="e.g. LIC"
+            className="bg-background/50 uppercase"
+            maxLength={10}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label>Contract Days</Label>
+          <Input
+            type="number"
+            value={form.contractDays}
+            onChange={(e) => set("contractDays")(e.target.value)}
+            placeholder="e.g. 187"
+            className="bg-background/50"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Contract Years</Label>
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={form.contractYears}
+            onChange={(e) => set("contractYears")(e.target.value)}
+            className="bg-background/50"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="unionized"
+          checked={form.isUnionized}
+          onCheckedChange={(v) => set("isUnionized")(!!v)}
+        />
+        <Label htmlFor="unionized" className="font-normal cursor-pointer">
+          Unionized group
+        </Label>
+      </div>
+      <div className="grid gap-1.5">
+        <Label>Union / Association Name</Label>
+        <Input
+          value={form.bargainingUnitName}
+          onChange={(e) => set("bargainingUnitName")(e.target.value)}
+          placeholder="e.g. District 21 Education Association"
+          className="bg-background/50"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-1.5">
+          <Label>Contract Start Date</Label>
+          <Input
+            type="date"
+            value={form.contractStartDate}
+            onChange={(e) => set("contractStartDate")(e.target.value)}
+            className="bg-background/50"
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>Contract End Date</Label>
+          <Input
+            type="date"
+            value={form.contractEndDate}
+            onChange={(e) => set("contractEndDate")(e.target.value)}
+            className="bg-background/50"
+          />
+        </div>
+      </div>
+    </>
+  );
+
+  const retirementContent = (
+    <>
+      <div className="grid gap-1.5">
+        <Label>Retirement System</Label>
+        <Select
+          value={form.retirementSystem}
+          onValueChange={set("retirementSystem")}
+        >
+          <SelectTrigger className="bg-background/50">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TRS">TRS</SelectItem>
+            <SelectItem value="IMRF">IMRF</SelectItem>
+            <SelectItem value="PSRS">PSRS</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <NumField
+          label="Employee Rate %"
+          value={form.retirementEmployeeRate}
+          onChange={set("retirementEmployeeRate")}
+        />
+        <NumField
+          label="Employer Rate %"
+          value={form.retirementEmployerRate}
+          onChange={set("retirementEmployerRate")}
+        />
+        <NumField
+          label="Gross-Up Rate %"
+          value={form.retirementGrossUpRate}
+          onChange={set("retirementGrossUpRate")}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          FICA
+        </Label>
+        <div className="grid grid-cols-2 gap-3 items-end">
+          <NumField
+            label="FICA Rate %"
+            value={form.ficaRate}
+            onChange={set("ficaRate")}
+          />
+          <div className="flex items-center gap-2 pb-1">
+            <Checkbox
+              id="ficaExempt"
+              checked={form.ficaExempt}
+              onCheckedChange={(v) => set("ficaExempt")(!!v)}
+            />
+            <Label htmlFor="ficaExempt" className="font-normal cursor-pointer">
+              FICA Exempt
+            </Label>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  const benefitsContent = (
+    <>
+      <div className="space-y-1">
+        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Health Insurance (Annual)
+        </Label>
+        <div className="grid grid-cols-3 gap-3 mt-1">
+          <NumField
+            label="Single"
+            value={form.healthInsuranceSingleAnnual}
+            onChange={set("healthInsuranceSingleAnnual")}
+            placeholder="0"
+          />
+          <NumField
+            label="Family"
+            value={form.healthInsuranceFamilyAnnual}
+            onChange={set("healthInsuranceFamilyAnnual")}
+            placeholder="0"
+          />
+          <NumField
+            label="Employer Cap Rate %"
+            value={form.healthInsuranceEmployerCapRate}
+            onChange={set("healthInsuranceEmployerCapRate")}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <NumField
+          label="HSA Single (Annual)"
+          value={form.hsaContributionSingle}
+          onChange={set("hsaContributionSingle")}
+          placeholder="0"
+        />
+        <NumField
+          label="HSA Family (Annual)"
+          value={form.hsaContributionFamily}
+          onChange={set("hsaContributionFamily")}
+          placeholder="0"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <NumField
+          label="Dental (Annual)"
+          value={form.dentalAnnual}
+          onChange={set("dentalAnnual")}
+          placeholder="0"
+        />
+        <NumField
+          label="Life Insurance (Annual)"
+          value={form.lifeInsuranceAnnual}
+          onChange={set("lifeInsuranceAnnual")}
+          placeholder="0"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <NumField
+          label="Disability Insurance (Annual)"
+          value={form.disabilityInsuranceAnnual}
+          onChange={set("disabilityInsuranceAnnual")}
+          placeholder="0"
+        />
+        <NumField
+          label="Workers' Comp Rate %"
+          value={form.workersCompRate}
+          onChange={set("workersCompRate")}
+        />
+      </div>
+    </>
+  );
+
+  const notesContent = (
+    <div className="grid gap-1.5">
+      <Label>Notes</Label>
+      <Textarea
+        value={form.notes}
+        onChange={(e) => set("notes")(e.target.value)}
+        placeholder="Optional notes about this group..."
+        className="bg-background/50 h-24 resize-none"
+      />
     </div>
   );
 
@@ -274,129 +647,54 @@ function BargainingUnitEditDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Benefit Rates — {unit.name}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? `Edit Group — ${group!.name}` : "Add Employee Group"}
+          </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {unit.retirementSystem} retirement system &bull; {unit.compensationType} compensation
+            {isEdit
+              ? "Update group identity, retirement, and benefit settings."
+              : "Define a new labor group and configure its compensation settings."}
           </p>
         </DialogHeader>
-
-        <div className="space-y-5 py-2">
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Contract
-            </h4>
-            <div className="grid grid-cols-2 gap-3 items-start">
-              <div className="grid gap-1.5">
-                <Label className="text-xs font-medium">Contract Years (1–10)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={contractYears}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v) && v >= 1 && v <= 10) setContractYears(v);
-                  }}
-                  className="font-mono text-right h-8 text-sm bg-background/50 w-24"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Number of years to model in forecasting scenarios
-                </p>
-              </div>
+        <div className="space-y-2 py-1">
+          <div className="border border-border rounded-md overflow-hidden">
+            <div className="px-4 py-2.5 bg-muted/30 text-sm font-medium">
+              Group Identity
             </div>
+            <div className="px-4 py-4 space-y-4">{identityContent}</div>
           </div>
-
-          <Separator className="bg-border/50" />
-
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Retirement
-            </h4>
-            <div className="grid grid-cols-3 gap-3">
-              <NumField
-                label="Employee Rate (%)"
-                field="retirementEmployeeRate"
-                help="Employee TRS/IMRF contribution"
-              />
-              <NumField
-                label="Employer Rate (%)"
-                field="retirementEmployerRate"
-                help="Employer normal cost contribution"
-              />
-              <NumField
-                label="Gross-Up Rate (%)"
-                field="retirementGrossUpRate"
-                help="Employer picks up employee share"
-              />
-            </div>
-          </div>
-
-          <Separator className="bg-border/50" />
-
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              FICA / Social Security
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <NumField label="FICA Rate (%)" field="ficaRate" />
-              <div className="flex items-center gap-3 pt-5">
-                <input
-                  type="checkbox"
-                  id="ficaExempt"
-                  checked={rates.ficaExempt}
-                  onChange={set("ficaExempt")}
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="ficaExempt" className="text-sm cursor-pointer">
-                  FICA Exempt
-                </Label>
-              </div>
-            </div>
-          </div>
-
-          <Separator className="bg-border/50" />
-
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Health & Insurance (Annual)
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <NumField
-                label="Health — Single ($)"
-                field="healthInsuranceSingleAnnual"
-                help="Annual district premium — single coverage"
-              />
-              <NumField
-                label="Health — Family ($)"
-                field="healthInsuranceFamilyAnnual"
-                help="Annual district premium — family coverage"
-              />
-              <NumField label="Dental ($)" field="dentalAnnual" />
-              <NumField label="Life Insurance ($)" field="lifeInsuranceAnnual" />
-              <NumField label="Disability Insurance ($)" field="disabilityInsuranceAnnual" />
-              <NumField label="Workers' Comp Rate (%)" field="workersCompRate" />
-            </div>
-          </div>
-
-          <Separator className="bg-border/50" />
-
-          <div>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              HSA Contribution (Annual)
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              <NumField label="HSA — Single ($)" field="hsaContributionSingle" />
-              <NumField label="HSA — Family ($)" field="hsaContributionFamily" />
-            </div>
-          </div>
+          <CollapsibleSections
+            sections={[
+              {
+                key: "retirement",
+                label: "Retirement & Tax",
+                defaultOpen: false,
+                children: retirementContent,
+              },
+              {
+                key: "benefits",
+                label: "Benefits",
+                defaultOpen: false,
+                children: benefitsContent,
+              },
+              {
+                key: "notes",
+                label: "Notes",
+                defaultOpen: false,
+                children: notesContent,
+              },
+            ]}
+          />
         </div>
-
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? "Saving..." : "Save Settings"}
+          <Button
+            onClick={handleSave}
+            disabled={!form.name || !form.code || isPending}
+          >
+            {isPending ? "Saving..." : isEdit ? "Save Group" : "Create Group"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -404,23 +702,605 @@ function BargainingUnitEditDialog({
   );
 }
 
+function ScheduleDialog({
+  schedule,
+  groupId,
+  isFirstSchedule,
+  open,
+  onClose,
+}: {
+  schedule: CompensationSchedule | null;
+  groupId: string;
+  isFirstSchedule: boolean;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const isEdit = schedule != null;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createMutation = useCreateCompensationSchedule();
+  const updateMutation = useUpdateCompensationSchedule();
+
+  const [form, setForm] = useState({
+    name: "",
+    scheduleType:
+      "individual_salary" as CreateCompensationScheduleRequestScheduleType,
+    description: "",
+    effectiveDate: "",
+    effectiveDateRule: "",
+    isPrimary: isFirstSchedule,
+  });
+
+  useEffect(() => {
+    if (open) {
+      if (isEdit && schedule) {
+        setForm({
+          name: schedule.name,
+          scheduleType: schedule.scheduleType,
+          description: schedule.description ?? "",
+          effectiveDate: schedule.effectiveDate
+            ? schedule.effectiveDate.substring(0, 10)
+            : "",
+          effectiveDateRule: schedule.effectiveDateRule ?? "",
+          isPrimary: schedule.isPrimary,
+        });
+      } else {
+        setForm({
+          name: "",
+          scheduleType: "individual_salary",
+          description: "",
+          effectiveDate: "",
+          effectiveDateRule: "",
+          isPrimary: isFirstSchedule,
+        });
+      }
+    }
+  }, [open, schedule, isEdit, isFirstSchedule]);
+
+  const set =
+    <K extends keyof typeof form>(field: K) =>
+    (value: (typeof form)[K]) =>
+      setForm((p) => ({ ...p, [field]: value }));
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({
+      queryKey: getListEmployeeGroupsQueryKey(),
+    });
+  };
+
+  const handleSave = () => {
+    if (!form.name) return;
+    if (isEdit && schedule) {
+      updateMutation.mutate(
+        {
+          id: schedule.id,
+          data: {
+            name: form.name,
+            scheduleType: form.scheduleType,
+            description: form.description || undefined,
+            effectiveDate: form.effectiveDate || undefined,
+            effectiveDateRule: form.effectiveDateRule || undefined,
+            isPrimary: form.isPrimary,
+          },
+        },
+        {
+          onSuccess: () => {
+            invalidate();
+            toast({ title: "Schedule updated." });
+            onClose();
+          },
+          onError: () =>
+            toast({
+              title: "Error",
+              description: "Failed to save schedule.",
+              variant: "destructive",
+            }),
+        }
+      );
+    } else {
+      createMutation.mutate(
+        {
+          data: {
+            employeeGroupId: groupId,
+            name: form.name,
+            scheduleType: form.scheduleType,
+            description: form.description || undefined,
+            effectiveDate: form.effectiveDate || undefined,
+            effectiveDateRule: form.effectiveDateRule || undefined,
+            isPrimary: form.isPrimary,
+          },
+        },
+        {
+          onSuccess: () => {
+            invalidate();
+            toast({ title: "Schedule created." });
+            onClose();
+          },
+          onError: () =>
+            toast({
+              title: "Error",
+              description: "Failed to create schedule.",
+              variant: "destructive",
+            }),
+        }
+      );
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg bg-card border-border">
+        <DialogHeader>
+          <DialogTitle>
+            {isEdit
+              ? "Edit Compensation Schedule"
+              : "Add Compensation Schedule"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid gap-1.5">
+            <Label>
+              Schedule Name <span className="text-red-400">*</span>
+            </Label>
+            <Input
+              value={form.name}
+              onChange={(e) => set("name")(e.target.value)}
+              placeholder="e.g. Licensed Staff Salary Schedule"
+              className="bg-background/50"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Schedule Type</Label>
+            <Select
+              value={form.scheduleType}
+              onValueChange={(v) =>
+                set("scheduleType")(
+                  v as CreateCompensationScheduleRequestScheduleType
+                )
+              }
+            >
+              <SelectTrigger className="bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SCHEDULE_TYPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Description (optional)</Label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => set("description")(e.target.value)}
+              placeholder="Brief description of this schedule..."
+              className="bg-background/50 h-20 resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Effective Date (optional)</Label>
+              <Input
+                type="date"
+                value={form.effectiveDate}
+                onChange={(e) => set("effectiveDate")(e.target.value)}
+                className="bg-background/50"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Effective Date Rule (optional)</Label>
+              <Input
+                value={form.effectiveDateRule}
+                onChange={(e) => set("effectiveDateRule")(e.target.value)}
+                placeholder='e.g. "For assignments after..."'
+                className="bg-background/50"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="isPrimary"
+              checked={form.isPrimary}
+              onCheckedChange={(v) => set("isPrimary")(!!v)}
+            />
+            <Label htmlFor="isPrimary" className="font-normal cursor-pointer">
+              Set as Primary schedule
+            </Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={!form.name || isPending}>
+            {isPending
+              ? "Saving..."
+              : isEdit
+              ? "Save Schedule"
+              : "Add Schedule"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScheduleRow({
+  schedule,
+  onEdit,
+  onDelete,
+}: {
+  schedule: CompensationSchedule;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const setPrimaryMutation = useSetCompensationSchedulePrimary();
+
+  const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
+    label: schedule.scheduleType,
+    color: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  };
+
+  const handleSetPrimary = () => {
+    setPrimaryMutation.mutate(
+      { id: schedule.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: getListEmployeeGroupsQueryKey(),
+          });
+          toast({ title: "Primary schedule updated." });
+        },
+        onError: () =>
+          toast({
+            title: "Error",
+            description: "Failed to set primary.",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
+
+  return (
+    <div className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/30 group">
+      <button
+        type="button"
+        onClick={handleSetPrimary}
+        title={schedule.isPrimary ? "Primary schedule" : "Set as primary"}
+        className={cn(
+          "transition-colors",
+          schedule.isPrimary
+            ? "text-amber-400"
+            : "text-muted-foreground/30 hover:text-amber-400"
+        )}
+      >
+        <Star
+          className="h-3.5 w-3.5"
+          fill={schedule.isPrimary ? "currentColor" : "none"}
+        />
+      </button>
+      <span className="text-sm flex-1 min-w-0 truncate">{schedule.name}</span>
+      {schedule.isPrimary && (
+        <Badge
+          variant="outline"
+          className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-400"
+        >
+          Primary
+        </Badge>
+      )}
+      <Badge
+        variant="outline"
+        className={cn("text-[10px] px-1.5 py-0", cfg.color)}
+      >
+        {cfg.label}
+      </Badge>
+      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onEdit}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-red-400 hover:text-red-300"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function EmployeeGroupRow({
+  group,
+  colorClass,
+  onEdit,
+}: {
+  group: EmployeeGroupWithSchedules;
+  colorClass: string;
+  onEdit: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [addScheduleOpen, setAddScheduleOpen] = useState(false);
+  const [editSchedule, setEditSchedule] =
+    useState<CompensationSchedule | null>(null);
+  const [deleteSchedule, setDeleteSchedule] =
+    useState<CompensationSchedule | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const deleteScheduleMutation = useDeleteCompensationSchedule();
+
+  const handleDeleteSchedule = () => {
+    if (!deleteSchedule) return;
+    deleteScheduleMutation.mutate(
+      { id: deleteSchedule.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: getListEmployeeGroupsQueryKey(),
+          });
+          toast({ title: "Schedule removed." });
+          setDeleteSchedule(null);
+        },
+        onError: () =>
+          toast({
+            title: "Error",
+            description: "Failed to delete schedule.",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
+
+  const schedules = group.compensationSchedules ?? [];
+
+  return (
+    <>
+      <div className="rounded-md border border-border bg-muted/20 hover:bg-muted/30 transition-colors">
+        <div
+          className="flex items-start gap-3 p-3 cursor-pointer select-none"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <div className="mt-0.5 shrink-0">
+            {expanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="font-medium text-sm">{group.name}</span>
+              <Badge
+                variant="outline"
+                className={cn("text-[11px] px-1.5 py-0", colorClass)}
+              >
+                {group.code}
+              </Badge>
+              {group.contractDays != null && (
+                <Badge
+                  variant="outline"
+                  className="text-[11px] px-1.5 py-0 border-border text-muted-foreground"
+                >
+                  {group.contractDays} days
+                </Badge>
+              )}
+              <Badge
+                variant="outline"
+                className="text-[11px] px-1.5 py-0 border-border text-muted-foreground"
+              >
+                {group.retirementSystem ?? "TRS"}
+              </Badge>
+              {group.contractYears && (
+                <Badge
+                  variant="outline"
+                  className="text-[11px] px-1.5 py-0 border-border text-muted-foreground"
+                >
+                  {group.contractYears}-yr contract
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {group.isUnionized ? "Unionized" : "Non-Unionized"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {schedules.length === 0 ? (
+                <span className="text-xs text-muted-foreground italic">
+                  No compensation schedules configured
+                </span>
+              ) : (
+                schedules.map((s) => {
+                  const cfg = SCHEDULE_TYPE_CONFIG[s.scheduleType] ?? {
+                    label: s.scheduleType,
+                    color: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+                  };
+                  return (
+                    <span
+                      key={s.id}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border bg-muted/30 border-border text-muted-foreground"
+                    >
+                      {s.isPrimary && (
+                        <Star
+                          className="h-2.5 w-2.5 text-amber-400"
+                          fill="currentColor"
+                        />
+                      )}
+                      {s.name}
+                      <span
+                        className={cn("px-1 rounded text-[10px]", cfg.color)}
+                      >
+                        {cfg.label}
+                      </span>
+                    </span>
+                  );
+                })
+              )}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-border shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            Edit Group
+          </Button>
+        </div>
+
+        {expanded && (
+          <div className="border-t border-border px-4 pb-3 pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Compensation Schedules
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setAddScheduleOpen(true)}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add Schedule
+              </Button>
+            </div>
+            {schedules.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-1">
+                No schedules yet. Add one to define how compensation is
+                calculated.
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                {schedules.map((s) => (
+                  <ScheduleRow
+                    key={s.id}
+                    schedule={s}
+                    onEdit={() => setEditSchedule(s)}
+                    onDelete={() => setDeleteSchedule(s)}
+                  />
+                ))}
+              </div>
+            )}
+            {(group.retirementEmployerRate ||
+              group.healthInsuranceSingleAnnual ||
+              group.ficaRate) && (
+              <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-4">
+                {group.retirementEmployerRate && (
+                  <span className="text-xs text-muted-foreground">
+                    Employer retirement:{" "}
+                    <span className="font-mono">
+                      {group.retirementEmployerRate}%
+                    </span>
+                  </span>
+                )}
+                {group.healthInsuranceSingleAnnual && (
+                  <span className="text-xs text-muted-foreground">
+                    Health single:{" "}
+                    <span className="font-mono">
+                      $
+                      {parseInt(
+                        group.healthInsuranceSingleAnnual
+                      ).toLocaleString()}
+                    </span>
+                  </span>
+                )}
+                {group.ficaRate && (
+                  <span className="text-xs text-muted-foreground">
+                    FICA:{" "}
+                    <span className="font-mono">{group.ficaRate}%</span>
+                    {group.ficaExempt && " (exempt)"}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <ScheduleDialog
+        schedule={null}
+        groupId={group.id}
+        isFirstSchedule={schedules.length === 0}
+        open={addScheduleOpen}
+        onClose={() => setAddScheduleOpen(false)}
+      />
+
+      {editSchedule && (
+        <ScheduleDialog
+          schedule={editSchedule}
+          groupId={group.id}
+          isFirstSchedule={false}
+          open={!!editSchedule}
+          onClose={() => setEditSchedule(null)}
+        />
+      )}
+
+      <AlertDialog
+        open={!!deleteSchedule}
+        onOpenChange={(v) => !v && setDeleteSchedule(null)}
+      >
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Schedule</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{deleteSchedule?.name}"? This
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSchedule}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 export default function Settings() {
   const { districtId } = useDistrictContext();
   const { toast } = useToast();
-  const [editingUnit, setEditingUnit] = useState<BargainingUnit | null>(null);
-  const [showAddUnit, setShowAddUnit] = useState(false);
+
+  const [editingGroup, setEditingGroup] =
+    useState<EmployeeGroupWithSchedules | null>(null);
+  const [showAddGroup, setShowAddGroup] = useState(false);
+  const [pendingScheduleGroup, setPendingScheduleGroup] =
+    useState<EmployeeGroupWithSchedules | null>(null);
 
   const { data: district, isLoading: districtLoading } = useGetDistrict(
     districtId!,
-    { query: { enabled: !!districtId, queryKey: getGetDistrictQueryKey(districtId!) } }
+    {
+      query: {
+        enabled: !!districtId,
+        queryKey: getGetDistrictQueryKey(districtId!),
+      },
+    }
   );
 
-  const { data: units, isLoading: unitsLoading } = useListBargainingUnits(
+  const { data: groups, isLoading: groupsLoading } = useListEmployeeGroups(
     { districtId: districtId! },
     {
       query: {
         enabled: !!districtId,
-        queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }),
+        queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }),
       },
     }
   );
@@ -449,7 +1329,8 @@ export default function Settings() {
     updateDistrictMutation.mutate(
       { id: districtId!, data: districtData },
       {
-        onSuccess: () => toast({ title: "Saved", description: "District settings updated." }),
+        onSuccess: () =>
+          toast({ title: "Saved", description: "District settings updated." }),
         onError: () =>
           toast({
             title: "Error",
@@ -460,10 +1341,8 @@ export default function Settings() {
     );
   };
 
-  const UNIT_COLOR: Record<string, string> = {
-    "Licensed Staff": "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    "Educational Support Personnel": "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    "Custodial & Maintenance": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  const handleGroupCreated = (newGroup: EmployeeGroupWithSchedules) => {
+    setPendingScheduleGroup(newGroup);
   };
 
   return (
@@ -471,7 +1350,7 @@ export default function Settings() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground text-sm">
-          Manage district profile and bargaining unit benefit rate configurations.
+          Manage district profile and employee group configurations.
         </p>
       </div>
 
@@ -481,7 +1360,9 @@ export default function Settings() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle>District Profile</CardTitle>
-            <CardDescription>Global settings for {district?.name}</CardDescription>
+            <CardDescription>
+              Global settings for {district?.name}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -530,18 +1411,20 @@ export default function Settings() {
                   onChange={(e) =>
                     setDistrictData((p) => ({
                       ...p,
-                      studentEnrollment: parseInt(e.target.value) || 0,
+                      studentEnrollment: Number(e.target.value),
                     }))
                   }
                 />
               </div>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end">
               <Button
                 onClick={handleSaveDistrict}
                 disabled={updateDistrictMutation.isPending}
               >
-                {updateDistrictMutation.isPending ? "Saving..." : "Save Changes"}
+                {updateDistrictMutation.isPending
+                  ? "Saving..."
+                  : "Save District"}
               </Button>
             </div>
           </CardContent>
@@ -549,96 +1432,77 @@ export default function Settings() {
       )}
 
       <Card className="bg-card border-border">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Bargaining Units</CardTitle>
-              <CardDescription>
-                Edit benefit rates and contract parameters per unit.
-              </CardDescription>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAddUnit(true)}
-              className="gap-1.5 border-border"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Unit
-            </Button>
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div>
+            <CardTitle>Employee Groups</CardTitle>
+            <CardDescription>
+              Configure labor groups, benefits, and their compensation
+              schedules.
+            </CardDescription>
           </div>
+          <Button
+            size="sm"
+            onClick={() => setShowAddGroup(true)}
+            className="mt-1 shrink-0"
+          >
+            <Plus className="h-4 w-4 mr-1" /> Add Employee Group
+          </Button>
         </CardHeader>
         <CardContent>
-          {unitsLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : (
+          {groupsLoading ? (
             <div className="space-y-3">
-              {units?.map((unit) => (
-                <div
-                  key={unit.id}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20 hover:bg-muted/30 transition-colors"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{unit.name}</h4>
-                      <span className="text-muted-foreground text-sm font-normal">
-                        ({unit.code})
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={UNIT_COLOR[unit.name] ?? ""}
-                      >
-                        {unit.compensationType}
-                      </Badge>
-                      <Badge variant="secondary">{unit.retirementSystem}</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {unit.contractYears}-yr contract
-                      </span>
-                      {unit.retirementEmployerRate && (
-                        <span className="text-xs text-muted-foreground">
-                          Employer retirement:{" "}
-                          <span className="font-mono">{unit.retirementEmployerRate}%</span>
-                        </span>
-                      )}
-                      {unit.healthInsuranceSingleAnnual && (
-                        <span className="text-xs text-muted-foreground">
-                          Health single:{" "}
-                          <span className="font-mono">
-                            ${parseInt(unit.healthInsuranceSingleAnnual).toLocaleString()}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditingUnit(unit)}
-                    className="border-border"
-                  >
-                    Edit Rates
-                  </Button>
-                </div>
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : !groups || groups.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No employee groups configured. Click "+ Add Employee Group" to get
+              started.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {groups.map((group, idx) => (
+                <EmployeeGroupRow
+                  key={group.id}
+                  group={group}
+                  colorClass={
+                    GROUP_INDEX_COLORS[idx % GROUP_INDEX_COLORS.length]
+                  }
+                  onEdit={() => setEditingGroup(group)}
+                />
               ))}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {editingUnit && (
-        <BargainingUnitEditDialog
-          unit={editingUnit}
-          open={!!editingUnit}
-          onClose={() => setEditingUnit(null)}
+      {districtId && (
+        <GroupEditDialog
+          group={null}
+          districtId={districtId}
+          open={showAddGroup}
+          onClose={() => setShowAddGroup(false)}
+          onCreated={handleGroupCreated}
         />
       )}
 
-      {districtId && (
-        <AddBargainingUnitDialog
-          open={showAddUnit}
-          onClose={() => setShowAddUnit(false)}
+      {editingGroup && districtId && (
+        <GroupEditDialog
+          group={editingGroup}
           districtId={districtId}
+          open={!!editingGroup}
+          onClose={() => setEditingGroup(null)}
+        />
+      )}
+
+      {pendingScheduleGroup && (
+        <ScheduleDialog
+          schedule={null}
+          groupId={pendingScheduleGroup.id}
+          isFirstSchedule={true}
+          open={!!pendingScheduleGroup}
+          onClose={() => setPendingScheduleGroup(null)}
         />
       )}
     </div>
