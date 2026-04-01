@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
 import {
   useGetHeatmapData,
   getGetHeatmapDataQueryKey,
@@ -132,6 +133,7 @@ export default function HeatmapPage() {
 function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string }) {
   const { scenarioId } = useDistrictContext();
   const containerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const { data, isLoading } = useGetHeatmapData(
     scenarioId!,
@@ -174,7 +176,9 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
       link.download = `heatmap-${unitName}-${yearData?.yearLabel ?? "year"}.png`;
       link.href = dataUrl;
       link.click();
-    } catch {
+      toast({ title: "PNG saved", description: `heatmap-${unitName}-${yearData?.yearLabel ?? "year"}.png` });
+    } catch (err) {
+      toast({ title: "Export failed", description: err instanceof Error ? err.message : "PNG capture failed.", variant: "destructive" });
     }
   };
 
@@ -189,17 +193,24 @@ function HeatmapViewer({ unitId, unitName }: { unitId: string; unitName: string 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ heatmapPng: base64 }),
       });
-      if (!res.ok) throw new Error("PDF generation failed");
+      if (!res.ok) {
+        let msg = `Server error ${res.status}`;
+        try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       const cd = res.headers.get("Content-Disposition") ?? "";
       const match = cd.match(/filename="([^"]+)"/);
-      link.download = match?.[1] ?? `Heatmap_${unitName}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      const filename = match?.[1] ?? `Heatmap_${unitName}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = filename;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-    } catch {
+      toast({ title: "PDF saved", description: filename });
+    } catch (err) {
+      toast({ title: "Export failed", description: err instanceof Error ? err.message : "PDF generation failed.", variant: "destructive" });
     }
   };
 

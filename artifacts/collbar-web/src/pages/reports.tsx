@@ -73,8 +73,8 @@ const REPORT_CARDS: ReportCard[] = [
   },
   {
     id: "negotiation-summary",
-    title: "Negotiation Summary PDF",
-    desc: "Bargaining-table PDF with per-unit CPI parameters, step advancement, high-earner thresholds, and unit cost breakdown with 5-year totals.",
+    title: "Negotiation Summary PDF (Single Scenario)",
+    desc: "Single-scenario bargaining-table PDF with per-unit CPI parameters, step advancement, high-earner thresholds, and unit cost breakdown with 5-year totals. For side-by-side multi-scenario comparison, use the Multi-Scenario Comparison card below.",
     icon: Newspaper,
     badge: "PDF",
     outputType: "pdf",
