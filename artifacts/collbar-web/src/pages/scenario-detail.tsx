@@ -265,7 +265,7 @@ export default function ScenarioDetail() {
                         config={yc}
                         bargainingUnit={unit}
                         lastCalcResult={lastCalcResult ?? undefined}
-                        onChange={patch => updateYearConfig(yc.bargainingUnitId, yc.contractYear, patch)}
+                        onChange={patch => updateYearConfig(yc.bargainingUnitId!, yc.contractYear, patch)}
                       />
                     ))
                   )}

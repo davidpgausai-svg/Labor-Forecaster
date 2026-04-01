@@ -417,7 +417,7 @@ export const ScenarioYearConfigBaseAdjustmentType = {
 export interface ScenarioYearConfig {
   id?: string;
   scenarioId?: string;
-  bargainingUnitId: string;
+  bargainingUnitId?: string | null;
   contractYear: number;
   yearLabel: string;
   increaseType: ScenarioYearConfigIncreaseType;

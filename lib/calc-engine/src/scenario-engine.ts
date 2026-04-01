@@ -35,6 +35,9 @@ export function calcEmployeeProjection(
     ? new Decimal(employee.currentHourlyRate)
     : new Decimal("0");
   let currentStep = employee.currentStep ?? null;
+  // For index-based grid: track the immutable starting step so yearIdx-based advancement
+  // is computed from the original position, not from a step that gets mutated each year.
+  const initialStep = employee.currentStep ?? null;
   const currentLaneId = employee.currentLaneId ?? null;
 
   const laneInfo: LaneInfo | null =
@@ -65,7 +68,7 @@ export function calcEmployeeProjection(
         yearConfigs as YearConfigWithSchedule[],
         indexGridConfig,
         currentLaneId,
-        currentStep,
+        initialStep,  // always pass the immutable starting step so yearIdx offsets are correct
         proRateFraction
       );
       projectedBaseSalary = indexResult.salary;

@@ -1928,6 +1928,7 @@ components:
           type: string
         bargainingUnitId:
           type: string
+          nullable: true
         contractYear:
           type: number
         yearLabel:
@@ -1996,7 +1997,6 @@ components:
           type: string
           nullable: true
       required:
-        - bargainingUnitId
         - contractYear
         - yearLabel
         - increaseType

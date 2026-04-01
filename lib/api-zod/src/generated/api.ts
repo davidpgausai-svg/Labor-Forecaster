@@ -734,7 +734,7 @@ export const CreateScenarioBody = zod.object({
       zod.object({
         id: zod.string().optional(),
         scenarioId: zod.string().optional(),
-        bargainingUnitId: zod.string(),
+        bargainingUnitId: zod.string().nullish(),
         contractYear: zod.number(),
         yearLabel: zod.string(),
         increaseType: zod.enum([
@@ -843,7 +843,7 @@ export const GetScenarioResponse = zod.object({
     zod.object({
       id: zod.string().optional(),
       scenarioId: zod.string().optional(),
-      bargainingUnitId: zod.string(),
+      bargainingUnitId: zod.string().nullish(),
       contractYear: zod.number(),
       yearLabel: zod.string(),
       increaseType: zod.enum([
@@ -897,7 +897,7 @@ export const UpdateScenarioBody = zod.object({
       zod.object({
         id: zod.string().optional(),
         scenarioId: zod.string().optional(),
-        bargainingUnitId: zod.string(),
+        bargainingUnitId: zod.string().nullish(),
         contractYear: zod.number(),
         yearLabel: zod.string(),
         increaseType: zod.enum([
@@ -945,7 +945,7 @@ export const UpdateScenarioResponse = zod.object({
     zod.object({
       id: zod.string().optional(),
       scenarioId: zod.string().optional(),
-      bargainingUnitId: zod.string(),
+      bargainingUnitId: zod.string().nullish(),
       contractYear: zod.number(),
       yearLabel: zod.string(),
       increaseType: zod.enum([
@@ -1092,7 +1092,7 @@ export const UpsertScenarioYearConfigsParams = zod.object({
 export const UpsertScenarioYearConfigsBodyItem = zod.object({
   id: zod.string().optional(),
   scenarioId: zod.string().optional(),
-  bargainingUnitId: zod.string(),
+  bargainingUnitId: zod.string().nullish(),
   contractYear: zod.number(),
   yearLabel: zod.string(),
   increaseType: zod.enum([
@@ -1132,7 +1132,7 @@ export const UpsertScenarioYearConfigsBody = zod.array(
 export const UpsertScenarioYearConfigsResponseItem = zod.object({
   id: zod.string().optional(),
   scenarioId: zod.string().optional(),
-  bargainingUnitId: zod.string(),
+  bargainingUnitId: zod.string().nullish(),
   contractYear: zod.number(),
   yearLabel: zod.string(),
   increaseType: zod.enum([

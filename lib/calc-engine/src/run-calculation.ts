@@ -426,7 +426,7 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
 
     const unitEmployeeIds = new Set(
       allEmployees
-        .filter((r) => r.employee.bargainingUnitId === bargainingUnitId)
+        .filter((r) => r.employee.bargainingUnitId === bargainingUnitId && !groupCoveredEmployeeIds.has(r.employee.id))
         .map((r) => r.employee.id)
     );
     const unitRecords = savedRecords.filter((r) => unitEmployeeIds.has(r.employeeId));

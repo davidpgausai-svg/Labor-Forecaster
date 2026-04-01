@@ -152,7 +152,7 @@ export default function HeatmapPage() {
   );
 }
 
-const GRID_COMPATIBLE_SCHEDULE_TYPES = ["individual_salary", "range_based", "direct_import_grid"];
+const GRID_COMPATIBLE_SCHEDULE_TYPES = ["individual_salary", "range_based", "direct_import_grid", "index_based_grid"];
 
 function EmployeeGroupHeatmapSection({ groups }: { groups: EmployeeGroupWithSchedules[] }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id ?? "");
@@ -212,25 +212,7 @@ function EmployeeGroupHeatmapSection({ groups }: { groups: EmployeeGroupWithSche
             </Card>
           )}
 
-          {ps && scheduleType === "index_based_grid" && (
-            <Card className="bg-card border-border">
-              <CardContent className="py-8">
-                <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
-                  <ImageIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground/60" />
-                  <div>
-                    <p className="font-medium text-foreground mb-1">Index-Based Grid — Heatmap Not Applicable</p>
-                    <p>
-                      Index-based schedules use a compounding base-anchor model rather than discrete lane/step salary
-                      cells, so a traditional step-distribution heatmap cannot be rendered. Use the Scenario Detail
-                      page to review projected base salaries and effective rates per employee for this group.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {ps && scheduleType && !isGridCompatible && scheduleType !== "index_based_grid" && (
+          {ps && scheduleType && !isGridCompatible && (
             <Card className="bg-card border-border">
               <CardContent className="py-8">
                 <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
