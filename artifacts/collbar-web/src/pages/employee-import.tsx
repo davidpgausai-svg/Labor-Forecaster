@@ -34,6 +34,7 @@ type ValidationRow = {
   employeeNumber: string;
   baseSalary: string;
   status: string;
+  bargainingUnitId: string;
   errors: string[];
 };
 
@@ -190,6 +191,7 @@ export default function EmployeeImport() {
       if (!emp.firstName) errors.push("Missing first name");
       if (!emp.lastName) errors.push("Missing last name");
       if (!emp.currentAnnualSalary || emp.currentAnnualSalary === "0") errors.push("Missing salary");
+      if (!emp.bargainingUnitId) errors.push("Missing bargaining unit");
       return {
         rowNum: i + 1,
         firstName: emp.firstName,
@@ -197,6 +199,7 @@ export default function EmployeeImport() {
         employeeNumber: emp.employeeNumber ?? "",
         baseSalary: emp.currentAnnualSalary ?? "0",
         status: emp.status ?? "active",
+        bargainingUnitId: emp.bargainingUnitId,
         errors,
       };
     });
@@ -238,7 +241,7 @@ export default function EmployeeImport() {
       firstName: vr.firstName,
       lastName: vr.lastName,
       employeeNumber: vr.employeeNumber || undefined,
-      bargainingUnitId: resolvedTargetBuId || defaultBuId || "",
+      bargainingUnitId: resolvedTargetBuId || vr.bargainingUnitId || defaultBuId || "",
       currentAnnualSalary: vr.baseSalary,
       status: vr.status as "active" | "inactive",
     }));

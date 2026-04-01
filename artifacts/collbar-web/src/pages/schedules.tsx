@@ -31,7 +31,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { getBadgeColorClass } from "@/lib/badges";
-import { LayoutGrid, SplitSquareHorizontal, Clock, DollarSign, AlertTriangle, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LayoutGrid, SplitSquareHorizontal, Clock, DollarSign, AlertTriangle, ChevronDown, ChevronUp, Wand2, GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type ViewMode = "single" | "compare";
@@ -488,8 +489,92 @@ function SideBySideView({
   salaryUnits: BargainingUnit[];
   hourlyUnits: BargainingUnit[];
 }) {
+  const [diffMode, setDiffMode] = useState(false);
+  const [baselineUnitId, setBaselineUnitId] = useState<string>(salaryUnits[0]?.id ?? "");
+  const [compareUnitId, setCompareUnitId] = useState<string>(salaryUnits[1]?.id ?? salaryUnits[0]?.id ?? "");
+
+  const { data: baselineSchedules } = useListSalarySchedules(
+    { bargainingUnitId: baselineUnitId },
+    { query: { enabled: diffMode && !!baselineUnitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: baselineUnitId }) } }
+  );
+  const { data: compareSchedules } = useListSalarySchedules(
+    { bargainingUnitId: compareUnitId },
+    { query: { enabled: diffMode && !!compareUnitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: compareUnitId }) } }
+  );
+
+  const baselineStepMap = useMemo(() => {
+    const sched = baselineSchedules?.[0] as SalaryScheduleWithGrid | undefined;
+    if (!sched?.cells || !sched?.lanes || !sched?.steps) return new Map<number, number>();
+    const sortedLanes = [...sched.lanes].sort((a, b) => a.displayOrder - b.displayOrder);
+    const firstLane = sortedLanes[0];
+    const map = new Map<number, number>();
+    sched.steps.forEach(step => {
+      const cell = sched.cells?.find(c => c.stepId === step.id && c.laneId === firstLane?.id);
+      if (cell) map.set(step.stepNumber, parseFloat(cell.salaryAmount));
+    });
+    return map;
+  }, [baselineSchedules]);
+
+  const compareStepMap = useMemo(() => {
+    const sched = compareSchedules?.[0] as SalaryScheduleWithGrid | undefined;
+    if (!sched?.cells || !sched?.lanes || !sched?.steps) return new Map<number, number>();
+    const sortedLanes = [...sched.lanes].sort((a, b) => a.displayOrder - b.displayOrder);
+    const firstLane = sortedLanes[0];
+    const map = new Map<number, number>();
+    sched.steps.forEach(step => {
+      const cell = sched.cells?.find(c => c.stepId === step.id && c.laneId === firstLane?.id);
+      if (cell) map.set(step.stepNumber, parseFloat(cell.salaryAmount));
+    });
+    return map;
+  }, [compareSchedules]);
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {salaryUnits.length >= 2 && (
+        <div className="flex items-center gap-3 p-3 bg-muted/30 border border-border rounded-lg">
+          <Button
+            size="sm"
+            variant={diffMode ? "default" : "outline"}
+            className="gap-1.5 h-8"
+            onClick={() => setDiffMode(d => !d)}
+          >
+            <GitCompare className="w-3.5 h-3.5" />
+            {diffMode ? "Diff On" : "Diff Off"}
+          </Button>
+          {diffMode && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">Baseline:</span>
+              <Select value={baselineUnitId} onValueChange={setBaselineUnitId}>
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {salaryUnits.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">vs.</span>
+              <Select value={compareUnitId} onValueChange={setCompareUnitId}>
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {salaryUnits.map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-3 ml-2 text-xs">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500/30 border border-green-500/50" /> Higher</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-red-500/30 border border-red-500/50" /> Lower</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-muted border border-border" /> Same</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {salaryUnits.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -499,19 +584,42 @@ function SideBySideView({
             className="grid gap-6"
             style={{ gridTemplateColumns: `repeat(${Math.min(salaryUnits.length, 2)}, 1fr)` }}
           >
-            {salaryUnits.map((unit) => (
-              <div key={unit.id} className="space-y-2">
-                <Card className="bg-card border-border p-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="outline" className={getBadgeColorClass(unit.name)}>
-                      {unit.code}
-                    </Badge>
-                    <span className="text-sm font-medium">{unit.name}</span>
-                  </div>
-                  <CompactSalaryGrid unitId={unit.id} />
-                </Card>
-              </div>
-            ))}
+            {salaryUnits.map((unit) => {
+              let stepDeltaMap: Map<number, number> | null = null;
+              if (diffMode && (unit.id === baselineUnitId || unit.id === compareUnitId)) {
+                stepDeltaMap = new Map();
+                if (unit.id === baselineUnitId) {
+                  baselineStepMap.forEach((baseVal, stepNum) => {
+                    const cmpVal = compareStepMap.get(stepNum);
+                    if (cmpVal !== undefined) stepDeltaMap!.set(stepNum, baseVal - cmpVal);
+                  });
+                } else {
+                  compareStepMap.forEach((cmpVal, stepNum) => {
+                    const baseVal = baselineStepMap.get(stepNum);
+                    if (baseVal !== undefined) stepDeltaMap!.set(stepNum, cmpVal - baseVal);
+                  });
+                }
+              }
+              return (
+                <div key={unit.id} className="space-y-2">
+                  <Card className="bg-card border-border p-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge variant="outline" className={getBadgeColorClass(unit.name)}>
+                        {unit.code}
+                      </Badge>
+                      <span className="text-sm font-medium">{unit.name}</span>
+                      {diffMode && unit.id === baselineUnitId && (
+                        <Badge variant="outline" className="text-xs border-blue-500/40 text-blue-400">Baseline</Badge>
+                      )}
+                      {diffMode && unit.id === compareUnitId && unit.id !== baselineUnitId && (
+                        <Badge variant="outline" className="text-xs border-purple-500/40 text-purple-400">Comparing</Badge>
+                      )}
+                    </div>
+                    <CompactSalaryGrid unitId={unit.id} stepDeltaMap={stepDeltaMap} />
+                  </Card>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -545,7 +653,7 @@ function SideBySideView({
   );
 }
 
-function CompactSalaryGrid({ unitId }: { unitId: string }) {
+function CompactSalaryGrid({ unitId, stepDeltaMap }: { unitId: string; stepDeltaMap?: Map<number, number> | null }) {
   const { data: schedules, isLoading } = useListSalarySchedules(
     { bargainingUnitId: unitId },
     {
@@ -585,30 +693,55 @@ function CompactSalaryGrid({ unitId }: { unitId: string }) {
                 {lane.name}
               </TableHead>
             ))}
+            {stepDeltaMap && (
+              <TableHead className="text-right text-xs py-1.5 w-24">Δ Base</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {steps.map((step) => (
-            <TableRow key={step.id} className="border-border">
-              <TableCell className="font-bold border-r border-border text-center text-xs py-1.5">
-                {step.stepNumber}
-              </TableCell>
-              {lanes.map((lane) => {
-                const cell = cells.find(
-                  (c: ScheduleCell) =>
-                    c.stepId === step.id && c.laneId === lane.id
-                );
-                return (
-                  <TableCell
-                    key={lane.id}
-                    className="text-right font-mono text-xs border-r border-border last:border-r-0 py-1.5 text-muted-foreground"
-                  >
-                    {cell ? formatCurrency(cell.salaryAmount) : "—"}
+          {steps.map((step) => {
+            const delta = stepDeltaMap?.get(step.stepNumber);
+            const hasDelta = delta !== undefined;
+            const rowBg = hasDelta
+              ? delta > 0
+                ? "bg-green-500/10"
+                : delta < 0
+                ? "bg-red-500/10"
+                : ""
+              : "";
+            return (
+              <TableRow key={step.id} className={`border-border ${rowBg}`}>
+                <TableCell className="font-bold border-r border-border text-center text-xs py-1.5">
+                  {step.stepNumber}
+                </TableCell>
+                {lanes.map((lane) => {
+                  const cell = cells.find(
+                    (c: ScheduleCell) =>
+                      c.stepId === step.id && c.laneId === lane.id
+                  );
+                  return (
+                    <TableCell
+                      key={lane.id}
+                      className="text-right font-mono text-xs border-r border-border last:border-r-0 py-1.5 text-muted-foreground"
+                    >
+                      {cell ? formatCurrency(cell.salaryAmount) : "—"}
+                    </TableCell>
+                  );
+                })}
+                {stepDeltaMap && (
+                  <TableCell className="text-right font-mono text-xs py-1.5">
+                    {hasDelta ? (
+                      <span className={delta > 0 ? "text-green-400" : delta < 0 ? "text-red-400" : "text-muted-foreground"}>
+                        {delta > 0 ? "+" : ""}{formatCurrency(delta)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
+                )}
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

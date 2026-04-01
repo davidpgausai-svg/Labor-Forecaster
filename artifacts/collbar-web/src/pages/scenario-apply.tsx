@@ -5,6 +5,8 @@ import {
   getGetScenarioQueryKey,
   useApplyScenario,
   useCalculateScenario,
+  useListScenarios,
+  getListScenariosQueryKey,
   ScenarioCalculationResult,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,22 +22,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CheckCircle2, AlertTriangle, Calculator, ArrowLeft } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Calculator, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { getStatusBadgeClass } from "@/lib/badges";
+import { useDistrictContext } from "@/context/DistrictContext";
 
 export default function ScenarioApply() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { districtId } = useDistrictContext();
   const [calcResult, setCalcResult] = useState<ScenarioCalculationResult | null>(null);
+  const [baselineCalcResult, setBaselineCalcResult] = useState<ScenarioCalculationResult | null>(null);
 
   const { data: scenario, isLoading } = useGetScenario(id!, {
     query: { enabled: !!id, queryKey: getGetScenarioQueryKey(id!) },
   });
 
+  const { data: allScenarios } = useListScenarios(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListScenariosQueryKey({ districtId: districtId! }) } }
+  );
+  const baselineScenario = allScenarios?.find(s => s.status === "final" && s.id !== id) ?? null;
+
   const applyMutation = useApplyScenario();
   const calculateMutation = useCalculateScenario();
+  const baselineCalcMutation = useCalculateScenario();
 
   const handleCalculate = () => {
     calculateMutation.mutate(
@@ -49,6 +61,15 @@ export default function ScenarioApply() {
               ? `5-Year Total: ${formatCurrency(result.totalFiveYearCost)}`
               : "Calculation finished.",
           });
+          if (baselineScenario) {
+            baselineCalcMutation.mutate(
+              { id: baselineScenario.id },
+              {
+                onSuccess: (baseRes) => setBaselineCalcResult(baseRes),
+                onError: () => {},
+              }
+            );
+          }
         },
         onError: () =>
           toast({
@@ -227,6 +248,87 @@ export default function ScenarioApply() {
           )}
         </CardContent>
       </Card>
+
+      {baselineScenario && calcResult && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              {(() => {
+                const thisCost = parseFloat(calcResult.totalFiveYearCost ?? "0");
+                const baseCost = parseFloat(baselineCalcResult?.totalFiveYearCost ?? "0");
+                const delta = baseCost > 0 ? thisCost - baseCost : null;
+                const deltaPct = baseCost > 0 ? ((thisCost - baseCost) / baseCost * 100) : null;
+                return (
+                  <>
+                    <div>
+                      <CardTitle>Cost Delta vs. Final Baseline</CardTitle>
+                      <CardDescription>
+                        Compared to <span className="font-medium text-foreground">"{baselineScenario.name}"</span>
+                        {baselineCalcResult ? "" : " — calculating baseline…"}
+                      </CardDescription>
+                    </div>
+                    {delta !== null && (
+                      <div className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${delta > 0 ? "bg-red-500/10 text-red-400 border border-red-500/30" : "bg-green-500/10 text-green-400 border border-green-500/30"}`}>
+                        {delta > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                        {delta > 0 ? "+" : ""}{formatCurrency(delta)} ({deltaPct! > 0 ? "+" : ""}{deltaPct!.toFixed(1)}%) 5-Yr
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </CardHeader>
+          {baselineCalcResult && calcResult && (
+            <CardContent>
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="border-border">
+                    <TableHead>Contract Year</TableHead>
+                    <TableHead className="text-right">Baseline Cost</TableHead>
+                    <TableHead className="text-right">This Scenario</TableHead>
+                    <TableHead className="text-right">Delta</TableHead>
+                    <TableHead className="text-right">% Change</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {calcResult.districtWideSummary?.map((yr, i) => {
+                    const baseYr = baselineCalcResult.districtWideSummary?.[i];
+                    const thisCost = parseFloat(yr.totalEmployerCost ?? "0");
+                    const baseCost = parseFloat(baseYr?.totalEmployerCost ?? "0");
+                    const delta = baseYr ? thisCost - baseCost : null;
+                    const deltaPct = baseYr && baseCost > 0 ? (delta! / baseCost * 100) : null;
+                    return (
+                      <TableRow key={i} className="border-border">
+                        <TableCell className="font-medium">{yr.yearLabel ?? `Year ${yr.contractYear}`}</TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {baseYr ? formatCurrency(baseYr.totalEmployerCost) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {formatCurrency(yr.totalEmployerCost)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          {delta !== null ? (
+                            <span className={delta > 0 ? "text-red-400" : "text-green-400"}>
+                              {delta > 0 ? "+" : ""}{formatCurrency(delta)}
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          {deltaPct !== null ? (
+                            <span className={deltaPct > 0 ? "text-red-400" : "text-green-400"}>
+                              {deltaPct > 0 ? "+" : ""}{deltaPct.toFixed(1)}%
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       <Card className={`border ${isAlreadyFinal ? "border-green-500/30 bg-green-500/5" : "border-border bg-card"}`}>
         <CardContent className="pt-6">

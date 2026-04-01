@@ -26,6 +26,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     activeContractYear,
     setActiveContractYear,
     contractYears,
+    yearLabelMap,
     isLoading: districtLoading,
   } = useDistrictContext();
 
@@ -112,23 +113,20 @@ export default function Layout({ children }: { children: ReactNode }) {
                 onValueChange={(v) => setActiveContractYear(v ? parseInt(v) : null)}
               >
                 <SelectTrigger className="w-[160px] h-9 border-border bg-background text-sm">
-                  <SelectValue placeholder="Contract Year" />
+                  <SelectValue placeholder="Contract Year">
+                    {activeContractYear !== null
+                      ? (yearLabelMap.get(activeContractYear) ?? `Year ${activeContractYear}`)
+                      : "Contract Year"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {contractYears.map((y) => (
                     <SelectItem key={y} value={y.toString()}>
-                      {y}–{y + 1}
+                      {yearLabelMap.get(y) ?? `Year ${y}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            )}
-
-            {contractYears.length === 0 && (
-              <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Contract Years: 2024-2028
-              </div>
             )}
 
             {scenariosLoading ? (

@@ -1,5 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useListDistricts, useListScenarios, getListScenariosQueryKey } from "@workspace/api-client-react";
+import {
+  useListDistricts,
+  useListScenarios,
+  getListScenariosQueryKey,
+  useGetScenario,
+  getGetScenarioQueryKey,
+} from "@workspace/api-client-react";
 
 interface DistrictContextType {
   districtId: string | null;
@@ -9,12 +15,14 @@ interface DistrictContextType {
   activeContractYear: number | null;
   setActiveContractYear: (year: number | null) => void;
   contractYears: number[];
+  yearLabelMap: Map<number, string>;
   isLoading: boolean;
 }
 
 const DistrictContext = createContext<DistrictContextType>({
   districtId: null,
   districtName: null,
+  yearLabelMap: new Map(),
   scenarioId: null,
   setScenarioId: () => {},
   activeContractYear: null,
@@ -45,15 +53,20 @@ export function DistrictProvider({ children }: { children: ReactNode }) {
     }
   }, [scenarios, scenarioId]);
 
-  const selectedScenario = scenarios?.find(s => s.id === scenarioId);
-  const contractYears: number[] = [];
-  if (selectedScenario && "yearConfigs" in selectedScenario) {
-    const configs = (selectedScenario as { yearConfigs?: Array<{ contractYear: number }> }).yearConfigs;
-    if (configs) {
-      const years = [...new Set(configs.map(c => c.contractYear))].sort();
-      contractYears.push(...years);
+  const { data: fullScenario, isLoading: scenarioLoading } = useGetScenario(scenarioId!, {
+    query: { enabled: !!scenarioId, queryKey: getGetScenarioQueryKey(scenarioId!) },
+  });
+
+  const contractYears: number[] = fullScenario?.yearConfigs
+    ? [...new Set(fullScenario.yearConfigs.map(c => c.contractYear))].sort()
+    : [];
+
+  const yearLabelMap = new Map<number, string>();
+  fullScenario?.yearConfigs?.forEach(c => {
+    if (!yearLabelMap.has(c.contractYear)) {
+      yearLabelMap.set(c.contractYear, c.yearLabel ?? `Year ${c.contractYear}`);
     }
-  }
+  });
 
   useEffect(() => {
     if (contractYears.length > 0 && !activeContractYear) {
@@ -71,7 +84,8 @@ export function DistrictProvider({ children }: { children: ReactNode }) {
         activeContractYear,
         setActiveContractYear,
         contractYears,
-        isLoading: districtLoading || scenariosLoading,
+        yearLabelMap,
+        isLoading: districtLoading || scenariosLoading || scenarioLoading,
       }}
     >
       {children}
