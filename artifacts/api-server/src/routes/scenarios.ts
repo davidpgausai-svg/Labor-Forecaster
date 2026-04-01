@@ -16,7 +16,9 @@ import { runScenarioCalculation } from "@workspace/calc-engine";
 import type { YearConfig, YearConfigWithSchedule } from "@workspace/calc-engine";
 
 const yearConfigSchema = z.object({
-  bargainingUnitId: z.string().uuid(),
+  bargainingUnitId: z.string().uuid().nullable().optional(),
+  employeeGroupId: z.string().uuid().nullable().optional(),
+  compensationScheduleId: z.string().uuid().nullable().optional(),
   contractYear: z.number().int().min(0),
   yearLabel: z.string().min(1),
   increaseType: z.enum(["fixed_percentage", "cpi_formula", "flat_dollar", "step_only", "custom"]),
@@ -34,6 +36,8 @@ const yearConfigSchema = z.object({
   stepAdvancement: z.boolean().optional(),
   healthPremiumIncreaseRate: z.string().nullable().optional(),
   healthEmployerCapRate: z.string().nullable().optional(),
+  baseAdjustmentType: z.enum(["percentage", "dollar", "set_directly"]).nullable().optional(),
+  baseAdjustmentValue: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 
@@ -54,7 +58,9 @@ const updateScenarioSchema = z.object({
 const router = Router();
 
 type YearConfigInput = {
-  bargainingUnitId: string;
+  bargainingUnitId?: string | null;
+  employeeGroupId?: string | null;
+  compensationScheduleId?: string | null;
   contractYear: number;
   yearLabel: string;
   increaseType: string;
@@ -72,6 +78,8 @@ type YearConfigInput = {
   stepAdvancement?: boolean;
   healthPremiumIncreaseRate?: string | null;
   healthEmployerCapRate?: string | null;
+  baseAdjustmentType?: "percentage" | "dollar" | "set_directly" | null;
+  baseAdjustmentValue?: string | null;
   notes?: string | null;
 };
 
@@ -131,7 +139,9 @@ router.post("/scenarios", async (req, res) => {
   if (yearConfigs?.length) {
     const configsToInsert = (yearConfigs as YearConfigInput[]).map((c) => ({
       scenarioId: scenario.id,
-      bargainingUnitId: c.bargainingUnitId,
+      bargainingUnitId: c.bargainingUnitId ?? undefined,
+      employeeGroupId: c.employeeGroupId ?? undefined,
+      compensationScheduleId: c.compensationScheduleId ?? undefined,
       contractYear: c.contractYear,
       yearLabel: c.yearLabel,
       increaseType: c.increaseType as "fixed_percentage" | "cpi_formula" | "flat_dollar" | "step_only" | "custom",
@@ -149,9 +159,11 @@ router.post("/scenarios", async (req, res) => {
       stepAdvancement: c.stepAdvancement ?? true,
       healthPremiumIncreaseRate: c.healthPremiumIncreaseRate ?? null,
       healthEmployerCapRate: c.healthEmployerCapRate ?? null,
+      baseAdjustmentType: c.baseAdjustmentType ?? null,
+      baseAdjustmentValue: c.baseAdjustmentValue ?? null,
       notes: c.notes ?? null,
     }));
-    await db.insert(scenarioYearConfigsTable).values(configsToInsert);
+    await db.insert(scenarioYearConfigsTable).values(configsToInsert as any);
   } else {
     // Auto-generate year configs for all bargaining units + employee groups in the district
     const [district, units, employeeGroups] = await Promise.all([
@@ -163,7 +175,8 @@ router.post("/scenarios", async (req, res) => {
     // Derive base fiscal year robustly — handles ISO ("2026-07-01") and text ("July 1") formats
     const baseYear = extractFiscalYear(district?.fiscalYearStart);
 
-    const allAutoConfigs: (typeof scenarioYearConfigsTable.$inferInsert)[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allAutoConfigs: any[] = [];
 
     if (units.length > 0) {
       const buConfigs = units.flatMap((unit) => {
@@ -218,9 +231,8 @@ router.post("/scenarios", async (req, res) => {
 
         return Array.from({ length: numYears }, (_, i) => ({
           scenarioId: scenario.id,
-          bargainingUnitId: group.id,
           employeeGroupId: group.id,
-          compensationScheduleId: primarySchedule?.id ?? null,
+          compensationScheduleId: primarySchedule?.id ?? undefined,
           contractYear: i,
           yearLabel: buildYearLabel(baseYear, i),
           increaseType: "fixed_percentage" as const,
@@ -248,7 +260,7 @@ router.post("/scenarios", async (req, res) => {
     }
 
     if (allAutoConfigs.length > 0) {
-      await db.insert(scenarioYearConfigsTable).values(allAutoConfigs);
+      await db.insert(scenarioYearConfigsTable).values(allAutoConfigs as any);
     }
   }
 
@@ -396,7 +408,9 @@ router.put("/scenarios/:id", async (req, res) => {
 
     const configsToInsert = (yearConfigs as YearConfigInput[]).map((c) => ({
       scenarioId: req.params.id,
-      bargainingUnitId: c.bargainingUnitId,
+      bargainingUnitId: c.bargainingUnitId ?? undefined,
+      employeeGroupId: c.employeeGroupId ?? undefined,
+      compensationScheduleId: c.compensationScheduleId ?? undefined,
       contractYear: c.contractYear,
       yearLabel: c.yearLabel,
       increaseType: c.increaseType as "fixed_percentage" | "cpi_formula" | "flat_dollar" | "step_only" | "custom",
@@ -414,9 +428,11 @@ router.put("/scenarios/:id", async (req, res) => {
       stepAdvancement: c.stepAdvancement ?? true,
       healthPremiumIncreaseRate: c.healthPremiumIncreaseRate ?? null,
       healthEmployerCapRate: c.healthEmployerCapRate ?? null,
+      baseAdjustmentType: c.baseAdjustmentType ?? null,
+      baseAdjustmentValue: c.baseAdjustmentValue ?? null,
       notes: c.notes ?? null,
     }));
-    await db.insert(scenarioYearConfigsTable).values(configsToInsert);
+    await db.insert(scenarioYearConfigsTable).values(configsToInsert as any);
   }
 
   const result = await getScenarioWithConfigs(req.params.id);
@@ -490,7 +506,9 @@ router.post("/scenarios/:id/year-configs", async (req, res) => {
 
   const configsToInsert = (yearConfigs as YearConfigInput[]).map((c) => ({
     scenarioId: req.params.id,
-    bargainingUnitId: c.bargainingUnitId,
+    bargainingUnitId: c.bargainingUnitId ?? undefined,
+    employeeGroupId: c.employeeGroupId ?? undefined,
+    compensationScheduleId: c.compensationScheduleId ?? undefined,
     contractYear: c.contractYear,
     yearLabel: c.yearLabel,
     increaseType: c.increaseType as "fixed_percentage" | "cpi_formula" | "flat_dollar" | "step_only" | "custom",
@@ -508,10 +526,12 @@ router.post("/scenarios/:id/year-configs", async (req, res) => {
     stepAdvancement: c.stepAdvancement ?? true,
     healthPremiumIncreaseRate: c.healthPremiumIncreaseRate ?? null,
     healthEmployerCapRate: c.healthEmployerCapRate ?? null,
+    baseAdjustmentType: c.baseAdjustmentType ?? null,
+    baseAdjustmentValue: c.baseAdjustmentValue ?? null,
     notes: c.notes ?? null,
   }));
 
-  const inserted = await db.insert(scenarioYearConfigsTable).values(configsToInsert).returning();
+  const inserted = await db.insert(scenarioYearConfigsTable).values(configsToInsert as any).returning();
   res.json(inserted);
 });
 

@@ -213,6 +213,16 @@ export default function HeatmapPage() {
                         No compensation schedules configured. Add one in Settings.
                       </div>
                     )}
+
+                    {primarySchedule?.scheduleType === "index_based_grid" && (
+                      <div className="mt-4 rounded-md bg-muted/50 border border-border px-4 py-3 text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="mt-0.5 text-base">ℹ️</span>
+                        <span>
+                          Index-based grid schedules use a compounding base-anchor model rather than fixed salary cells.
+                          Lane/step heatmap visualization is not applicable — use the Scenario Detail page to review projected base salaries per employee.
+                        </span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}

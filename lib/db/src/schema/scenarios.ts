@@ -52,7 +52,6 @@ export const scenarioYearConfigsTable = pgTable("scenario_year_configs", {
     .notNull()
     .references(() => scenariosTable.id, { onDelete: "cascade" }),
   bargainingUnitId: uuid("bargaining_unit_id")
-    .notNull()
     .references(() => bargainingUnitsTable.id, { onDelete: "cascade" }),
   contractYear: integer("contract_year").notNull(),
   yearLabel: text("year_label").notNull(),

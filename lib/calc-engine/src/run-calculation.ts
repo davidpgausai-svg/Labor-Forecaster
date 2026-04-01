@@ -6,6 +6,10 @@ import {
   employeeYearRecordsTable,
   employeesTable,
   bargainingUnitsTable,
+  employeeGroupsTable,
+  compensationSchedulesTable,
+  indexGridConfigsTable,
+  scheduleIndicesTable,
   salarySchedulesTable,
   lanesTable,
   stepsTable,
@@ -22,6 +26,7 @@ import type {
   ScheduleCell,
   EmployeeYearResult,
   ScenarioCalculationResult,
+  IndexGridConfig,
 } from "./types.js";
 
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP, precision: 28 });
@@ -41,6 +46,35 @@ async function getScenarioWithConfigs(scenarioId: string) {
     .orderBy(scenarioYearConfigsTable.bargainingUnitId, scenarioYearConfigsTable.contractYear);
 
   return { ...scenario, yearConfigs };
+}
+
+async function loadIndexGridConfig(compensationScheduleId: string): Promise<IndexGridConfig | null> {
+  const [gridRow, indices] = await Promise.all([
+    db.select().from(indexGridConfigsTable)
+      .where(eq(indexGridConfigsTable.compensationScheduleId, compensationScheduleId))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+    db.select({
+      laneId: scheduleIndicesTable.laneId,
+      stepNumber: scheduleIndicesTable.stepNumber,
+      indexValue: scheduleIndicesTable.indexValue,
+      isCapped: scheduleIndicesTable.isCapped,
+    }).from(scheduleIndicesTable)
+      .where(eq(scheduleIndicesTable.compensationScheduleId, compensationScheduleId)),
+  ]);
+
+  if (!gridRow) return null;
+
+  return {
+    baseAnchorSalary: gridRow.baseAnchorSalary,
+    maxSteps: gridRow.maxSteps,
+    indices: indices.map((idx) => ({
+      laneId: idx.laneId,
+      stepNumber: idx.stepNumber,
+      indexValue: idx.indexValue,
+      isCapped: idx.isCapped,
+    })),
+  };
 }
 
 async function loadScheduleForUnit(bargainingUnitId: string): Promise<SalaryScheduleData | null> {
@@ -73,32 +107,40 @@ async function loadScheduleForUnit(bargainingUnitId: string): Promise<SalarySche
   };
 }
 
-function toYearConfigs(dbConfigs: (typeof scenarioYearConfigsTable.$inferSelect)[]): YearConfigWithSchedule[] {
-  return dbConfigs.map((c) => ({
-    contractYear: c.contractYear,
-    yearLabel: c.yearLabel,
-    increaseType: c.increaseType as YearConfig["increaseType"],
-    effectiveRate: c.effectiveRate,
-    fixedPercentage: c.fixedPercentage,
-    cpiValue: c.cpiValue,
-    cpiAdder: c.cpiAdder,
-    cpiCap: c.cpiCap,
-    cpiFloor: c.cpiFloor,
-    cpiIndexName: c.cpiIndexName,
-    highEarnerThreshold: c.highEarnerThreshold,
-    highEarnerFlatIncrease: c.highEarnerFlatIncrease,
-    educationalAdvancementBa15: c.educationalAdvancementBa15,
-    educationalAdvancementMa: c.educationalAdvancementMa,
-    educationalAdvancementMa15: c.educationalAdvancementMa15,
-    stepAdvancement: c.stepAdvancement,
-    healthPremiumIncreaseRate: c.healthPremiumIncreaseRate,
-    healthEmployerCapRate: c.healthEmployerCapRate,
-    employeeGroupId: c.employeeGroupId ?? null,
-    compensationScheduleId: c.compensationScheduleId ?? null,
-    scheduleType: null,
-    baseAdjustmentType: c.baseAdjustmentType as YearConfigWithSchedule["baseAdjustmentType"] ?? null,
-    baseAdjustmentValue: c.baseAdjustmentValue ?? null,
-  }));
+function toYearConfigs(
+  dbConfigs: (typeof scenarioYearConfigsTable.$inferSelect)[],
+  scheduleTypeMap?: Map<string, string>
+): YearConfigWithSchedule[] {
+  return dbConfigs.map((c) => {
+    const scheduleType = c.compensationScheduleId && scheduleTypeMap
+      ? (scheduleTypeMap.get(c.compensationScheduleId) as YearConfigWithSchedule["scheduleType"] ?? null)
+      : null;
+    return {
+      contractYear: c.contractYear,
+      yearLabel: c.yearLabel,
+      increaseType: c.increaseType as YearConfig["increaseType"],
+      effectiveRate: c.effectiveRate,
+      fixedPercentage: c.fixedPercentage,
+      cpiValue: c.cpiValue,
+      cpiAdder: c.cpiAdder,
+      cpiCap: c.cpiCap,
+      cpiFloor: c.cpiFloor,
+      cpiIndexName: c.cpiIndexName,
+      highEarnerThreshold: c.highEarnerThreshold,
+      highEarnerFlatIncrease: c.highEarnerFlatIncrease,
+      educationalAdvancementBa15: c.educationalAdvancementBa15,
+      educationalAdvancementMa: c.educationalAdvancementMa,
+      educationalAdvancementMa15: c.educationalAdvancementMa15,
+      stepAdvancement: c.stepAdvancement,
+      healthPremiumIncreaseRate: c.healthPremiumIncreaseRate,
+      healthEmployerCapRate: c.healthEmployerCapRate,
+      employeeGroupId: c.employeeGroupId ?? null,
+      compensationScheduleId: c.compensationScheduleId ?? null,
+      scheduleType,
+      baseAdjustmentType: c.baseAdjustmentType as YearConfigWithSchedule["baseAdjustmentType"] ?? null,
+      baseAdjustmentValue: c.baseAdjustmentValue ?? null,
+    };
+  });
 }
 
 function groupDistrictWide(yearSummaries: Array<{
@@ -165,7 +207,27 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
   const scenario = await getScenarioWithConfigs(scenarioId);
   if (!scenario) return null;
 
-  const bargainingUnitIds = [...new Set(scenario.yearConfigs.map((c) => c.bargainingUnitId))];
+  // Separate BU-based year configs from employee-group-based year configs
+  const buYearConfigs = scenario.yearConfigs.filter((c) => c.bargainingUnitId && !c.employeeGroupId);
+  const groupYearConfigs = scenario.yearConfigs.filter((c) => !!c.employeeGroupId);
+
+  const bargainingUnitIds = [...new Set(buYearConfigs.map((c) => c.bargainingUnitId!))];
+  const employeeGroupIds = [...new Set(groupYearConfigs.map((c) => c.employeeGroupId!))];
+
+  // Load compensation schedule types for all configs that have a compensationScheduleId
+  const allScheduleIds = [
+    ...new Set(scenario.yearConfigs.filter((c) => c.compensationScheduleId).map((c) => c.compensationScheduleId!)),
+  ];
+  const scheduleTypeMap = new Map<string, string>();
+  if (allScheduleIds.length > 0) {
+    const schedules = await db
+      .select({ id: compensationSchedulesTable.id, scheduleType: compensationSchedulesTable.scheduleType })
+      .from(compensationSchedulesTable)
+      .where(inArray(compensationSchedulesTable.id, allScheduleIds));
+    for (const s of schedules) {
+      scheduleTypeMap.set(s.id, s.scheduleType);
+    }
+  }
 
   const safeIds = bargainingUnitIds.length > 0 ? bargainingUnitIds : ["__none__"];
   const allEmployees = await db
@@ -179,8 +241,68 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       )
     );
 
+  // Load employee group data for group-based configs
+  const groupEmployees = employeeGroupIds.length > 0
+    ? await db
+        .select({ employee: employeesTable, group: employeeGroupsTable })
+        .from(employeesTable)
+        .leftJoin(employeeGroupsTable, eq(employeesTable.employeeGroupId, employeeGroupsTable.id))
+        .where(
+          and(
+            eq(employeesTable.districtId, scenario.districtId),
+            inArray(employeesTable.employeeGroupId, employeeGroupIds)
+          )
+        )
+    : [];
+
   const allYearRecords: (typeof employeeYearRecordsTable.$inferInsert)[] = [];
 
+  function pushResults(yearResults: EmployeeYearResult[]) {
+    for (const r of yearResults) {
+      allYearRecords.push({
+        employeeId: r.employeeId,
+        scenarioId: r.scenarioId,
+        contractYear: r.contractYear,
+        projectedStep: r.projectedStep,
+        projectedLaneId: r.projectedLaneId,
+        projectedHourlyRate: r.projectedHourlyRate,
+        projectedBaseSalaryCents: toCents(r.projectedBaseSalary)!,
+        projectedTotalCompensationCents: toCents(r.projectedTotalCompensation)!,
+        retirementContributionCents: toCents(r.retirementContribution)!,
+        ficaCostCents: toCents(r.ficaCost)!,
+        healthInsuranceCostCents: toCents(r.healthInsuranceCost)!,
+        otherBenefitsCostCents: toCents(r.otherBenefitsCost)!,
+        totalEmployerCostCents: toCents(r.totalEmployerCost)!,
+        effectiveRate: r.effectiveRate,
+        isRetirementYear: r.isRetirementYear,
+        retirementIncentiveAmountCents: toCents(r.retirementIncentiveAmount),
+      });
+    }
+  }
+
+  function buildEmpInput(employee: typeof employeesTable.$inferSelect): EmployeeInput {
+    return {
+      id: employee.id,
+      compensationType: employee.compensationType as "salary" | "hourly",
+      currentAnnualSalary: employee.currentAnnualSalary,
+      currentStep: employee.currentStep,
+      currentHourlyRate: employee.currentHourlyRate,
+      annualHours: employee.annualHours,
+      currentLaneId: employee.currentLaneId,
+      currentHourlyCategoryId: employee.currentHourlyCategoryId,
+      insuranceElection: employee.insuranceElection as EmployeeInput["insuranceElection"],
+      retirementEligible: employee.retirementEligible,
+      retirementPlan: employee.retirementPlan,
+      retirementTargetYear: employee.retirementTargetYear,
+      yearsInDistrict: employee.yearsInDistrict,
+      yearsTotalService: employee.yearsTotalService,
+      contractYear: employee.contractYear,
+      effectiveDate: employee.effectiveDate,
+      terminationDate: employee.terminationDate,
+    };
+  }
+
+  // Process bargaining-unit-based employees
   for (const bargainingUnitId of bargainingUnitIds) {
     const unitEmployees = allEmployees.filter((r) => r.employee.bargainingUnitId === bargainingUnitId);
     if (unitEmployees.length === 0) continue;
@@ -188,7 +310,7 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     const unitConfig = unitEmployees.find((r) => r.unit)?.unit;
     if (!unitConfig) continue;
 
-    const dbYearConfigs = scenario.yearConfigs
+    const dbYearConfigs = buYearConfigs
       .filter((c) => c.bargainingUnitId === bargainingUnitId)
       .sort((a, b) => a.contractYear - b.contractYear);
     if (dbYearConfigs.length === 0) continue;
@@ -213,51 +335,60 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       contractYears: unitConfig.contractYears,
     };
 
-    const typedYearConfigs = toYearConfigs(dbYearConfigs);
+    const typedYearConfigs = toYearConfigs(dbYearConfigs, scheduleTypeMap);
     const scheduleData = await loadScheduleForUnit(bargainingUnitId);
 
     for (const { employee } of unitEmployees) {
-      const empInput: EmployeeInput = {
-        id: employee.id,
-        compensationType: employee.compensationType as "salary" | "hourly",
-        currentAnnualSalary: employee.currentAnnualSalary,
-        currentStep: employee.currentStep,
-        currentHourlyRate: employee.currentHourlyRate,
-        annualHours: employee.annualHours,
-        currentLaneId: employee.currentLaneId,
-        currentHourlyCategoryId: employee.currentHourlyCategoryId,
-        insuranceElection: employee.insuranceElection as EmployeeInput["insuranceElection"],
-        retirementEligible: employee.retirementEligible,
-        retirementPlan: employee.retirementPlan,
-        retirementTargetYear: employee.retirementTargetYear,
-        yearsInDistrict: employee.yearsInDistrict,
-        yearsTotalService: employee.yearsTotalService,
-        contractYear: employee.contractYear,
-        effectiveDate: employee.effectiveDate,
-        terminationDate: employee.terminationDate,
-      };
+      const yearResults = calcEmployeeProjection(buildEmpInput(employee), typedYearConfigs, buConfig, scheduleData, scenarioId);
+      pushResults(yearResults);
+    }
+  }
 
-      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId);
-      for (const r of yearResults) {
-        allYearRecords.push({
-          employeeId: r.employeeId,
-          scenarioId: r.scenarioId,
-          contractYear: r.contractYear,
-          projectedStep: r.projectedStep,
-          projectedLaneId: r.projectedLaneId,
-          projectedHourlyRate: r.projectedHourlyRate,
-          projectedBaseSalaryCents: toCents(r.projectedBaseSalary)!,
-          projectedTotalCompensationCents: toCents(r.projectedTotalCompensation)!,
-          retirementContributionCents: toCents(r.retirementContribution)!,
-          ficaCostCents: toCents(r.ficaCost)!,
-          healthInsuranceCostCents: toCents(r.healthInsuranceCost)!,
-          otherBenefitsCostCents: toCents(r.otherBenefitsCost)!,
-          totalEmployerCostCents: toCents(r.totalEmployerCost)!,
-          effectiveRate: r.effectiveRate,
-          isRetirementYear: r.isRetirementYear,
-          retirementIncentiveAmountCents: toCents(r.retirementIncentiveAmount),
-        });
-      }
+  // Process employee-group-based employees
+  for (const employeeGroupId of employeeGroupIds) {
+    const groupEmps = groupEmployees.filter((r) => r.employee.employeeGroupId === employeeGroupId);
+    if (groupEmps.length === 0) continue;
+
+    const groupConfig = groupEmps.find((r) => r.group)?.group;
+    if (!groupConfig) continue;
+
+    const dbYearConfigs = groupYearConfigs
+      .filter((c) => c.employeeGroupId === employeeGroupId)
+      .sort((a, b) => a.contractYear - b.contractYear);
+    if (dbYearConfigs.length === 0) continue;
+
+    const typedYearConfigs = toYearConfigs(dbYearConfigs, scheduleTypeMap);
+
+    // Load index grid config if schedule is index_based_grid
+    const primaryScheduleId = dbYearConfigs[0]?.compensationScheduleId ?? null;
+    const primaryScheduleType = primaryScheduleId ? scheduleTypeMap.get(primaryScheduleId) ?? null : null;
+    const indexGridConfig = primaryScheduleId && primaryScheduleType === "index_based_grid"
+      ? await loadIndexGridConfig(primaryScheduleId)
+      : null;
+
+    const buConfig: BargainingUnitConfig = {
+      id: groupConfig.id,
+      compensationType: "salary",
+      retirementSystem: (groupConfig.retirementSystem as "TRS" | "IMRF" | "other") ?? "TRS",
+      retirementEmployeeRate: groupConfig.retirementEmployeeRate,
+      retirementEmployerRate: groupConfig.retirementEmployerRate,
+      retirementGrossUpRate: groupConfig.retirementGrossUpRate,
+      ficaRate: groupConfig.ficaRate,
+      ficaExempt: groupConfig.ficaExempt,
+      healthInsuranceSingleAnnual: groupConfig.healthInsuranceSingleAnnual,
+      healthInsuranceFamilyAnnual: groupConfig.healthInsuranceFamilyAnnual,
+      dentalAnnual: groupConfig.dentalAnnual,
+      lifeInsuranceAnnual: groupConfig.lifeInsuranceAnnual,
+      disabilityInsuranceAnnual: groupConfig.disabilityInsuranceAnnual,
+      hsaContributionSingle: groupConfig.hsaContributionSingle,
+      hsaContributionFamily: groupConfig.hsaContributionFamily,
+      workersCompRate: groupConfig.workersCompRate,
+      contractYears: groupConfig.contractYears,
+    };
+
+    for (const { employee } of groupEmps) {
+      const yearResults = calcEmployeeProjection(buildEmpInput(employee), typedYearConfigs, buConfig, null, scenarioId, indexGridConfig);
+      pushResults(yearResults);
     }
   }
 
@@ -282,10 +413,10 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
   const allYearSummaries = [];
   for (const bargainingUnitId of bargainingUnitIds) {
     const unit = units.find((u) => u.id === bargainingUnitId);
-    const dbYearConfigs = scenario.yearConfigs
+    const dbYearConfigs = buYearConfigs
       .filter((c) => c.bargainingUnitId === bargainingUnitId)
       .sort((a, b) => a.contractYear - b.contractYear);
-    const typedConfigs = toYearConfigs(dbYearConfigs);
+    const typedConfigs = toYearConfigs(dbYearConfigs, scheduleTypeMap);
 
     const unitEmployeeIds = new Set(
       allEmployees
