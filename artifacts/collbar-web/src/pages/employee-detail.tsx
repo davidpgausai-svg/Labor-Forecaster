@@ -44,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, AlertTriangle, TrendingUp, Pencil } from "lucide-react";
+import { ArrowLeft, AlertTriangle, TrendingUp, Pencil, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -863,7 +863,12 @@ export default function EmployeeDetail() {
               onClick={handleSaveEdit}
               disabled={updateMutation.isPending}
             >
-              {updateMutation.isPending ? "Saving & Recalculating…" : "Save Changes"}
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving & Recalculating…
+                </>
+              ) : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
