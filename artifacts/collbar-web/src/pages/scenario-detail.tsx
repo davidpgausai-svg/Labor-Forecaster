@@ -290,7 +290,7 @@ export default function ScenarioDetail() {
 
             {employeeGroups.map(group => {
               const groupConfigs = formData.yearConfigs
-                .filter(yc => yc.employeeGroupId === group.id)
+                .filter(yc => yc.employeeGroupId === group.id && yc.contractYear !== 0)
                 .sort((a, b) => a.contractYear - b.contractYear);
 
               const primarySchedule = group.compensationSchedules?.find(s => s.isPrimary);
