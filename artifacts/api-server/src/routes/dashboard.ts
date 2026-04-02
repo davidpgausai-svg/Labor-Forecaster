@@ -129,24 +129,22 @@ router.get("/dashboard", async (req, res) => {
   }> | null = null;
   let selectedScenarioName: string | null = null;
 
-  // For the 5-year chart, fall back to final scenario when no explicit selection.
-  // For KPI/unit overrides, require explicit scenarioId.
+  // Both fiveYearProjection and KPI overrides require an explicit scenarioId.
+  // No fallback to finalScenario — the chart and KPI cards show "Select a scenario"
+  // empty state when the caller does not pass a scenarioId.
   const explicitScenarioId = scenarioId as string | undefined;
-  const targetScenarioId = explicitScenarioId || finalScenario?.id;
+  const targetScenarioId = explicitScenarioId;
 
   if (targetScenarioId) {
-    // Resolve scenario name only when explicitly selected
-    if (explicitScenarioId) {
-      const matchedScenario = activeScenarios.find((s) => s.id === targetScenarioId);
-      selectedScenarioName = matchedScenario?.name ?? null;
+    const matchedScenario = activeScenarios.find((s) => s.id === targetScenarioId);
+    selectedScenarioName = matchedScenario?.name ?? null;
 
-      if (!selectedScenarioName) {
-        const [scRow] = await db
-          .select({ name: scenariosTable.name })
-          .from(scenariosTable)
-          .where(eq(scenariosTable.id, targetScenarioId));
-        selectedScenarioName = scRow?.name ?? null;
-      }
+    if (!selectedScenarioName) {
+      const [scRow] = await db
+        .select({ name: scenariosTable.name })
+        .from(scenariosTable)
+        .where(eq(scenariosTable.id, targetScenarioId));
+      selectedScenarioName = scRow?.name ?? null;
     }
 
     const yearConfigs = await db

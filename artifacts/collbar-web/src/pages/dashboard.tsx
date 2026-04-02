@@ -170,8 +170,6 @@ export default function Dashboard() {
               <CardDescription>
                 {scenarioName
                   ? `Scenario: ${scenarioName} — total employer cost by bargaining unit`
-                  : data.finalScenario
-                  ? `${data.finalScenario.name} (final) — total employer cost by bargaining unit`
                   : "Select a scenario to see projections"}
               </CardDescription>
             </CardHeader>
