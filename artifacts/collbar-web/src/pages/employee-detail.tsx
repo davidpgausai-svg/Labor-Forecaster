@@ -286,7 +286,7 @@ export default function EmployeeDetail() {
       if (editForm.currentLaneId) body.currentLaneId = editForm.currentLaneId;
     } else {
       body.employeeGroupId = editForm.employeeGroupId || null;
-      body.bargainingUnitId = emp?.bargainingUnitId ?? null;
+      // Do NOT include bargainingUnitId for group assignments — the live BU is preserved on the DB side
     }
     if (editForm.editMode === "future" && editForm.effectiveContractYear) {
       body.effectiveContractYear = parseInt(editForm.effectiveContractYear, 10);

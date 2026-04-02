@@ -380,6 +380,8 @@ router.put("/employees/:id", async (req, res) => {
 
   let empResult;
 
+  // effectiveContractYear is a 0-based index: 0 = current district year (immediate correction),
+  // > 0 = future year (deferred/pending change). This maps directly to the scenario year index.
   if (effectiveContractYear != null && Number(effectiveContractYear) > 0) {
     // Future edit — write only non-positional fields to live columns.
     // Position-related fields (BU, group, step, lane, salary) go to pending_* only.
@@ -394,8 +396,14 @@ router.put("/employees/:id", async (req, res) => {
     if (fields.currentStep !== undefined) liveFields.pendingCurrentStep = fields.currentStep;
     if (fields.currentLaneId !== undefined) liveFields.pendingCurrentLaneId = fields.currentLaneId;
     if (fields.currentAnnualSalary !== undefined) liveFields.pendingAnnualSalary = String(fields.currentAnnualSalary);
-    if (fields.bargainingUnitId !== undefined) liveFields.pendingBargainingUnitId = fields.bargainingUnitId;
-    if (fields.employeeGroupId !== undefined) liveFields.pendingEmployeeGroupId = fields.employeeGroupId;
+    // Enforce mutual exclusivity: pending BU and pending group are mutually exclusive
+    if (fields.employeeGroupId !== undefined) {
+      liveFields.pendingEmployeeGroupId = fields.employeeGroupId;
+      liveFields.pendingBargainingUnitId = null; // clear BU when group is set
+    } else if (fields.bargainingUnitId !== undefined) {
+      liveFields.pendingBargainingUnitId = fields.bargainingUnitId;
+      liveFields.pendingEmployeeGroupId = null; // clear group when BU is set
+    }
 
     [empResult] = await db
       .update(employeesTable)
