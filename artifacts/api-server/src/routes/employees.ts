@@ -174,8 +174,15 @@ router.post("/employees", async (req, res) => {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [emp] = await db.insert(employeesTable).values(parsed.data as any).returning();
+  if (!parsed.data.bargainingUnitId) {
+    res.status(400).json({ error: "bargainingUnitId is required" });
+    return;
+  }
+  const insertData: typeof employeesTable.$inferInsert = {
+    ...parsed.data,
+    bargainingUnitId: parsed.data.bargainingUnitId,
+  };
+  const [emp] = await db.insert(employeesTable).values(insertData).returning();
   res.status(201).json(emp);
 });
 
