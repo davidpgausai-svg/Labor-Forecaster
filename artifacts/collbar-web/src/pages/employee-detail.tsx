@@ -1,11 +1,37 @@
-import { useState } from "react";
-import { useGetEmployee, getGetEmployeeQueryKey } from "@workspace/api-client-react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useGetEmployee,
+  getGetEmployeeQueryKey,
+  useUpdateEmployee,
+  useListBargainingUnits,
+  getListBargainingUnitsQueryKey,
+  useListEmployeeGroups,
+  getListEmployeeGroupsQueryKey,
+  useListSalarySchedules,
+} from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { getBadgeColorClass } from "@/lib/badges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -15,7 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, AlertTriangle, TrendingUp } from "lucide-react";
+import { ArrowLeft, AlertTriangle, TrendingUp, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -153,9 +179,42 @@ function RetirementOption3Card({ opt }: { opt: AnyOption }) {
 export default function EmployeeDetail() {
   const params = useParams();
   const id = params.id as string;
-  const { scenarioId, activeContractYear } = useDistrictContext();
+  const { districtId, scenarioId, activeContractYear } = useDistrictContext();
   const [, setLocation] = useLocation();
   const [selectedProjYear, setSelectedProjYear] = useState<number | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: "", lastName: "", employeeNumber: "",
+    assignType: "union" as "union" | "group",
+    bargainingUnitId: "", employeeGroupId: "",
+    currentAnnualSalary: "", currentStep: "", currentLaneId: "",
+    status: "active",
+  });
+
+  const queryClient = useQueryClient();
+
+  const { data: units } = useListBargainingUnits(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }) } }
+  );
+  const { data: employeeGroups } = useListEmployeeGroups(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }) } }
+  );
+  const { data: editSchedule } = useListSalarySchedules(
+    { bargainingUnitId: editForm.bargainingUnitId || undefined },
+    { query: { enabled: editForm.assignType === "union" && !!editForm.bargainingUnitId } }
+  );
+  const editLanes = editSchedule?.[0]?.lanes ?? [];
+
+  const updateMutation = useUpdateEmployee({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
+        setShowEdit(false);
+      },
+    },
+  });
 
   const { data: emp, isLoading } = useGetEmployee(
     id,
@@ -167,6 +226,48 @@ export default function EmployeeDetail() {
       },
     }
   );
+
+  function openEdit() {
+    if (!emp) return;
+    const e = emp as Record<string, unknown>;
+    const hasBu = !!emp.bargainingUnitId;
+    const hasGroup = !!(e.employeeGroupId);
+    setEditForm({
+      firstName: emp.firstName ?? "",
+      lastName: emp.lastName ?? "",
+      employeeNumber: emp.employeeNumber ?? "",
+      assignType: hasGroup ? "group" : "union",
+      bargainingUnitId: emp.bargainingUnitId ?? "",
+      employeeGroupId: String(e.employeeGroupId ?? ""),
+      currentAnnualSalary: String(emp.currentAnnualSalary ?? ""),
+      currentStep: emp.currentStep != null ? String(emp.currentStep) : "",
+      currentLaneId: String(e.currentLaneId ?? ""),
+      status: emp.status ?? "active",
+    });
+    setShowEdit(true);
+    // suppress unused var warning
+    void hasBu;
+  }
+
+  function handleSaveEdit() {
+    const body: Record<string, unknown> = {
+      firstName: editForm.firstName,
+      lastName: editForm.lastName,
+      status: editForm.status,
+      currentAnnualSalary: parseFloat(editForm.currentAnnualSalary) || 0,
+    };
+    if (editForm.employeeNumber) body.employeeNumber = editForm.employeeNumber;
+    if (editForm.assignType === "union") {
+      body.bargainingUnitId = editForm.bargainingUnitId || null;
+      body.employeeGroupId = null;
+      if (editForm.currentStep) body.currentStep = parseInt(editForm.currentStep, 10);
+      if (editForm.currentLaneId) body.currentLaneId = editForm.currentLaneId;
+    } else {
+      body.employeeGroupId = editForm.employeeGroupId || null;
+      body.bargainingUnitId = emp?.bargainingUnitId ?? null;
+    }
+    updateMutation.mutate({ id, data: body as Parameters<typeof updateMutation.mutate>[0]["data"] });
+  }
 
   if (isLoading) {
     return (
@@ -247,6 +348,15 @@ export default function EmployeeDetail() {
             )}
           </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={openEdit}
+          className="shrink-0 gap-1.5"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit Profile
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -566,6 +676,184 @@ export default function EmployeeDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent className="max-w-lg bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle>Edit Employee Profile</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>First Name</Label>
+                <Input
+                  value={editForm.firstName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Last Name</Label>
+                <Input
+                  value={editForm.lastName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))}
+                  className="bg-background border-border"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Employee Number (optional)</Label>
+              <Input
+                value={editForm.employeeNumber}
+                onChange={(e) => setEditForm((f) => ({ ...f, employeeNumber: e.target.value }))}
+                className="bg-background border-border"
+                placeholder="e.g. EMP-0042"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select
+                value={editForm.status}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="on_leave">On Leave</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Assignment Type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={editForm.assignType === "union" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setEditForm((f) => ({ ...f, assignType: "union", employeeGroupId: "" }))}
+                >
+                  Union (BU)
+                </Button>
+                <Button
+                  type="button"
+                  variant={editForm.assignType === "group" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setEditForm((f) => ({ ...f, assignType: "group", currentStep: "", currentLaneId: "" }))}
+                >
+                  Non-Union (Group)
+                </Button>
+              </div>
+            </div>
+
+            {editForm.assignType === "union" ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Bargaining Unit</Label>
+                  <Select
+                    value={editForm.bargainingUnitId}
+                    onValueChange={(v) => setEditForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
+                  >
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue placeholder="Select unit…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(units ?? []).map((u: Record<string, unknown>) => (
+                        <SelectItem key={String(u.id)} value={String(u.id)}>
+                          {String(u.name)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Current Step</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={editForm.currentStep}
+                      onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
+                      className="bg-background border-border"
+                      placeholder="e.g. 7"
+                    />
+                  </div>
+                  {editLanes.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Lane</Label>
+                      <Select
+                        value={editForm.currentLaneId}
+                        onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
+                      >
+                        <SelectTrigger className="bg-background border-border">
+                          <SelectValue placeholder="Select lane…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editLanes.map((lane: Record<string, unknown>) => (
+                            <SelectItem key={String(lane.id)} value={String(lane.id)}>
+                              {String(lane.name)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Employee Group</Label>
+                <Select
+                  value={editForm.employeeGroupId}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select group…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employeeGroups ?? []).map((g: Record<string, unknown>) => (
+                      <SelectItem key={String(g.id)} value={String(g.id)}>
+                        {String(g.name)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Annual Salary</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  value={editForm.currentAnnualSalary}
+                  onChange={(e) => setEditForm((f) => ({ ...f, currentAnnualSalary: e.target.value }))}
+                  className="bg-background border-border pl-7"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="ghost" onClick={() => setShowEdit(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
