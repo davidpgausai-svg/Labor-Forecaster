@@ -13,12 +13,12 @@ import {
   ScenarioYearConfigIncreaseType,
   BargainingUnit,
   ScenarioCalculationResult,
+  EmployeeGroupWithSchedules,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -232,102 +232,155 @@ export default function ScenarioDetail() {
         </CardContent>
       </Card>
 
-      {units && units.length > 0 && (
-        <>
-          <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">Bargaining Units</h3>
-          <Tabs defaultValue={units[0].id} className="w-full">
-            <TabsList className="bg-muted border-border flex-wrap h-auto">
-              {units.map(unit => (
-                <TabsTrigger key={unit.id} value={unit.id} className="data-[state=active]:bg-background">
-                  {unit.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+      <UnifiedGroupSelector
+        units={units ?? []}
+        employeeGroups={employeeGroups ?? []}
+        formData={formData}
+        lastCalcResult={lastCalcResult}
+        updateYearConfig={updateYearConfig}
+        updateYearConfigById={updateYearConfigById}
+      />
+    </div>
+  );
+}
 
-            {units.map(unit => {
-              const unitConfigs = formData.yearConfigs
-                .filter(yc => yc.bargainingUnitId === unit.id && !yc.employeeGroupId)
-                .sort((a, b) => a.contractYear - b.contractYear);
+type UnifiedGroup =
+  | { kind: "unit"; id: string; name: string; unit: BargainingUnit }
+  | { kind: "group"; id: string; name: string; group: EmployeeGroupWithSchedules };
 
-              return (
-                <TabsContent key={unit.id} value={unit.id} className="mt-6 space-y-4">
-                  <h3 className="text-lg font-semibold">{unit.name}</h3>
-                  {unitConfigs.length === 0 ? (
-                    <Card className="bg-card border-border">
-                      <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                        No year configurations for this unit.
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    unitConfigs.map(yc => (
-                      <YearConfigCard
-                        key={`${yc.bargainingUnitId}-${yc.contractYear}`}
-                        config={yc}
-                        bargainingUnit={unit}
-                        lastCalcResult={lastCalcResult ?? undefined}
-                        onChange={patch => updateYearConfig(yc.bargainingUnitId!, yc.contractYear, patch)}
-                      />
-                    ))
+function UnifiedGroupSelector({
+  units,
+  employeeGroups,
+  formData,
+  lastCalcResult,
+  updateYearConfig,
+  updateYearConfigById,
+}: {
+  units: BargainingUnit[];
+  employeeGroups: EmployeeGroupWithSchedules[];
+  formData: FormData;
+  lastCalcResult: ScenarioCalculationResult | null;
+  updateYearConfig: (bargainingUnitId: string, contractYear: number, patch: Partial<ScenarioYearConfig>) => void;
+  updateYearConfigById: (id: string, patch: Partial<ScenarioYearConfig>) => void;
+}) {
+  const allGroups: UnifiedGroup[] = [
+    ...units.map(u => ({ kind: "unit" as const, id: `unit:${u.id}`, name: u.name, unit: u })),
+    ...employeeGroups.map(g => ({ kind: "group" as const, id: `group:${g.id}`, name: g.name, group: g })),
+  ];
+
+  const [activeId, setActiveId] = useState<string | null>(allGroups[0]?.id ?? null);
+
+  useEffect(() => {
+    if (!activeId && allGroups.length > 0) {
+      setActiveId(allGroups[0].id);
+    }
+  }, [allGroups.length]);
+
+  if (allGroups.length === 0) return null;
+
+  const activeEntry = allGroups.find(g => g.id === activeId) ?? allGroups[0];
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide">Groups</h3>
+      <div className="flex flex-wrap gap-1.5">
+        {allGroups.map(entry => {
+          const isActive = entry.id === activeEntry.id;
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setActiveId(entry.id)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border ${
+                isActive
+                  ? "bg-background border-border shadow-sm text-foreground"
+                  : "bg-muted border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              }`}
+            >
+              {entry.name}
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                  entry.kind === "unit"
+                    ? "bg-blue-500/15 text-blue-500"
+                    : "bg-violet-500/15 text-violet-500"
+                }`}
+              >
+                {entry.kind === "unit" ? "Union" : "Non-Union"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-4">
+        {activeEntry.kind === "unit" ? (
+          (() => {
+            const unit = activeEntry.unit;
+            const unitConfigs = formData.yearConfigs
+              .filter(yc => yc.bargainingUnitId === unit.id && !yc.employeeGroupId)
+              .sort((a, b) => a.contractYear - b.contractYear);
+            return (
+              <>
+                <h3 className="text-lg font-semibold">{unit.name}</h3>
+                {unitConfigs.length === 0 ? (
+                  <Card className="bg-card border-border">
+                    <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                      No year configurations for this unit.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  unitConfigs.map(yc => (
+                    <YearConfigCard
+                      key={`${yc.bargainingUnitId}-${yc.contractYear}`}
+                      config={yc}
+                      bargainingUnit={unit}
+                      lastCalcResult={lastCalcResult ?? undefined}
+                      onChange={patch => updateYearConfig(yc.bargainingUnitId!, yc.contractYear, patch)}
+                    />
+                  ))
+                )}
+              </>
+            );
+          })()
+        ) : (
+          (() => {
+            const group = activeEntry.group;
+            const groupConfigs = formData.yearConfigs
+              .filter(yc => yc.employeeGroupId === group.id && yc.contractYear !== 0)
+              .sort((a, b) => a.contractYear - b.contractYear);
+            const primarySchedule = group.compensationSchedules?.find(s => s.isPrimary);
+            return (
+              <>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold">{group.name}</h3>
+                  {primarySchedule && (
+                    <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
+                      {primarySchedule.name} &mdash; {primarySchedule.scheduleType?.replace(/_/g, " ")}
+                    </span>
                   )}
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        </>
-      )}
-
-      {employeeGroups && employeeGroups.length > 0 && (
-        <>
-          <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wide mt-6">Employee Groups</h3>
-          <Tabs defaultValue={employeeGroups[0].id} className="w-full">
-            <TabsList className="bg-muted border-border flex-wrap h-auto">
-              {employeeGroups.map(group => (
-                <TabsTrigger key={group.id} value={group.id} className="data-[state=active]:bg-background">
-                  {group.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            {employeeGroups.map(group => {
-              const groupConfigs = formData.yearConfigs
-                .filter(yc => yc.employeeGroupId === group.id && yc.contractYear !== 0)
-                .sort((a, b) => a.contractYear - b.contractYear);
-
-              const primarySchedule = group.compensationSchedules?.find(s => s.isPrimary);
-
-              return (
-                <TabsContent key={group.id} value={group.id} className="mt-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold">{group.name}</h3>
-                    {primarySchedule && (
-                      <span className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                        {primarySchedule.name} &mdash; {primarySchedule.scheduleType?.replace(/_/g, " ")}
-                      </span>
-                    )}
-                  </div>
-                  {groupConfigs.length === 0 ? (
-                    <Card className="bg-card border-border">
-                      <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                        No year configurations for this group. Create a scenario to auto-generate them.
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    groupConfigs.map(yc => (
-                      <GroupYearConfigCard
-                        key={yc.id ?? `${group.id}-${yc.contractYear}`}
-                        config={yc}
-                        groupName={group.name}
-                        scheduleType={primarySchedule?.scheduleType ?? null}
-                        onChange={patch => updateYearConfigById(yc.id!, patch)}
-                      />
-                    ))
-                  )}
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        </>
-      )}
+                </div>
+                {groupConfigs.length === 0 ? (
+                  <Card className="bg-card border-border">
+                    <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                      No year configurations for this group. Create a scenario to auto-generate them.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  groupConfigs.map(yc => (
+                    <GroupYearConfigCard
+                      key={yc.id ?? `${group.id}-${yc.contractYear}`}
+                      config={yc}
+                      groupName={group.name}
+                      scheduleType={primarySchedule?.scheduleType ?? null}
+                      onChange={patch => updateYearConfigById(yc.id!, patch)}
+                    />
+                  ))
+                )}
+              </>
+            );
+          })()
+        )}
+      </div>
     </div>
   );
 }
