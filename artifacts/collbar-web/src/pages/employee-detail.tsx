@@ -9,6 +9,9 @@ import {
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
   useListSalarySchedules,
+  getListScenariosQueryKey,
+  getListEmployeesQueryKey,
+  getGetDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -211,6 +214,9 @@ export default function EmployeeDetail() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
+        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey({ districtId: districtId ?? undefined }) });
+        queryClient.invalidateQueries({ queryKey: getListScenariosQueryKey({ districtId: districtId ?? undefined }) });
+        queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey({ districtId: districtId ?? undefined, scenarioId: scenarioId ?? undefined }) });
         setShowEdit(false);
       },
     },
@@ -841,15 +847,23 @@ export default function EmployeeDetail() {
             </div>
           </div>
 
+          {updateMutation.isError && (
+            <div className="flex items-center gap-2 text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md px-3 py-2 mt-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>
+                {(updateMutation.error as { message?: string })?.message ?? "Save failed. Please try again."}
+              </span>
+            </div>
+          )}
           <DialogFooter className="pt-2">
-            <Button variant="ghost" onClick={() => setShowEdit(false)}>
+            <Button variant="ghost" onClick={() => setShowEdit(false)} disabled={updateMutation.isPending}>
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
               disabled={updateMutation.isPending}
             >
-              {updateMutation.isPending ? "Saving…" : "Save Changes"}
+              {updateMutation.isPending ? "Saving & Recalculating…" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

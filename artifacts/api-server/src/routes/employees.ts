@@ -9,12 +9,14 @@ import {
   lanesTable,
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
+  scenariosTable,
 } from "@workspace/db";
 import { eq, and, sql, or, inArray, isNull } from "drizzle-orm";
 import {
   calcRetirementOption1,
   calcRetirementOption2,
   calcRetirementOption3,
+  runScenarioCalculation,
 } from "@workspace/calc-engine";
 
 const createEmployeeSchema = z.object({
@@ -357,7 +359,32 @@ router.put("/employees/:id", async (req, res) => {
     res.status(404).json({ error: "Employee not found" });
     return;
   }
-  res.json(emp);
+
+  const districtScenarios = await db
+    .select({ id: scenariosTable.id })
+    .from(scenariosTable)
+    .where(eq(scenariosTable.districtId, emp.districtId));
+
+  const recalcErrors: string[] = [];
+  for (const scenario of districtScenarios) {
+    try {
+      await runScenarioCalculation(scenario.id);
+    } catch (err) {
+      recalcErrors.push(scenario.id);
+      console.error(`[PUT /employees/:id] Failed to recalculate scenario ${scenario.id}:`, err);
+    }
+  }
+
+  if (recalcErrors.length > 0) {
+    res.status(500).json({
+      error: `Employee saved but recalculation failed for ${recalcErrors.length} scenario(s).`,
+      scenariosRecalculated: districtScenarios.length - recalcErrors.length,
+      scenariosFailed: recalcErrors.length,
+    });
+    return;
+  }
+
+  res.json({ ...emp, scenariosRecalculated: districtScenarios.length });
 });
 
 router.delete("/employees/:id", async (req, res) => {
