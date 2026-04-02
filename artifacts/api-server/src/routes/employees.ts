@@ -10,7 +10,7 @@ import {
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
 } from "@workspace/db";
-import { eq, and, sql, or, inArray } from "drizzle-orm";
+import { eq, and, sql, or, inArray, isNull } from "drizzle-orm";
 import {
   calcRetirementOption1,
   calcRetirementOption2,
@@ -122,7 +122,11 @@ router.get("/employees", async (req, res) => {
 
   const conditions = [];
   if (districtId) conditions.push(eq(employeesTable.districtId, districtId as string));
-  if (bargainingUnitId) conditions.push(eq(employeesTable.bargainingUnitId, bargainingUnitId as string));
+  if (bargainingUnitId) {
+    // Union filter: only employees calculated on the BU path (no group override)
+    conditions.push(eq(employeesTable.bargainingUnitId, bargainingUnitId as string));
+    conditions.push(isNull(employeesTable.employeeGroupId));
+  }
   if (employeeGroupId) conditions.push(eq(employeesTable.employeeGroupId, employeeGroupId as string));
   if (status) conditions.push(eq(employeesTable.status, status as "active" | "new_hire" | "terminated" | "retired" | "on_leave"));
   if (contractYear) conditions.push(eq(employeesTable.contractYear, Number(contractYear)));
