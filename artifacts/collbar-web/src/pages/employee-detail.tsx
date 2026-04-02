@@ -222,6 +222,15 @@ export default function EmployeeDetail() {
             >
               {emp.bargainingUnitName || "Unknown Unit"}
             </Badge>
+            {(emp as Record<string, unknown>).employeeGroupName && (
+              <Badge
+                variant="outline"
+                className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs"
+                title="Scenario calculations use this employee group config (Non-Union path)"
+              >
+                {String((emp as Record<string, unknown>).employeeGroupName)} · Non-Union
+              </Badge>
+            )}
             <Badge
               variant="outline"
               className="bg-green-500/10 text-green-500 border-green-500/20 capitalize"

@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import {
   employeesTable,
   bargainingUnitsTable,
+  employeeGroupsTable,
   lanesTable,
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
@@ -249,10 +250,12 @@ router.get("/employees/:id", async (req, res) => {
     .select({
       employee: employeesTable,
       unitName: bargainingUnitsTable.name,
+      groupName: employeeGroupsTable.name,
       laneName: lanesTable.name,
     })
     .from(employeesTable)
     .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
+    .leftJoin(employeeGroupsTable, eq(employeesTable.employeeGroupId, employeeGroupsTable.id))
     .leftJoin(lanesTable, eq(employeesTable.currentLaneId, lanesTable.id))
     .where(eq(employeesTable.id, req.params.id));
 
@@ -263,6 +266,7 @@ router.get("/employees/:id", async (req, res) => {
   }
 
   const emp = row.employee;
+  const employeeGroupName = row.groupName ?? null;
   let yearProjections: unknown[] = [];
 
   if (scenarioId) {
@@ -326,7 +330,7 @@ router.get("/employees/:id", async (req, res) => {
     };
   }
 
-  res.json({ ...emp, bargainingUnitName: row.unitName, laneName: row.laneName, yearProjections, retirementOptions });
+  res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, laneName: row.laneName, yearProjections, retirementOptions });
 });
 
 router.put("/employees/:id", async (req, res) => {
