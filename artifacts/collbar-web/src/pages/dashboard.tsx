@@ -67,14 +67,9 @@ export default function Dashboard() {
 
   const projection = data.fiveYearProjection as ProjectionRow[] | null | undefined;
   const unitNames = projection?.[0]?.byUnit?.map(u => u.bargainingUnitName) ?? [];
-  const anyData = data as unknown as Record<string, unknown>;
-  const scenarioName = anyData.selectedScenarioName as string | null | undefined;
-  const year1Total = anyData.scenarioYear1TotalCost as string | null | undefined;
-  const year1ByUnit = anyData.scenarioYear1ByUnit as Array<{
-    bargainingUnitId: string;
-    bargainingUnitName: string;
-    totalPayroll: string;
-  }> | null | undefined;
+  const scenarioName = data.selectedScenarioName;
+  const year1Total = data.scenarioYear1TotalCost;
+  const year1ByUnit = data.scenarioYear1ByUnit;
 
   const hasProjections = projection && projection.length > 0;
   const hasYear1 = !!year1Total;
@@ -108,27 +103,30 @@ export default function Dashboard() {
             </CardTitle>
             <DollarSign className={cn("w-4 h-4", hasYear1 ? "text-primary" : "text-muted-foreground")} />
           </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-2xl font-bold font-mono">
-              {hasYear1 ? formatCurrency(year1Total!) : formatCurrency(data.totalCurrentPayroll)}
-            </div>
-            {hasYear1 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                {delta && (
-                  <span className={cn(
-                    "inline-flex items-center gap-0.5 text-xs font-mono font-semibold px-1.5 py-0.5 rounded",
-                    deltaPositive
-                      ? "text-green-400 bg-green-400/10"
-                      : "text-red-400 bg-red-400/10"
-                  )}>
-                    <TrendingUp className="w-3 h-3" />
-                    {delta} vs baseline
-                  </span>
-                )}
+          <CardContent className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-2xl font-bold font-mono">
+                {hasYear1 ? formatCurrency(year1Total!) : formatCurrency(data.totalCurrentPayroll)}
               </div>
+              {hasYear1 && (
+                <Badge variant="outline" className="text-primary border-primary/40 bg-primary/10 text-xs px-1.5 py-0">
+                  Projected
+                </Badge>
+              )}
+            </div>
+            {hasYear1 && delta && (
+              <span className={cn(
+                "inline-flex items-center gap-0.5 text-xs font-mono font-semibold px-1.5 py-0.5 rounded",
+                deltaPositive
+                  ? "text-green-400 bg-green-400/10"
+                  : "text-red-400 bg-red-400/10"
+              )}>
+                <TrendingUp className="w-3 h-3" />
+                {delta} vs baseline
+              </span>
             )}
             {hasYear1 && (
-              <div className="text-xs text-muted-foreground font-mono pt-0.5">
+              <div className="text-xs text-muted-foreground font-mono">
                 Baseline: {formatCurrency(data.totalCurrentPayroll)}
               </div>
             )}
@@ -256,7 +254,7 @@ export default function Dashboard() {
             <CardContent className="space-y-4">
               {data.employeeCountByUnit.map((unit) => {
                 const projUnit = year1ByUnit?.find(u => u.bargainingUnitId === unit.bargainingUnitId);
-                const displayPayroll = projUnit?.totalPayroll ?? unit.totalPayroll;
+                const displayPayroll = projUnit?.totalPayroll ?? unit.totalPayroll ?? "0";
                 const isProjected = !!projUnit;
 
                 return (

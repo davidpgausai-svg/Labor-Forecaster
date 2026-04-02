@@ -585,6 +585,13 @@ export type DashboardDataFiveYearProjectionItem = {
   totalEmployerCost?: string;
 };
 
+export type DashboardDataScenarioYear1ByUnitItem = {
+  bargainingUnitId?: string;
+  bargainingUnitName?: string;
+  employeeCount?: number;
+  totalPayroll?: string;
+};
+
 export interface DashboardData {
   district?: District;
   employeeCountByUnit: DashboardDataEmployeeCountByUnitItem[];
@@ -596,6 +603,9 @@ export interface DashboardData {
   activeScenarios: ScenarioSummary[];
   finalScenario?: ScenarioSummary | null;
   fiveYearProjection?: DashboardDataFiveYearProjectionItem[] | null;
+  selectedScenarioName?: string | null;
+  scenarioYear1TotalCost?: string | null;
+  scenarioYear1ByUnit?: DashboardDataScenarioYear1ByUnitItem[] | null;
 }
 
 export interface EmployeeGroup {

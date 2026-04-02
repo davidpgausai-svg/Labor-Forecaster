@@ -1342,6 +1342,18 @@ export const GetDashboardResponse = zod.object({
       }),
     )
     .nullish(),
+  selectedScenarioName: zod.string().nullish(),
+  scenarioYear1TotalCost: zod.string().nullish(),
+  scenarioYear1ByUnit: zod
+    .array(
+      zod.object({
+        bargainingUnitId: zod.string().optional(),
+        bargainingUnitName: zod.string().optional(),
+        employeeCount: zod.number().optional(),
+        totalPayroll: zod.string().optional(),
+      }),
+    )
+    .nullish(),
 });
 
 /**

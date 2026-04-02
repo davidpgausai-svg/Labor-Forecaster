@@ -7,6 +7,7 @@
  */
 import type { DashboardDataEmployeeCountByUnitItem } from "./dashboardDataEmployeeCountByUnitItem";
 import type { DashboardDataFiveYearProjectionItem } from "./dashboardDataFiveYearProjectionItem";
+import type { DashboardDataScenarioYear1ByUnitItem } from "./dashboardDataScenarioYear1ByUnitItem";
 import type { District } from "./district";
 import type { ScenarioSummary } from "./scenarioSummary";
 
@@ -21,4 +22,7 @@ export interface DashboardData {
   activeScenarios: ScenarioSummary[];
   finalScenario?: ScenarioSummary | null;
   fiveYearProjection?: DashboardDataFiveYearProjectionItem[] | null;
+  selectedScenarioName?: string | null;
+  scenarioYear1TotalCost?: string | null;
+  scenarioYear1ByUnit?: DashboardDataScenarioYear1ByUnitItem[] | null;
 }

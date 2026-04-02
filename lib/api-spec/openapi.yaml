@@ -2337,6 +2337,26 @@ components:
               totalEmployerCost:
                 type: string
           nullable: true
+        selectedScenarioName:
+          type: string
+          nullable: true
+        scenarioYear1TotalCost:
+          type: string
+          nullable: true
+        scenarioYear1ByUnit:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              bargainingUnitId:
+                type: string
+              bargainingUnitName:
+                type: string
+              employeeCount:
+                type: number
+              totalPayroll:
+                type: string
       required:
         - totalEmployees
         - totalCurrentPayroll

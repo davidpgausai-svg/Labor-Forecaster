@@ -30,6 +30,7 @@ export * from "./createScenarioRequest";
 export * from "./dashboardData";
 export * from "./dashboardDataEmployeeCountByUnitItem";
 export * from "./dashboardDataFiveYearProjectionItem";
+export * from "./dashboardDataScenarioYear1ByUnitItem";
 export * from "./district";
 export * from "./districtSettings";
 export * from "./employee";
