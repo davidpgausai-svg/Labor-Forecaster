@@ -471,7 +471,15 @@ router.delete("/employees/:id/pending", async (req, res) => {
     return;
   }
 
-  await recalcDistrictScenarios(emp.districtId, "DELETE /employees/:id/pending");
+  const { count, errors } = await recalcDistrictScenarios(emp.districtId, "DELETE /employees/:id/pending");
+  if (errors.length > 0) {
+    res.status(207).json({
+      employee: emp,
+      warning: `Pending change discarded but recalculation failed for ${errors.length} of ${count} scenario(s).`,
+      failedScenarios: errors,
+    });
+    return;
+  }
   res.json(emp);
 });
 

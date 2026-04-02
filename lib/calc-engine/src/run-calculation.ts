@@ -337,6 +337,28 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     pendingBuScheduleMap.set(buId, await loadScheduleForUnit(buId));
   }
 
+  // Load pending BU year configs (raise rules) from this scenario's year config table
+  const pendingBuYearConfigsMap = new Map<string, YearConfigWithSchedule[]>();
+  for (const buId of pendingBuIds) {
+    const dbPendingYearCfgs = buYearConfigs
+      .filter((c) => c.bargainingUnitId === buId)
+      .sort((a, b) => a.contractYear - b.contractYear);
+    if (dbPendingYearCfgs.length > 0) {
+      pendingBuYearConfigsMap.set(buId, toYearConfigs(dbPendingYearCfgs, scheduleTypeMap));
+    }
+  }
+
+  // Load pending group year configs (raise rules) from this scenario's year config table
+  const pendingGroupYearConfigsMap = new Map<string, YearConfigWithSchedule[]>();
+  for (const groupId of pendingGroupIds) {
+    const dbPendingYearCfgs = groupYearConfigs
+      .filter((c) => c.employeeGroupId === groupId)
+      .sort((a, b) => a.contractYear - b.contractYear);
+    if (dbPendingYearCfgs.length > 0) {
+      pendingGroupYearConfigsMap.set(groupId, toYearConfigs(dbPendingYearCfgs, scheduleTypeMap));
+    }
+  }
+
   function buildPendingBuConfig(buId: string): BargainingUnitConfig | null {
     const u = pendingBuMap.get(buId);
     if (!u) return null;
@@ -432,14 +454,17 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       // Resolve pending BU/group config for employees with a pending position transition
       let pendingBuCfg: BargainingUnitConfig | null = null;
       let pendingScheduleData: SalaryScheduleData | null | undefined = undefined;
+      let pendingYearCfgs: YearConfigWithSchedule[] | null = null;
       if (empInput.pendingBargainingUnitId) {
         pendingBuCfg = buildPendingBuConfig(empInput.pendingBargainingUnitId);
         pendingScheduleData = pendingBuScheduleMap.get(empInput.pendingBargainingUnitId) ?? null;
+        pendingYearCfgs = pendingBuYearConfigsMap.get(empInput.pendingBargainingUnitId) ?? null;
       } else if (empInput.pendingEmployeeGroupId) {
         pendingBuCfg = buildPendingGroupConfig(empInput.pendingEmployeeGroupId);
         pendingScheduleData = null;
+        pendingYearCfgs = pendingGroupYearConfigsMap.get(empInput.pendingEmployeeGroupId) ?? null;
       }
-      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId, null, pendingBuCfg, pendingScheduleData);
+      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId, null, pendingBuCfg, pendingScheduleData, pendingYearCfgs);
       pushResults(yearResults);
     }
   }
@@ -491,14 +516,17 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       // Resolve pending BU/group config for employees with a pending position transition
       let pendingBuCfg: BargainingUnitConfig | null = null;
       let pendingScheduleData: SalaryScheduleData | null | undefined = undefined;
+      let pendingYearCfgs: YearConfigWithSchedule[] | null = null;
       if (empInput.pendingBargainingUnitId) {
         pendingBuCfg = buildPendingBuConfig(empInput.pendingBargainingUnitId);
         pendingScheduleData = pendingBuScheduleMap.get(empInput.pendingBargainingUnitId) ?? null;
+        pendingYearCfgs = pendingBuYearConfigsMap.get(empInput.pendingBargainingUnitId) ?? null;
       } else if (empInput.pendingEmployeeGroupId) {
         pendingBuCfg = buildPendingGroupConfig(empInput.pendingEmployeeGroupId);
         pendingScheduleData = null;
+        pendingYearCfgs = pendingGroupYearConfigsMap.get(empInput.pendingEmployeeGroupId) ?? null;
       }
-      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, null, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData);
+      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, null, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData, pendingYearCfgs);
       pushResults(yearResults);
     }
   }

@@ -28,7 +28,8 @@ export function calcEmployeeProjection(
   scenarioId: string,
   indexGridConfig?: IndexGridConfig | null,
   pendingUnitConfig?: BargainingUnitConfig | null,
-  pendingSchedule?: SalaryScheduleData | null
+  pendingSchedule?: SalaryScheduleData | null,
+  pendingYearConfigs?: (YearConfig | YearConfigWithSchedule)[] | null
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -37,44 +38,57 @@ export function calcEmployeeProjection(
     ? new Decimal(employee.currentHourlyRate)
     : new Decimal("0");
   let currentStep = employee.currentStep ?? null;
-  // For index-based grid: track the immutable starting step so yearIdx-based advancement
-  // is computed from the original position, not from a step that gets mutated each year.
-  const initialStep = employee.currentStep ?? null;
+  // For index-based grid: track the starting step so yearIdx-based advancement is computed correctly.
+  // This may be reset at the pending boundary if a step change is scheduled.
+  let initialStep = employee.currentStep ?? null;
   let currentLaneId = employee.currentLaneId ?? null;
 
   let activeUnitConfig = unitConfig;
   let activeSchedule = schedule;
+  let activeYearConfigs: (YearConfig | YearConfigWithSchedule)[] = yearConfigs;
+  let pendingBoundaryApplied = false;
   let laneInfo: LaneInfo | null =
     schedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
 
-  for (let yearIdx = 0; yearIdx <= Math.max(unitConfig.contractYears - 1, yearConfigs.length - 1); yearIdx++) {
-    const config = yearConfigs[yearIdx];
-    if (!config) break;
+  const totalYears = Math.max(unitConfig.contractYears - 1, yearConfigs.length - 1);
 
+  for (let yearIdx = 0; yearIdx <= totalYears; yearIdx++) {
     // Apply pending position change at its effective contract year boundary
     if (
+      !pendingBoundaryApplied &&
       yearIdx > 0 &&
       employee.pendingEffectiveContractYear != null &&
       yearIdx === employee.pendingEffectiveContractYear
     ) {
+      pendingBoundaryApplied = true;
       if (employee.pendingAnnualSalary != null) {
         currentSalary = new Decimal(employee.pendingAnnualSalary);
       }
       if (employee.pendingCurrentStep != null) {
         currentStep = employee.pendingCurrentStep;
+        // Reset initialStep so index-based calculations start from the new step at the boundary
+        initialStep = employee.pendingCurrentStep;
       }
       if (employee.pendingCurrentLaneId != null) {
         currentLaneId = employee.pendingCurrentLaneId;
       }
-      // Switch to pending BU/group config and schedule at the boundary
+      // Switch to pending BU/group unit config, schedule, and year configs at the boundary
       if (pendingUnitConfig != null) {
         activeUnitConfig = pendingUnitConfig;
       }
       if (pendingSchedule !== undefined) {
         activeSchedule = pendingSchedule;
       }
+      // Switch to pending year configs (raise rules) if the employee is transitioning BU/group
+      if (pendingYearConfigs != null && pendingYearConfigs.length > 0) {
+        activeYearConfigs = pendingYearConfigs;
+      }
       laneInfo = activeSchedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
     }
+
+    // Use the active year configs stream — either original or pending (after boundary)
+    const config = activeYearConfigs[yearIdx] ?? yearConfigs[yearIdx];
+    if (!config) break;
 
     let projectedBaseSalary: Decimal;
     let projectedHourlyRate: Decimal | null = null;
@@ -94,10 +108,10 @@ export function calcEmployeeProjection(
       const indexResult = calcIndexBasedEmployeeYear(
         employee,
         yearIdx,
-        yearConfigs as YearConfigWithSchedule[],
+        activeYearConfigs as YearConfigWithSchedule[],
         indexGridConfig,
         currentLaneId,
-        initialStep,  // always pass the immutable starting step so yearIdx offsets are correct
+        initialStep,  // tracks initial step, reset at pending boundary for accurate yearIdx offsets
         proRateFraction
       );
       projectedBaseSalary = indexResult.salary;
