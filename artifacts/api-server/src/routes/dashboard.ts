@@ -116,10 +116,10 @@ router.get("/dashboard", async (req, res) => {
     byUnit: Array<{ bargainingUnitId: string; bargainingUnitName: string; cost: string }>;
   }> | null = null;
 
-  // Year 1 projected totals — only populated when a scenarioId is explicitly selected.
-  // These drive the KPI card overrides and Units projected costs.
-  // The fiveYearProjection chart may still fall back to the final scenario,
-  // but KPI/unit overrides are strictly explicit-only to avoid showing unexpected projections.
+  // All projection data (fiveYearProjection, year1 KPI overrides, Units sidebar)
+  // requires an explicit scenarioId. No finalScenario fallback is applied —
+  // callers that omit scenarioId receive null projection fields and the UI
+  // renders the appropriate "Select a scenario" empty state.
   let scenarioYear1TotalCost: string | null = null;
   let scenarioYear1ByUnit: Array<{
     bargainingUnitId: string;
