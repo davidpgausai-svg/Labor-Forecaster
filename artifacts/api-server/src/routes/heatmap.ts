@@ -12,7 +12,7 @@ import {
   stepsTable,
   salarySchedulesTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import Decimal from "decimal.js";
 
 const router = Router();
@@ -180,10 +180,24 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     db.select().from(stepsTable).where(eq(stepsTable.salaryScheduleId, schedule.id)).orderBy(stepsTable.stepNumber),
   ]);
 
+  // Only include employees calculated on the BU path — exclude anyone with
+  // an employeeGroupId because the calc engine routes those through the group
+  // config, not the bargaining-unit schedule.
   const employees = await db
     .select()
     .from(employeesTable)
-    .where(and(eq(employeesTable.districtId, scenario.districtId), eq(employeesTable.bargainingUnitId, targetBargainingUnitId)));
+    .where(and(
+      eq(employeesTable.districtId, scenario.districtId),
+      eq(employeesTable.bargainingUnitId, targetBargainingUnitId),
+      isNull(employeesTable.employeeGroupId),
+    ));
+
+  // All employees in this BU are assigned to an employee group — return empty
+  // so the UI shows the "no employees" state instead of a ghost grid.
+  if (employees.length === 0) {
+    res.json({ scenarioId, bargainingUnitId: targetBargainingUnitId, bargainingUnitName: unit?.name ?? null, years: [], allInGroups: true });
+    return;
+  }
 
   const yearRecords = await db
     .select()

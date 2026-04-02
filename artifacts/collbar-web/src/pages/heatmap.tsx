@@ -348,15 +348,27 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
   };
 
   if (isLoading) return <Skeleton className="h-[500px] w-full" />;
-  if (!data || data.years.length === 0)
+  if (!data || data.years.length === 0) {
+    const allInGroups = !!(data as Record<string, unknown>)?.allInGroups;
     return (
       <Card className="bg-card border-border">
         <CardContent className="py-12 text-center text-muted-foreground">
-          No heatmap data found for this unit. Ensure a scenario is selected and
-          employees are assigned.
+          {allInGroups ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">No direct union employees</p>
+              <p className="text-xs">
+                Every employee in this bargaining unit is assigned to an employee group,
+                so the calc engine uses their group config — not this unit's step/lane schedule.
+                Use the employee group filter above to view their heatmap.
+              </p>
+            </div>
+          ) : (
+            "No heatmap data found for this unit. Ensure a scenario is selected and employees are assigned."
+          )}
         </CardContent>
       </Card>
     );
+  }
 
   const yearData = data.years[currentYearIndex];
   const maxStep = yearData.maxStep;
