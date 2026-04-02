@@ -222,7 +222,7 @@ export default function Dashboard() {
                     <Calculator className="w-8 h-8 text-muted-foreground/40" />
                     {scenarioId ? (
                       <>
-                        <p className="text-muted-foreground text-sm font-medium">No projection data for this scenario</p>
+                        <p className="text-muted-foreground text-sm font-medium">No projection data — run Calculate on this scenario first</p>
                         <p className="text-muted-foreground/70 text-xs max-w-[220px]">
                           Open the scenario and click <strong>Calculate</strong> to generate year-by-year projections.
                         </p>
