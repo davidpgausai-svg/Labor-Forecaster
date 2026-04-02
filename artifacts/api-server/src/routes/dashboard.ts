@@ -116,8 +116,30 @@ router.get("/dashboard", async (req, res) => {
     byUnit: Array<{ bargainingUnitId: string; bargainingUnitName: string; cost: string }>;
   }> | null = null;
 
+  // Year 1 projected totals — used for KPI cards
+  let scenarioYear1TotalCost: string | null = null;
+  let scenarioYear1ByUnit: Array<{
+    bargainingUnitId: string;
+    bargainingUnitName: string;
+    totalPayroll: string;
+  }> | null = null;
+  let selectedScenarioName: string | null = null;
+
   const targetScenarioId = (scenarioId as string) || finalScenario?.id;
   if (targetScenarioId) {
+    // Resolve scenario name from loaded scenarios list
+    const matchedScenario = activeScenarios.find((s) => s.id === targetScenarioId);
+    selectedScenarioName = matchedScenario?.name ?? null;
+
+    // If not in active list (e.g. it's the final scenario and filtered out), load it directly
+    if (!selectedScenarioName) {
+      const [scRow] = await db
+        .select({ name: scenariosTable.name })
+        .from(scenariosTable)
+        .where(eq(scenariosTable.id, targetScenarioId));
+      selectedScenarioName = scRow?.name ?? null;
+    }
+
     const yearConfigs = await db
       .select()
       .from(scenarioYearConfigsTable)
@@ -166,18 +188,43 @@ router.get("/dashboard", async (req, res) => {
         }
       }
 
-      fiveYearProjection = Array.from(yearMap.values())
-        .sort((a, b) => a.contractYear - b.contractYear)
-        .map((y) => ({
-          contractYear: y.contractYear,
-          yearLabel: y.yearLabel,
-          totalEmployerCost: y.totalEmployerCost.toDecimalPlaces(2).toString(),
-          byUnit: units.map((u) => ({
-            bargainingUnitId: u.id,
-            bargainingUnitName: u.name,
-            cost: (y.unitCosts.get(u.id) ?? new Decimal(0)).toDecimalPlaces(2).toString(),
-          })),
+      const sortedYears = Array.from(yearMap.values()).sort(
+        (a, b) => a.contractYear - b.contractYear
+      );
+
+      fiveYearProjection = sortedYears.map((y) => ({
+        contractYear: y.contractYear,
+        yearLabel: y.yearLabel,
+        totalEmployerCost: y.totalEmployerCost.toDecimalPlaces(2).toString(),
+        byUnit: units.map((u) => ({
+          bargainingUnitId: u.id,
+          bargainingUnitName: u.name,
+          cost: (y.unitCosts.get(u.id) ?? new Decimal(0)).toDecimalPlaces(2).toString(),
+        })),
+      }));
+
+      // Extract Year 1 (first contract year after baseline) for KPI cards.
+      // contractYear=0 is baseline; Year 1 is the first negotiated year.
+      const year1Entry =
+        sortedYears.find((y) => y.contractYear === 1) ??
+        sortedYears.find((y) => y.contractYear > 0) ??
+        sortedYears[0];
+
+      if (year1Entry) {
+        scenarioYear1TotalCost = year1Entry.totalEmployerCost
+          .toDecimalPlaces(2)
+          .toString();
+
+        scenarioYear1ByUnit = units.map((u) => ({
+          bargainingUnitId: u.id,
+          bargainingUnitName: u.name,
+          totalPayroll: (
+            year1Entry.unitCosts.get(u.id) ?? new Decimal(0)
+          )
+            .toDecimalPlaces(2)
+            .toString(),
         }));
+      }
     }
   }
 
@@ -192,6 +239,9 @@ router.get("/dashboard", async (req, res) => {
     activeScenarios: activeScenarios.filter((s) => !s.isFinal),
     finalScenario,
     fiveYearProjection,
+    scenarioYear1TotalCost,
+    scenarioYear1ByUnit,
+    selectedScenarioName,
   });
 });
 

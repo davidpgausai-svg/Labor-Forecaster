@@ -35,11 +35,17 @@ export function calcIndexBasedEmployeeYear(
     }
   }
 
-  // 2. Step advancement: currentStep is the immutable initial step (passed by caller).
-  // projectedStep = initialStep + yearIdx so year 0 = no advancement, year 1 = +1, etc.
+  // 2. Step advancement: count only the contract years from index 1..yearIdx where
+  // stepAdvancement === true. yearIdx=0 is the baseline year and never contributes
+  // a step advance regardless of its flag. This respects per-year on/off toggles
+  // rather than blindly adding yearIdx (which assumed ALL years advance).
   let projectedStep: number | null = null;
   if (currentStep !== null) {
-    projectedStep = Math.min(currentStep + yearIdx, gridConfig.maxSteps);
+    const advancedSteps =
+      yearIdx === 0
+        ? 0
+        : yearConfigs.slice(1, yearIdx + 1).filter((c) => c.stepAdvancement).length;
+    projectedStep = Math.min(currentStep + advancedSteps, gridConfig.maxSteps);
   }
 
   // 3. Look up index value from the grid (match laneId + stepNumber)

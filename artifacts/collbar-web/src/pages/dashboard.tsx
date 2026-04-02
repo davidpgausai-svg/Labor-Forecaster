@@ -6,8 +6,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DollarSign, ArrowUpRight, Award, History } from "lucide-react";
+import { DollarSign, ArrowUpRight, Award, History, TrendingUp, Calculator } from "lucide-react";
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 
 type ProjectionRow = {
   contractYear?: number;
@@ -25,6 +26,15 @@ const UNIT_COLORS: Record<string, string> = {
 function getUnitColor(name: string, idx: number): string {
   const fallbacks = ["hsl(173,58%,39%)", "hsl(349,89%,60%)", "hsl(221,83%,53%)"];
   return UNIT_COLORS[name] ?? fallbacks[idx % fallbacks.length];
+}
+
+function deltaPercent(projected: string, baseline: string): string | null {
+  const p = parseFloat(projected);
+  const b = parseFloat(baseline);
+  if (!isFinite(p) || !isFinite(b) || b === 0) return null;
+  const pct = ((p - b) / b) * 100;
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(2)}%`;
 }
 
 export default function Dashboard() {
@@ -57,6 +67,20 @@ export default function Dashboard() {
 
   const projection = data.fiveYearProjection as ProjectionRow[] | null | undefined;
   const unitNames = projection?.[0]?.byUnit?.map(u => u.bargainingUnitName) ?? [];
+  const anyData = data as unknown as Record<string, unknown>;
+  const scenarioName = anyData.selectedScenarioName as string | null | undefined;
+  const year1Total = anyData.scenarioYear1TotalCost as string | null | undefined;
+  const year1ByUnit = anyData.scenarioYear1ByUnit as Array<{
+    bargainingUnitId: string;
+    bargainingUnitName: string;
+    totalPayroll: string;
+  }> | null | undefined;
+
+  const hasProjections = projection && projection.length > 0;
+  const hasYear1 = !!year1Total;
+
+  const delta = hasYear1 ? deltaPercent(year1Total!, data.totalCurrentPayroll) : null;
+  const deltaPositive = delta ? !delta.startsWith("-") : false;
 
   const chartData = projection?.map(row => {
     const point: Record<string, string | number | null | undefined> = { yearLabel: row.yearLabel };
@@ -76,15 +100,41 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-card border-border">
+        {/* Total Payroll — scenario-aware */}
+        <Card className={cn("bg-card border-border", hasYear1 && "border-primary/30")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Payroll</CardTitle>
-            <DollarSign className="w-4 h-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {hasYear1 ? "Year 1 Projected Cost" : "Current Payroll"}
+            </CardTitle>
+            <DollarSign className={cn("w-4 h-4", hasYear1 ? "text-primary" : "text-muted-foreground")} />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono">{formatCurrency(data.totalCurrentPayroll)}</div>
+          <CardContent className="space-y-1">
+            <div className="text-2xl font-bold font-mono">
+              {hasYear1 ? formatCurrency(year1Total!) : formatCurrency(data.totalCurrentPayroll)}
+            </div>
+            {hasYear1 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {delta && (
+                  <span className={cn(
+                    "inline-flex items-center gap-0.5 text-xs font-mono font-semibold px-1.5 py-0.5 rounded",
+                    deltaPositive
+                      ? "text-green-400 bg-green-400/10"
+                      : "text-red-400 bg-red-400/10"
+                  )}>
+                    <TrendingUp className="w-3 h-3" />
+                    {delta} vs baseline
+                  </span>
+                )}
+              </div>
+            )}
+            {hasYear1 && (
+              <div className="text-xs text-muted-foreground font-mono pt-0.5">
+                Baseline: {formatCurrency(data.totalCurrentPayroll)}
+              </div>
+            )}
           </CardContent>
         </Card>
+
         <Card className="bg-card border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Retirement Eligible</CardTitle>
@@ -119,11 +169,15 @@ export default function Dashboard() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle>5-Year Cost Projection</CardTitle>
-              <CardDescription>Total employer cost by bargaining unit</CardDescription>
+              <CardDescription>
+                {scenarioName
+                  ? `Scenario: ${scenarioName} — total employer cost by bargaining unit`
+                  : "Select a scenario to see projections"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
-                {chartData.length > 0 && unitNames.length > 0 ? (
+                {hasProjections && unitNames.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
@@ -166,8 +220,24 @@ export default function Dashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                    No projection data available
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-center">
+                    <Calculator className="w-8 h-8 text-muted-foreground/40" />
+                    {scenarioId ? (
+                      <>
+                        <p className="text-muted-foreground text-sm font-medium">No projection data for this scenario</p>
+                        <p className="text-muted-foreground/70 text-xs max-w-[220px]">
+                          Open the scenario and click <strong>Calculate</strong> to generate year-by-year projections.
+                        </p>
+                        <Link
+                          href={`/scenarios/${scenarioId}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Go to scenario →
+                        </Link>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">Select a scenario to see projections</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -177,23 +247,37 @@ export default function Dashboard() {
 
         <div className="space-y-6">
           <Card className="bg-card border-border">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle>Units</CardTitle>
+              {hasYear1 && (
+                <p className="text-xs text-muted-foreground mt-0.5">Year 1 projected employer cost</p>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
-              {data.employeeCountByUnit.map((unit) => (
-                <div key={unit.bargainingUnitId} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={getBadgeColorClass(unit.bargainingUnitName || "")}>
-                      {unit.bargainingUnitName}
-                    </Badge>
+              {data.employeeCountByUnit.map((unit) => {
+                const projUnit = year1ByUnit?.find(u => u.bargainingUnitId === unit.bargainingUnitId);
+                const displayPayroll = projUnit?.totalPayroll ?? unit.totalPayroll;
+                const isProjected = !!projUnit;
+
+                return (
+                  <div key={unit.bargainingUnitId} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={getBadgeColorClass(unit.bargainingUnitName || "")}>
+                        {unit.bargainingUnitName}
+                      </Badge>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-medium">{formatNumber(unit.employeeCount)}</div>
+                      <div className={cn(
+                        "text-xs font-mono",
+                        isProjected ? "text-primary" : "text-muted-foreground"
+                      )}>
+                        {formatCurrency(displayPayroll)}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono font-medium">{formatNumber(unit.employeeCount)}</div>
-                    <div className="text-xs text-muted-foreground font-mono">{formatCurrency(unit.totalPayroll)}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
 
