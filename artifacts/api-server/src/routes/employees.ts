@@ -396,13 +396,17 @@ router.put("/employees/:id", async (req, res) => {
     if (fields.currentStep !== undefined) liveFields.pendingCurrentStep = fields.currentStep;
     if (fields.currentLaneId !== undefined) liveFields.pendingCurrentLaneId = fields.currentLaneId;
     if (fields.currentAnnualSalary !== undefined) liveFields.pendingAnnualSalary = String(fields.currentAnnualSalary);
-    // Enforce mutual exclusivity: pending BU and pending group are mutually exclusive
-    if (fields.employeeGroupId !== undefined) {
+    // Enforce mutual exclusivity: pending BU and pending group are mutually exclusive.
+    // A non-null employeeGroupId means "switch to this group"; a non-null bargainingUnitId means "switch to this BU".
+    // null values are used only to signal clearing (e.g. union assignment sends employeeGroupId: null).
+    if (fields.employeeGroupId != null) {
+      // Switching to a group: set pending group, clear pending BU
       liveFields.pendingEmployeeGroupId = fields.employeeGroupId;
-      liveFields.pendingBargainingUnitId = null; // clear BU when group is set
-    } else if (fields.bargainingUnitId !== undefined) {
+      liveFields.pendingBargainingUnitId = null;
+    } else if (fields.bargainingUnitId != null) {
+      // Switching to a BU: set pending BU, clear pending group
       liveFields.pendingBargainingUnitId = fields.bargainingUnitId;
-      liveFields.pendingEmployeeGroupId = null; // clear group when BU is set
+      liveFields.pendingEmployeeGroupId = null;
     }
 
     [empResult] = await db
