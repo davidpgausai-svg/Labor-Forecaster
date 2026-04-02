@@ -174,7 +174,8 @@ router.post("/employees", async (req, res) => {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
-  const [emp] = await db.insert(employeesTable).values(parsed.data).returning();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [emp] = await db.insert(employeesTable).values(parsed.data as any).returning();
   res.status(201).json(emp);
 });
 
@@ -373,15 +374,14 @@ router.put("/employees/:id", async (req, res) => {
   let empResult;
 
   if (effectiveContractYear != null && Number(effectiveContractYear) > 0) {
-    // Future edit — write non-positional fields to live columns
-    // and position fields to pending columns only
+    // Future edit — write only non-positional fields to live columns.
+    // Position-related fields (BU, group, step, lane, salary) go to pending_* only.
+    // Live BU/group/step/lane/salary are left completely unchanged.
     const liveFields: Record<string, unknown> = { updatedAt: new Date() };
     if (fields.firstName !== undefined) liveFields.firstName = fields.firstName;
     if (fields.lastName !== undefined) liveFields.lastName = fields.lastName;
     if (fields.employeeNumber !== undefined) liveFields.employeeNumber = fields.employeeNumber;
     if (fields.status !== undefined) liveFields.status = fields.status;
-    if (fields.bargainingUnitId !== undefined) liveFields.bargainingUnitId = fields.bargainingUnitId;
-    if (fields.employeeGroupId !== undefined) liveFields.employeeGroupId = fields.employeeGroupId;
 
     liveFields.pendingEffectiveContractYear = Number(effectiveContractYear);
     if (fields.currentStep !== undefined) liveFields.pendingCurrentStep = fields.currentStep;

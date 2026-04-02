@@ -300,9 +300,88 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       effectiveDate: employee.effectiveDate,
       terminationDate: employee.terminationDate,
       pendingEffectiveContractYear: employee.pendingEffectiveContractYear ?? null,
+      pendingBargainingUnitId: employee.pendingBargainingUnitId ?? null,
+      pendingEmployeeGroupId: employee.pendingEmployeeGroupId ?? null,
       pendingCurrentStep: employee.pendingCurrentStep ?? null,
       pendingCurrentLaneId: employee.pendingCurrentLaneId ?? null,
       pendingAnnualSalary: employee.pendingAnnualSalary ?? null,
+    };
+  }
+
+  // Pre-load pending BU configs and schedules for employees with pending BU transitions
+  const empsPendingBuChange = [...allEmployees, ...groupEmployees]
+    .map((r) => r.employee)
+    .filter((e) => e.pendingBargainingUnitId != null && e.pendingEffectiveContractYear != null);
+  const empsPendingGroupChange = [...allEmployees, ...groupEmployees]
+    .map((r) => r.employee)
+    .filter((e) => e.pendingEmployeeGroupId != null && e.pendingEffectiveContractYear != null);
+
+  const pendingBuIds = [...new Set(empsPendingBuChange.map((e) => e.pendingBargainingUnitId!))];
+  const pendingGroupIds = [...new Set(empsPendingGroupChange.map((e) => e.pendingEmployeeGroupId!))];
+
+  // Load pending BU rows (for retirement/benefits config)
+  const pendingBuRows = pendingBuIds.length > 0
+    ? await db.select().from(bargainingUnitsTable).where(inArray(bargainingUnitsTable.id, pendingBuIds))
+    : [];
+  const pendingBuMap = new Map(pendingBuRows.map((u) => [u.id, u]));
+
+  // Load pending group rows
+  const pendingGroupRows = pendingGroupIds.length > 0
+    ? await db.select().from(employeeGroupsTable).where(inArray(employeeGroupsTable.id, pendingGroupIds))
+    : [];
+  const pendingGroupMap = new Map(pendingGroupRows.map((g) => [g.id, g]));
+
+  // Load pending BU schedules
+  const pendingBuScheduleMap = new Map<string, SalaryScheduleData | null>();
+  for (const buId of pendingBuIds) {
+    pendingBuScheduleMap.set(buId, await loadScheduleForUnit(buId));
+  }
+
+  function buildPendingBuConfig(buId: string): BargainingUnitConfig | null {
+    const u = pendingBuMap.get(buId);
+    if (!u) return null;
+    return {
+      id: u.id,
+      compensationType: u.compensationType as "salary" | "hourly",
+      retirementSystem: u.retirementSystem as "TRS" | "IMRF" | "other",
+      retirementEmployeeRate: u.retirementEmployeeRate,
+      retirementEmployerRate: u.retirementEmployerRate,
+      retirementGrossUpRate: u.retirementGrossUpRate,
+      ficaRate: u.ficaRate,
+      ficaExempt: u.ficaExempt,
+      healthInsuranceSingleAnnual: u.healthInsuranceSingleAnnual,
+      healthInsuranceFamilyAnnual: u.healthInsuranceFamilyAnnual,
+      dentalAnnual: u.dentalAnnual,
+      lifeInsuranceAnnual: u.lifeInsuranceAnnual,
+      disabilityInsuranceAnnual: u.disabilityInsuranceAnnual,
+      hsaContributionSingle: u.hsaContributionSingle,
+      hsaContributionFamily: u.hsaContributionFamily,
+      workersCompRate: u.workersCompRate,
+      contractYears: u.contractYears,
+    };
+  }
+
+  function buildPendingGroupConfig(groupId: string): BargainingUnitConfig | null {
+    const g = pendingGroupMap.get(groupId);
+    if (!g) return null;
+    return {
+      id: g.id,
+      compensationType: "salary",
+      retirementSystem: (g.retirementSystem as "TRS" | "IMRF" | "other") ?? "TRS",
+      retirementEmployeeRate: g.retirementEmployeeRate,
+      retirementEmployerRate: g.retirementEmployerRate,
+      retirementGrossUpRate: g.retirementGrossUpRate,
+      ficaRate: g.ficaRate,
+      ficaExempt: g.ficaExempt,
+      healthInsuranceSingleAnnual: g.healthInsuranceSingleAnnual,
+      healthInsuranceFamilyAnnual: g.healthInsuranceFamilyAnnual,
+      dentalAnnual: g.dentalAnnual,
+      lifeInsuranceAnnual: g.lifeInsuranceAnnual,
+      disabilityInsuranceAnnual: g.disabilityInsuranceAnnual,
+      hsaContributionSingle: g.hsaContributionSingle,
+      hsaContributionFamily: g.hsaContributionFamily,
+      workersCompRate: g.workersCompRate,
+      contractYears: g.contractYears,
     };
   }
 
@@ -349,7 +428,18 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     const scheduleData = await loadScheduleForUnit(bargainingUnitId);
 
     for (const { employee } of unitEmployees) {
-      const yearResults = calcEmployeeProjection(buildEmpInput(employee), typedYearConfigs, buConfig, scheduleData, scenarioId);
+      const empInput = buildEmpInput(employee);
+      // Resolve pending BU/group config for employees with a pending position transition
+      let pendingBuCfg: BargainingUnitConfig | null = null;
+      let pendingScheduleData: SalaryScheduleData | null | undefined = undefined;
+      if (empInput.pendingBargainingUnitId) {
+        pendingBuCfg = buildPendingBuConfig(empInput.pendingBargainingUnitId);
+        pendingScheduleData = pendingBuScheduleMap.get(empInput.pendingBargainingUnitId) ?? null;
+      } else if (empInput.pendingEmployeeGroupId) {
+        pendingBuCfg = buildPendingGroupConfig(empInput.pendingEmployeeGroupId);
+        pendingScheduleData = null;
+      }
+      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId, null, pendingBuCfg, pendingScheduleData);
       pushResults(yearResults);
     }
   }
@@ -397,7 +487,18 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     };
 
     for (const { employee } of groupEmps) {
-      const yearResults = calcEmployeeProjection(buildEmpInput(employee), typedYearConfigs, buConfig, null, scenarioId, indexGridConfig);
+      const empInput = buildEmpInput(employee);
+      // Resolve pending BU/group config for employees with a pending position transition
+      let pendingBuCfg: BargainingUnitConfig | null = null;
+      let pendingScheduleData: SalaryScheduleData | null | undefined = undefined;
+      if (empInput.pendingBargainingUnitId) {
+        pendingBuCfg = buildPendingBuConfig(empInput.pendingBargainingUnitId);
+        pendingScheduleData = pendingBuScheduleMap.get(empInput.pendingBargainingUnitId) ?? null;
+      } else if (empInput.pendingEmployeeGroupId) {
+        pendingBuCfg = buildPendingGroupConfig(empInput.pendingEmployeeGroupId);
+        pendingScheduleData = null;
+      }
+      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, null, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData);
       pushResults(yearResults);
     }
   }

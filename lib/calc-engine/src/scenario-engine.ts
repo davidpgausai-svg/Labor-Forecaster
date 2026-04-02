@@ -26,7 +26,9 @@ export function calcEmployeeProjection(
   unitConfig: BargainingUnitConfig,
   schedule: SalaryScheduleData | null,
   scenarioId: string,
-  indexGridConfig?: IndexGridConfig | null
+  indexGridConfig?: IndexGridConfig | null,
+  pendingUnitConfig?: BargainingUnitConfig | null,
+  pendingSchedule?: SalaryScheduleData | null
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -40,6 +42,8 @@ export function calcEmployeeProjection(
   const initialStep = employee.currentStep ?? null;
   let currentLaneId = employee.currentLaneId ?? null;
 
+  let activeUnitConfig = unitConfig;
+  let activeSchedule = schedule;
   let laneInfo: LaneInfo | null =
     schedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
 
@@ -61,8 +65,15 @@ export function calcEmployeeProjection(
       }
       if (employee.pendingCurrentLaneId != null) {
         currentLaneId = employee.pendingCurrentLaneId;
-        laneInfo = schedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
       }
+      // Switch to pending BU/group config and schedule at the boundary
+      if (pendingUnitConfig != null) {
+        activeUnitConfig = pendingUnitConfig;
+      }
+      if (pendingSchedule !== undefined) {
+        activeSchedule = pendingSchedule;
+      }
+      laneInfo = activeSchedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
     }
 
     let projectedBaseSalary: Decimal;
@@ -106,7 +117,7 @@ export function calcEmployeeProjection(
         tempEmployee,
         yearIdx,
         config,
-        schedule,
+        activeSchedule,
         MAX_STEPS,
         laneInfo,
         proRateFraction
@@ -136,7 +147,7 @@ export function calcEmployeeProjection(
 
     const benefits = calcBenefits(
       projectedBaseSalary,
-      unitConfig,
+      activeUnitConfig,
       config,
       yearIdx,
       employee.insuranceElection,

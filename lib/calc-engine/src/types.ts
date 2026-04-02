@@ -62,6 +62,8 @@ export interface EmployeeInput {
   effectiveDate?: string | null;
   terminationDate?: string | null;
   pendingEffectiveContractYear?: number | null;
+  pendingBargainingUnitId?: string | null;
+  pendingEmployeeGroupId?: string | null;
   pendingCurrentStep?: number | null;
   pendingCurrentLaneId?: string | null;
   pendingAnnualSalary?: string | null;
