@@ -19,7 +19,8 @@ import {
 
 const createEmployeeSchema = z.object({
   districtId: z.string().uuid(),
-  bargainingUnitId: z.string().uuid(),
+  bargainingUnitId: z.string().uuid().optional(),
+  employeeGroupId: z.string().uuid().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   employeeNumber: z.string().optional(),

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployees,
   getListEmployeesQueryKey,
@@ -6,8 +7,18 @@ import {
   getListBargainingUnitsQueryKey,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
+  useListSalarySchedules,
+  useCreateEmployee,
   type Employee,
 } from "@workspace/api-client-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
 import { getBadgeColorClass } from "@/lib/badges";
@@ -58,9 +69,17 @@ export default function Employees() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addForm, setAddForm] = useState({
+    firstName: "", lastName: "", employeeNumber: "",
+    assignType: "union" as "union" | "group",
+    bargainingUnitId: "", employeeGroupId: "",
+    currentAnnualSalary: "", currentStep: "", currentLaneId: "",
+    status: "active", contractYear: 0,
+  });
+
   const [search, setSearch] = useState("");
-  const [unitFilter, setUnitFilter] = useState(ALL);
-  const [groupFilter, setGroupFilter] = useState(ALL);
+  const [rosterFilter, setRosterFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [laneFilter, setLaneFilter] = useState(ALL);
   const [insuranceFilter, setInsuranceFilter] = useState(ALL);
@@ -92,17 +111,39 @@ export default function Employees() {
     }
   );
 
+  const isUnitFilter = rosterFilter.startsWith("u:");
+  const isGroupFilter = rosterFilter.startsWith("g:");
+  const filteredBuId = isUnitFilter ? rosterFilter.slice(2) : undefined;
+  const filteredGroupId = isGroupFilter ? rosterFilter.slice(2) : undefined;
+
   const params = useMemo(
     () => ({
       districtId: districtId!,
-      bargainingUnitId: unitFilter !== ALL ? unitFilter : undefined,
-      employeeGroupId: groupFilter !== ALL ? groupFilter : undefined,
+      bargainingUnitId: filteredBuId,
+      employeeGroupId: filteredGroupId,
       status: statusFilter !== ALL ? statusFilter : undefined,
       page,
       pageSize,
     }),
-    [districtId, unitFilter, groupFilter, statusFilter, page, pageSize]
+    [districtId, filteredBuId, filteredGroupId, statusFilter, page, pageSize]
   );
+
+  const queryClient = useQueryClient();
+  const createMutation = useCreateEmployee({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["listEmployees"] });
+        setShowAddDialog(false);
+        setAddForm({ firstName: "", lastName: "", employeeNumber: "", assignType: "union", bargainingUnitId: "", employeeGroupId: "", currentAnnualSalary: "", currentStep: "", currentLaneId: "", status: "active", contractYear: 0 });
+      },
+    },
+  });
+
+  const { data: addFormSchedule } = useListSalarySchedules(
+    { bargainingUnitId: addForm.bargainingUnitId || undefined },
+    { query: { enabled: addForm.assignType === "union" && !!addForm.bargainingUnitId } }
+  );
+  const addFormLanes = addFormSchedule?.[0]?.lanes ?? [];
 
   const { data, isLoading } = useListEmployees(params, {
     query: {
@@ -254,8 +295,7 @@ export default function Employees() {
   });
 
   const hasFilters =
-    unitFilter !== ALL ||
-    groupFilter !== ALL ||
+    rosterFilter !== ALL ||
     statusFilter !== ALL ||
     laneFilter !== ALL ||
     insuranceFilter !== ALL ||
@@ -268,8 +308,7 @@ export default function Employees() {
 
   const clearFilters = () => {
     setSearch("");
-    setUnitFilter(ALL);
-    setGroupFilter(ALL);
+    setRosterFilter(ALL);
     setStatusFilter(ALL);
     setLaneFilter(ALL);
     setInsuranceFilter(ALL);
@@ -279,6 +318,27 @@ export default function Employees() {
     setSalaryMin("");
     setSalaryMax("");
     setPage(1);
+  };
+
+  const handleAddEmployee = () => {
+    const payload: Record<string, unknown> = {
+      districtId,
+      firstName: addForm.firstName,
+      lastName: addForm.lastName,
+      employeeNumber: addForm.employeeNumber || undefined,
+      currentAnnualSalary: addForm.currentAnnualSalary || "0",
+      status: addForm.status,
+      contractYear: addForm.contractYear || 0,
+    };
+    if (addForm.assignType === "union" && addForm.bargainingUnitId) {
+      payload.bargainingUnitId = addForm.bargainingUnitId;
+      if (addForm.currentStep) payload.currentStep = parseInt(addForm.currentStep, 10);
+      if (addForm.currentLaneId) payload.currentLaneId = addForm.currentLaneId;
+    } else if (addForm.assignType === "group" && addForm.employeeGroupId) {
+      payload.employeeGroupId = addForm.employeeGroupId;
+      if (addForm.bargainingUnitId) payload.bargainingUnitId = addForm.bargainingUnitId;
+    }
+    createMutation.mutate({ data: payload as Parameters<typeof createMutation.mutate>[0]["data"] });
   };
 
   return (
@@ -291,12 +351,17 @@ export default function Employees() {
             {data?.total ? `${data.total} employees.` : ""}
           </p>
         </div>
-        <Link
-          href="/employees/import"
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-4 py-2 gap-2"
-        >
-          <Upload className="w-4 h-4" /> Import CSV/Excel
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={() => setShowAddDialog(true)} className="h-9 gap-2">
+            + Add Employee
+          </Button>
+          <Link
+            href="/employees/import"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-4 py-2 gap-2"
+          >
+            <Upload className="w-4 h-4" /> Import CSV/Excel
+          </Link>
+        </div>
       </div>
 
       <Card className="bg-card border-border">
@@ -315,43 +380,25 @@ export default function Employees() {
             </div>
 
             <Select
-              value={unitFilter}
-              onValueChange={(v) => {
-                setUnitFilter(v);
-                setGroupFilter(ALL);
-                setPage(1);
-              }}
+              value={rosterFilter}
+              onValueChange={(v) => { setRosterFilter(v); setPage(1); }}
             >
-              <SelectTrigger className="w-44 h-9 bg-background/50 border-border text-sm">
-                <SelectValue placeholder="All Units" />
+              <SelectTrigger className="w-56 h-9 bg-background/50 border-border text-sm">
+                <SelectValue placeholder="All Employees" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>All Units</SelectItem>
+                <SelectItem value={ALL}>All Employees</SelectItem>
+                {(units?.length ?? 0) > 0 && (
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Union</div>
+                )}
                 {units?.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
+                  <SelectItem key={u.id} value={`u:${u.id}`}>{u.name}</SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={groupFilter}
-              onValueChange={(v) => {
-                setGroupFilter(v);
-                setUnitFilter(ALL);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-52 h-9 bg-background/50 border-border text-sm">
-                <SelectValue placeholder="All Groups" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>All Groups</SelectItem>
+                {(employeeGroups?.length ?? 0) > 0 && (
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-1">Non-Union</div>
+                )}
                 {employeeGroups?.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.name}
-                  </SelectItem>
+                  <SelectItem key={g.id} value={`g:${g.id}`}>{g.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -610,6 +657,112 @@ export default function Employees() {
           </div>
         )}
       </Card>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="bg-card border-border max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Employee</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">First Name</Label>
+                <Input className="bg-background/50 h-9 text-sm" value={addForm.firstName} onChange={e => setAddForm(f => ({ ...f, firstName: e.target.value }))} placeholder="First name" />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Last Name</Label>
+                <Input className="bg-background/50 h-9 text-sm" value={addForm.lastName} onChange={e => setAddForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Last name" />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Employee Number (optional)</Label>
+              <Input className="bg-background/50 h-9 text-sm" value={addForm.employeeNumber} onChange={e => setAddForm(f => ({ ...f, employeeNumber: e.target.value }))} placeholder="e.g. EMP-001" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Assignment Type</Label>
+              <Select value={addForm.assignType} onValueChange={v => setAddForm(f => ({ ...f, assignType: v as "union" | "group", bargainingUnitId: "", employeeGroupId: "", currentStep: "", currentLaneId: "" }))}>
+                <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="union">Union (step-and-lane schedule)</SelectItem>
+                  <SelectItem value="group">Non-Union (individual salary)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {addForm.assignType === "union" ? (
+              <>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs">Bargaining Unit</Label>
+                  <Select value={addForm.bargainingUnitId} onValueChange={v => setAddForm(f => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}>
+                    <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                    <SelectContent>
+                      {units?.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {addFormLanes.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Starting Step</Label>
+                      <Input className="bg-background/50 h-9 text-sm" type="number" min={1} value={addForm.currentStep} onChange={e => setAddForm(f => ({ ...f, currentStep: e.target.value }))} placeholder="1" />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Lane</Label>
+                      <Select value={addForm.currentLaneId} onValueChange={v => setAddForm(f => ({ ...f, currentLaneId: v }))}>
+                        <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select lane" /></SelectTrigger>
+                        <SelectContent>
+                          {addFormLanes.map((l: { id: string; name: string }) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Non-Union Group</Label>
+                <Select value={addForm.employeeGroupId} onValueChange={v => setAddForm(f => ({ ...f, employeeGroupId: v }))}>
+                  <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select group" /></SelectTrigger>
+                  <SelectContent>
+                    {employeeGroups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Annual Salary</Label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input className="bg-background/50 h-9 text-sm pl-6" value={addForm.currentAnnualSalary} onChange={e => setAddForm(f => ({ ...f, currentAnnualSalary: e.target.value }))} placeholder="0" />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Status</Label>
+                <Select value={addForm.status} onValueChange={v => setAddForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="new_hire">New Hire</SelectItem>
+                    <SelectItem value="on_leave">On Leave</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handleAddEmployee}
+              disabled={!addForm.firstName || !addForm.lastName || createMutation.isPending}
+            >
+              {createMutation.isPending ? "Adding..." : "Add Employee"}
+            </Button>
+          </DialogFooter>
+          {createMutation.isError && (
+            <p className="text-xs text-red-400 px-1">{String((createMutation.error as Record<string, unknown>)?.message ?? "Failed to add employee")}</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
