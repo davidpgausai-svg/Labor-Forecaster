@@ -348,43 +348,112 @@ router.get("/employees/:id", async (req, res) => {
   res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, compensationScheduleType, laneName: row.laneName, yearProjections, retirementOptions });
 });
 
+async function recalcDistrictScenarios(districtId: string, context: string): Promise<{ count: number; errors: string[] }> {
+  const scenarios = await db
+    .select({ id: scenariosTable.id })
+    .from(scenariosTable)
+    .where(eq(scenariosTable.districtId, districtId));
+
+  const errors: string[] = [];
+  for (const scenario of scenarios) {
+    try {
+      await runScenarioCalculation(scenario.id);
+    } catch (err) {
+      errors.push(scenario.id);
+      console.error(`[${context}] Failed to recalculate scenario ${scenario.id}:`, err);
+    }
+  }
+  return { count: scenarios.length, errors };
+}
+
 router.put("/employees/:id", async (req, res) => {
   const body = req.body;
+  const { effectiveContractYear, ...fields } = body;
+
+  let empResult;
+
+  if (effectiveContractYear != null && Number(effectiveContractYear) > 0) {
+    // Future edit — write non-positional fields to live columns
+    // and position fields to pending columns only
+    const liveFields: Record<string, unknown> = { updatedAt: new Date() };
+    if (fields.firstName !== undefined) liveFields.firstName = fields.firstName;
+    if (fields.lastName !== undefined) liveFields.lastName = fields.lastName;
+    if (fields.employeeNumber !== undefined) liveFields.employeeNumber = fields.employeeNumber;
+    if (fields.status !== undefined) liveFields.status = fields.status;
+    if (fields.bargainingUnitId !== undefined) liveFields.bargainingUnitId = fields.bargainingUnitId;
+    if (fields.employeeGroupId !== undefined) liveFields.employeeGroupId = fields.employeeGroupId;
+
+    liveFields.pendingEffectiveContractYear = Number(effectiveContractYear);
+    if (fields.currentStep !== undefined) liveFields.pendingCurrentStep = fields.currentStep;
+    if (fields.currentLaneId !== undefined) liveFields.pendingCurrentLaneId = fields.currentLaneId;
+    if (fields.currentAnnualSalary !== undefined) liveFields.pendingAnnualSalary = String(fields.currentAnnualSalary);
+    if (fields.bargainingUnitId !== undefined) liveFields.pendingBargainingUnitId = fields.bargainingUnitId;
+    if (fields.employeeGroupId !== undefined) liveFields.pendingEmployeeGroupId = fields.employeeGroupId;
+
+    [empResult] = await db
+      .update(employeesTable)
+      .set(liveFields)
+      .where(eq(employeesTable.id, req.params.id))
+      .returning();
+  } else {
+    // Immediate correction — write all fields to live columns and clear any pending state
+    [empResult] = await db
+      .update(employeesTable)
+      .set({
+        ...fields,
+        pendingEffectiveContractYear: null,
+        pendingBargainingUnitId: null,
+        pendingEmployeeGroupId: null,
+        pendingCurrentStep: null,
+        pendingCurrentLaneId: null,
+        pendingAnnualSalary: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(employeesTable.id, req.params.id))
+      .returning();
+  }
+
+  if (!empResult) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
+
+  const { count, errors } = await recalcDistrictScenarios(empResult.districtId, "PUT /employees/:id");
+
+  if (errors.length > 0) {
+    res.status(500).json({
+      error: `Employee saved but recalculation failed for ${errors.length} scenario(s).`,
+      scenariosRecalculated: count - errors.length,
+      scenariosFailed: errors.length,
+    });
+    return;
+  }
+
+  res.json({ ...empResult, scenariosRecalculated: count });
+});
+
+router.delete("/employees/:id/pending", async (req, res) => {
   const [emp] = await db
     .update(employeesTable)
-    .set({ ...body, updatedAt: new Date() })
+    .set({
+      pendingEffectiveContractYear: null,
+      pendingBargainingUnitId: null,
+      pendingEmployeeGroupId: null,
+      pendingCurrentStep: null,
+      pendingCurrentLaneId: null,
+      pendingAnnualSalary: null,
+      updatedAt: new Date(),
+    })
     .where(eq(employeesTable.id, req.params.id))
     .returning();
+
   if (!emp) {
     res.status(404).json({ error: "Employee not found" });
     return;
   }
 
-  const districtScenarios = await db
-    .select({ id: scenariosTable.id })
-    .from(scenariosTable)
-    .where(eq(scenariosTable.districtId, emp.districtId));
-
-  const recalcErrors: string[] = [];
-  for (const scenario of districtScenarios) {
-    try {
-      await runScenarioCalculation(scenario.id);
-    } catch (err) {
-      recalcErrors.push(scenario.id);
-      console.error(`[PUT /employees/:id] Failed to recalculate scenario ${scenario.id}:`, err);
-    }
-  }
-
-  if (recalcErrors.length > 0) {
-    res.status(500).json({
-      error: `Employee saved but recalculation failed for ${recalcErrors.length} scenario(s).`,
-      scenariosRecalculated: districtScenarios.length - recalcErrors.length,
-      scenariosFailed: recalcErrors.length,
-    });
-    return;
-  }
-
-  res.json({ ...emp, scenariosRecalculated: districtScenarios.length });
+  await recalcDistrictScenarios(emp.districtId, "DELETE /employees/:id/pending");
+  res.json(emp);
 });
 
 router.delete("/employees/:id", async (req, res) => {

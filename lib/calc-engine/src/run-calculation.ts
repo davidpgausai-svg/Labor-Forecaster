@@ -299,6 +299,10 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       contractYear: employee.contractYear,
       effectiveDate: employee.effectiveDate,
       terminationDate: employee.terminationDate,
+      pendingEffectiveContractYear: employee.pendingEffectiveContractYear ?? null,
+      pendingCurrentStep: employee.pendingCurrentStep ?? null,
+      pendingCurrentLaneId: employee.pendingCurrentLaneId ?? null,
+      pendingAnnualSalary: employee.pendingAnnualSalary ?? null,
     };
   }
 

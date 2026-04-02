@@ -38,14 +38,32 @@ export function calcEmployeeProjection(
   // For index-based grid: track the immutable starting step so yearIdx-based advancement
   // is computed from the original position, not from a step that gets mutated each year.
   const initialStep = employee.currentStep ?? null;
-  const currentLaneId = employee.currentLaneId ?? null;
+  let currentLaneId = employee.currentLaneId ?? null;
 
-  const laneInfo: LaneInfo | null =
+  let laneInfo: LaneInfo | null =
     schedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
 
   for (let yearIdx = 0; yearIdx <= Math.max(unitConfig.contractYears - 1, yearConfigs.length - 1); yearIdx++) {
     const config = yearConfigs[yearIdx];
     if (!config) break;
+
+    // Apply pending position change at its effective contract year boundary
+    if (
+      yearIdx > 0 &&
+      employee.pendingEffectiveContractYear != null &&
+      yearIdx === employee.pendingEffectiveContractYear
+    ) {
+      if (employee.pendingAnnualSalary != null) {
+        currentSalary = new Decimal(employee.pendingAnnualSalary);
+      }
+      if (employee.pendingCurrentStep != null) {
+        currentStep = employee.pendingCurrentStep;
+      }
+      if (employee.pendingCurrentLaneId != null) {
+        currentLaneId = employee.pendingCurrentLaneId;
+        laneInfo = schedule?.lanes.find((l) => l.id === currentLaneId) ?? null;
+      }
+    }
 
     let projectedBaseSalary: Decimal;
     let projectedHourlyRate: Decimal | null = null;

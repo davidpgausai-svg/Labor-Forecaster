@@ -8,6 +8,8 @@ import {
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
   useListSalarySchedules,
+  getListSalarySchedulesQueryKey,
+  type SalaryScheduleWithGrid,
   useCreateEmployee,
   type Employee,
 } from "@workspace/api-client-react";
@@ -49,6 +51,7 @@ import {
   X,
   ArrowUpDown,
   Filter,
+  Clock,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -141,9 +144,9 @@ export default function Employees() {
 
   const { data: addFormSchedule } = useListSalarySchedules(
     { bargainingUnitId: addForm.bargainingUnitId || undefined },
-    { query: { enabled: addForm.assignType === "union" && !!addForm.bargainingUnitId } }
+    { query: { enabled: addForm.assignType === "union" && !!addForm.bargainingUnitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: addForm.bargainingUnitId || undefined }) } }
   );
-  const addFormLanes = addFormSchedule?.[0]?.lanes ?? [];
+  const addFormLanes = ((addFormSchedule as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
 
   const { data, isLoading } = useListEmployees(params, {
     query: {
@@ -200,16 +203,24 @@ export default function Employees() {
             Name <ArrowUpDown className="w-3 h-3" />
           </button>
         ),
-        cell: ({ row }) => (
-          <span className="font-medium">
-            {row.original.lastName}, {row.original.firstName}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const hasPending = (row.original as unknown as Record<string, unknown>).pendingEffectiveContractYear != null;
+          return (
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              {row.original.lastName}, {row.original.firstName}
+              {hasPending && (
+                <span title="Has a pending future position change">
+                  <Clock className="w-3 h-3 text-amber-400" />
+                </span>
+              )}
+            </span>
+          );
+        },
       }),
       columnHelper.accessor("bargainingUnitName", {
         header: "Unit / Group",
         cell: ({ row }) => {
-          const groupName = (row.original as Record<string, unknown>).employeeGroupName as string | undefined;
+          const groupName = (row.original as unknown as Record<string, unknown>).employeeGroupName as string | undefined;
           return (
             <div className="flex flex-col gap-0.5">
               {groupName ? (
@@ -338,7 +349,7 @@ export default function Employees() {
       payload.employeeGroupId = addForm.employeeGroupId;
       if (addForm.bargainingUnitId) payload.bargainingUnitId = addForm.bargainingUnitId;
     }
-    createMutation.mutate({ data: payload as Parameters<typeof createMutation.mutate>[0]["data"] });
+    createMutation.mutate({ data: payload as unknown as Parameters<typeof createMutation.mutate>[0]["data"] });
   };
 
   return (
@@ -759,7 +770,7 @@ export default function Employees() {
             </Button>
           </DialogFooter>
           {createMutation.isError && (
-            <p className="text-xs text-red-400 px-1">{String((createMutation.error as Record<string, unknown>)?.message ?? "Failed to add employee")}</p>
+            <p className="text-xs text-red-400 px-1">{String((createMutation.error as unknown as Record<string, unknown>)?.message ?? "Failed to add employee")}</p>
           )}
         </DialogContent>
       </Dialog>

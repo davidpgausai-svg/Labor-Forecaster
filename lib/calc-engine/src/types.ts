@@ -61,6 +61,10 @@ export interface EmployeeInput {
   contractYear: number;
   effectiveDate?: string | null;
   terminationDate?: string | null;
+  pendingEffectiveContractYear?: number | null;
+  pendingCurrentStep?: number | null;
+  pendingCurrentLaneId?: string | null;
+  pendingAnnualSalary?: string | null;
 }
 
 export interface IndexGridIndex {

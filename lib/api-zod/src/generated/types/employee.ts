@@ -31,6 +31,12 @@ export interface Employee {
   contractYear?: number;
   bargainingUnitName?: string | null;
   laneName?: string | null;
+  pendingEffectiveContractYear?: number | null;
+  pendingBargainingUnitId?: string | null;
+  pendingEmployeeGroupId?: string | null;
+  pendingCurrentStep?: number | null;
+  pendingCurrentLaneId?: string | null;
+  pendingAnnualSalary?: string | null;
   createdAt: string;
   updatedAt: string;
 }

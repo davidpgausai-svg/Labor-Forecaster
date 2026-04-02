@@ -189,6 +189,12 @@ export interface Employee {
   contractYear?: number;
   bargainingUnitName?: string | null;
   laneName?: string | null;
+  pendingEffectiveContractYear?: number | null;
+  pendingBargainingUnitId?: string | null;
+  pendingEmployeeGroupId?: string | null;
+  pendingCurrentStep?: number | null;
+  pendingCurrentLaneId?: string | null;
+  pendingAnnualSalary?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -273,6 +279,8 @@ export interface UpdateEmployeeRequest {
   retirementTargetYear?: number;
   status?: string;
   notes?: string;
+  /** If > 0, saves position changes to pending columns only (future effective year). If absent or 0, applies immediately to live fields. */
+  effectiveContractYear?: number | null;
 }
 
 export interface ImportEmployeesRequest {

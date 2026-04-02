@@ -4,11 +4,14 @@ import {
   useGetEmployee,
   getGetEmployeeQueryKey,
   useUpdateEmployee,
+  useDiscardPendingChange,
   useListBargainingUnits,
   getListBargainingUnitsQueryKey,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
   useListSalarySchedules,
+  getListSalarySchedulesQueryKey,
+  type SalaryScheduleWithGrid,
   getListScenariosQueryKey,
   getListEmployeesQueryKey,
   getGetDashboardQueryKey,
@@ -44,7 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, AlertTriangle, TrendingUp, Pencil, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, TrendingUp, Pencil, Loader2, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -192,6 +195,8 @@ export default function EmployeeDetail() {
     bargainingUnitId: "", employeeGroupId: "",
     currentAnnualSalary: "", currentStep: "", currentLaneId: "",
     status: "active",
+    editMode: "immediate" as "immediate" | "future",
+    effectiveContractYear: "",
   });
 
   const queryClient = useQueryClient();
@@ -206,18 +211,30 @@ export default function EmployeeDetail() {
   );
   const { data: editSchedule } = useListSalarySchedules(
     { bargainingUnitId: editForm.bargainingUnitId || undefined },
-    { query: { enabled: editForm.assignType === "union" && !!editForm.bargainingUnitId } }
+    { query: { enabled: editForm.assignType === "union" && !!editForm.bargainingUnitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: editForm.bargainingUnitId || undefined }) } }
   );
-  const editLanes = editSchedule?.[0]?.lanes ?? [];
+  const editLanes = ((editSchedule as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
+
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
+    queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey({ districtId: districtId ?? undefined }) });
+    queryClient.invalidateQueries({ queryKey: getListScenariosQueryKey({ districtId: districtId ?? undefined }) });
+    queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey({ districtId: districtId ?? undefined, scenarioId: scenarioId ?? undefined }) });
+  }
 
   const updateMutation = useUpdateEmployee({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
-        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey({ districtId: districtId ?? undefined }) });
-        queryClient.invalidateQueries({ queryKey: getListScenariosQueryKey({ districtId: districtId ?? undefined }) });
-        queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey({ districtId: districtId ?? undefined, scenarioId: scenarioId ?? undefined }) });
+        invalidateAll();
         setShowEdit(false);
+      },
+    },
+  });
+
+  const discardMutation = useDiscardPendingChange({
+    mutation: {
+      onSuccess: () => {
+        invalidateAll();
       },
     },
   });
@@ -235,8 +252,7 @@ export default function EmployeeDetail() {
 
   function openEdit() {
     if (!emp) return;
-    const e = emp as Record<string, unknown>;
-    const hasBu = !!emp.bargainingUnitId;
+    const e = emp as unknown as Record<string, unknown>;
     const hasGroup = !!(e.employeeGroupId);
     setEditForm({
       firstName: emp.firstName ?? "",
@@ -249,10 +265,10 @@ export default function EmployeeDetail() {
       currentStep: emp.currentStep != null ? String(emp.currentStep) : "",
       currentLaneId: String(e.currentLaneId ?? ""),
       status: emp.status ?? "active",
+      editMode: "immediate",
+      effectiveContractYear: "",
     });
     setShowEdit(true);
-    // suppress unused var warning
-    void hasBu;
   }
 
   function handleSaveEdit() {
@@ -271,6 +287,9 @@ export default function EmployeeDetail() {
     } else {
       body.employeeGroupId = editForm.employeeGroupId || null;
       body.bargainingUnitId = emp?.bargainingUnitId ?? null;
+    }
+    if (editForm.editMode === "future" && editForm.effectiveContractYear) {
+      body.effectiveContractYear = parseInt(editForm.effectiveContractYear, 10);
     }
     updateMutation.mutate({ id, data: body as Parameters<typeof updateMutation.mutate>[0]["data"] });
   }
@@ -295,6 +314,7 @@ export default function EmployeeDetail() {
 
   const opts = emp.retirementOptions;
   const projections = (emp.yearProjections ?? []) as unknown as Array<Record<string, unknown>>;
+  const empAny = emp as unknown as Record<string, unknown>;
 
   // Use selected projection year, fall back to active header year, then first year
   const effectiveProjYear = selectedProjYear
@@ -329,13 +349,13 @@ export default function EmployeeDetail() {
             >
               {emp.bargainingUnitName || "Unknown Unit"}
             </Badge>
-            {(emp as Record<string, unknown>).employeeGroupName && (
+            {!!empAny.employeeGroupName && (
               <Badge
                 variant="outline"
                 className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs"
                 title="Scenario calculations use this employee group config (Non-Union path)"
               >
-                {String((emp as Record<string, unknown>).employeeGroupName)} · Non-Union
+                {String(empAny.employeeGroupName)} · Non-Union
               </Badge>
             )}
             <Badge
@@ -365,13 +385,47 @@ export default function EmployeeDetail() {
         </Button>
       </div>
 
+      {/* Pending position change banner */}
+      {empAny.pendingEffectiveContractYear != null && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <Clock className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-amber-300">
+              Pending position change effective{" "}
+              {projections.find((p) => Number(p.contractYear) === empAny.pendingEffectiveContractYear)
+                ? s(projections.find((p) => Number(p.contractYear) === empAny.pendingEffectiveContractYear)!.yearLabel)
+                : `Contract Year ${String(empAny.pendingEffectiveContractYear)}`}
+            </div>
+            <div className="text-xs text-amber-400/80 mt-0.5 space-x-3">
+              {empAny.pendingCurrentStep != null && (
+                <span>Step {String(empAny.pendingCurrentStep)}</span>
+              )}
+              {empAny.pendingAnnualSalary != null && (
+                <span>{formatCurrency(String(empAny.pendingAnnualSalary))}</span>
+              )}
+              <span className="text-amber-500/60">· Year 0 uses current state; this effective year onward uses new position</span>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => discardMutation.mutate({ id })}
+            disabled={discardMutation.isPending}
+            className="shrink-0 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 gap-1.5"
+          >
+            {discardMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+            Discard
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-card border-border md:col-span-2">
           <CardHeader>
             <CardTitle>
               {scenarioId ? "Scenario Projection by Year" : "5-Year Cost Projection"}
             </CardTitle>
-            {hasProjections && (emp as Record<string, unknown>).compensationScheduleType === "individual_salary" ? (
+            {hasProjections && empAny.compensationScheduleType === "individual_salary" ? (
               <p className="text-xs text-amber-400/80 mt-1">
                 Individual salary — this employee's pay is driven by the configured increase %, not by schedule cell lookup. Step shown is for reference tracking only.
               </p>
@@ -395,7 +449,7 @@ export default function EmployeeDetail() {
               </TableHeader>
               <TableBody>
                 {hasProjections ? (
-                  projections.map((proj, i) => {
+                  projections.flatMap((proj, i) => {
                     const cy = Number(proj.contractYear);
                     const isActive = cy === effectiveProjYear;
                     const prevProj = i > 0 ? projections[i - 1] : null;
@@ -403,18 +457,28 @@ export default function EmployeeDetail() {
                       && proj.projectedStep !== null
                       && prevProj.projectedStep !== null
                       && Number(proj.projectedStep) > Number(prevProj.projectedStep);
+                    const pendingEffectiveYear = Number(empAny.pendingEffectiveContractYear ?? -1);
+                    const isPendingBoundary = pendingEffectiveYear > 0 && cy === pendingEffectiveYear;
 
-                    return (
+                    const row = (
                       <TableRow
                         key={i}
                         className={cn(
                           "border-border cursor-pointer transition-colors",
-                          isActive ? "bg-primary/8 border-l-2 border-l-primary" : "hover:bg-muted/30"
+                          isActive ? "bg-primary/8 border-l-2 border-l-primary" : "hover:bg-muted/30",
+                          isPendingBoundary ? "border-t-2 border-t-amber-500/50" : ""
                         )}
                         onClick={() => setSelectedProjYear(cy === selectedProjYear ? null : cy)}
                       >
                         <TableCell className="font-medium">
-                          {s(proj.yearLabel)}
+                          <span className="flex items-center gap-1.5">
+                            {s(proj.yearLabel)}
+                            {isPendingBoundary && (
+                              <span className="inline-flex items-center gap-0.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-1 py-0.5 font-normal">
+                                <Clock className="w-2.5 h-2.5" /> New Position
+                              </span>
+                            )}
+                          </span>
                         </TableCell>
                         {hasStepData && (
                           <TableCell className="text-center">
@@ -449,6 +513,8 @@ export default function EmployeeDetail() {
                         </TableCell>
                       </TableRow>
                     );
+
+                    return [row];
                   })
                 ) : (
                   <TableRow>
@@ -689,6 +755,52 @@ export default function EmployeeDetail() {
             <DialogTitle>Edit Employee Profile</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Effective From selector */}
+            <div className="space-y-1.5">
+              <Label>Effective From</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={editForm.editMode === "immediate" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setEditForm((f) => ({ ...f, editMode: "immediate", effectiveContractYear: "" }))}
+                >
+                  This fiscal year — correct current record
+                </Button>
+                <Button
+                  type="button"
+                  variant={editForm.editMode === "future" ? "default" : "outline"}
+                  size="sm"
+                  disabled={projections.length <= 1}
+                  onClick={() => setEditForm((f) => ({ ...f, editMode: "future", effectiveContractYear: projections.length > 1 ? String(projections[1].contractYear) : "" }))}
+                >
+                  Future fiscal year
+                </Button>
+              </div>
+              {editForm.editMode === "future" && projections.length > 1 && (
+                <Select
+                  value={editForm.effectiveContractYear}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, effectiveContractYear: v }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select effective year…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projections.slice(1).map((p) => (
+                      <SelectItem key={String(p.contractYear)} value={String(p.contractYear)}>
+                        {s(p.yearLabel)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {editForm.editMode === "future" && (
+                <p className="text-xs text-amber-400/80">
+                  Current year stays unchanged. Position fields below apply from the selected year onward.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>First Name</Label>
@@ -769,9 +881,9 @@ export default function EmployeeDetail() {
                       <SelectValue placeholder="Select unit…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(units ?? []).map((u: Record<string, unknown>) => (
-                        <SelectItem key={String(u.id)} value={String(u.id)}>
-                          {String(u.name)}
+                      {(units ?? []).map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -800,9 +912,9 @@ export default function EmployeeDetail() {
                           <SelectValue placeholder="Select lane…" />
                         </SelectTrigger>
                         <SelectContent>
-                          {editLanes.map((lane: Record<string, unknown>) => (
-                            <SelectItem key={String(lane.id)} value={String(lane.id)}>
-                              {String(lane.name)}
+                          {editLanes.map((lane) => (
+                            <SelectItem key={lane.id} value={lane.id}>
+                              {lane.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -822,9 +934,9 @@ export default function EmployeeDetail() {
                     <SelectValue placeholder="Select group…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(employeeGroups ?? []).map((g: Record<string, unknown>) => (
-                      <SelectItem key={String(g.id)} value={String(g.id)}>
-                        {String(g.name)}
+                    {(employeeGroups ?? []).map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -365,6 +365,25 @@ paths:
         "204":
           description: Deleted
 
+  /employees/{id}/pending:
+    delete:
+      operationId: discardPendingChange
+      tags: [employees]
+      summary: Discard a pending future position change for an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated employee with pending change cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
   /salary-schedules:
     get:
       operationId: listSalarySchedules
@@ -1477,6 +1496,24 @@ components:
         laneName:
           type: string
           nullable: true
+        pendingEffectiveContractYear:
+          type: number
+          nullable: true
+        pendingBargainingUnitId:
+          type: string
+          nullable: true
+        pendingEmployeeGroupId:
+          type: string
+          nullable: true
+        pendingCurrentStep:
+          type: number
+          nullable: true
+        pendingCurrentLaneId:
+          type: string
+          nullable: true
+        pendingAnnualSalary:
+          type: string
+          nullable: true
         createdAt:
           type: string
         updatedAt:
@@ -1653,6 +1690,10 @@ components:
           type: string
         notes:
           type: string
+        effectiveContractYear:
+          type: number
+          nullable: true
+          description: "If > 0, saves position changes to pending columns only (future effective year). If absent or 0, applies immediately to live fields."
 
     ImportEmployeesRequest:
       type: object

@@ -277,6 +277,12 @@ export const ListEmployeesResponse = zod.object({
       contractYear: zod.number().optional(),
       bargainingUnitName: zod.string().nullish(),
       laneName: zod.string().nullish(),
+      pendingEffectiveContractYear: zod.number().nullish(),
+      pendingBargainingUnitId: zod.string().nullish(),
+      pendingEmployeeGroupId: zod.string().nullish(),
+      pendingCurrentStep: zod.number().nullish(),
+      pendingCurrentLaneId: zod.string().nullish(),
+      pendingAnnualSalary: zod.string().nullish(),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     }),
@@ -346,6 +352,12 @@ export const ListRetirementEligibleEmployeesResponseItem = zod
     contractYear: zod.number().optional(),
     bargainingUnitName: zod.string().nullish(),
     laneName: zod.string().nullish(),
+    pendingEffectiveContractYear: zod.number().nullish(),
+    pendingBargainingUnitId: zod.string().nullish(),
+    pendingEmployeeGroupId: zod.string().nullish(),
+    pendingCurrentStep: zod.number().nullish(),
+    pendingCurrentLaneId: zod.string().nullish(),
+    pendingAnnualSalary: zod.string().nullish(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   })
@@ -447,6 +459,12 @@ export const GetEmployeeResponse = zod
     contractYear: zod.number().optional(),
     bargainingUnitName: zod.string().nullish(),
     laneName: zod.string().nullish(),
+    pendingEffectiveContractYear: zod.number().nullish(),
+    pendingBargainingUnitId: zod.string().nullish(),
+    pendingEmployeeGroupId: zod.string().nullish(),
+    pendingCurrentStep: zod.number().nullish(),
+    pendingCurrentLaneId: zod.string().nullish(),
+    pendingAnnualSalary: zod.string().nullish(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   })
@@ -504,6 +522,12 @@ export const UpdateEmployeeBody = zod.object({
   retirementTargetYear: zod.number().optional(),
   status: zod.string().optional(),
   notes: zod.string().optional(),
+  effectiveContractYear: zod
+    .number()
+    .nullish()
+    .describe(
+      "If > 0, saves position changes to pending columns only (future effective year). If absent or 0, applies immediately to live fields.",
+    ),
 });
 
 export const UpdateEmployeeResponse = zod.object({
@@ -531,6 +555,12 @@ export const UpdateEmployeeResponse = zod.object({
   contractYear: zod.number().optional(),
   bargainingUnitName: zod.string().nullish(),
   laneName: zod.string().nullish(),
+  pendingEffectiveContractYear: zod.number().nullish(),
+  pendingBargainingUnitId: zod.string().nullish(),
+  pendingEmployeeGroupId: zod.string().nullish(),
+  pendingCurrentStep: zod.number().nullish(),
+  pendingCurrentLaneId: zod.string().nullish(),
+  pendingAnnualSalary: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -540,6 +570,48 @@ export const UpdateEmployeeResponse = zod.object({
  */
 export const DeleteEmployeeParams = zod.object({
   id: zod.coerce.string(),
+});
+
+/**
+ * @summary Discard a pending future position change for an employee
+ */
+export const DiscardPendingChangeParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const DiscardPendingChangeResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  bargainingUnitId: zod.string(),
+  employeeNumber: zod.string().nullish(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  hireDate: zod.string().nullish(),
+  birthDate: zod.string().nullish(),
+  yearsInDistrict: zod.number().optional(),
+  yearsTotalService: zod.number().optional(),
+  compensationType: zod.string().optional(),
+  currentLaneId: zod.string().nullish(),
+  currentStep: zod.number().nullish(),
+  currentHourlyCategoryId: zod.string().nullish(),
+  currentHourlyRate: zod.string().nullish(),
+  annualHours: zod.string().nullish(),
+  currentAnnualSalary: zod.string(),
+  insuranceElection: zod.string(),
+  retirementEligible: zod.boolean().optional(),
+  retirementPlan: zod.string().optional(),
+  status: zod.string(),
+  contractYear: zod.number().optional(),
+  bargainingUnitName: zod.string().nullish(),
+  laneName: zod.string().nullish(),
+  pendingEffectiveContractYear: zod.number().nullish(),
+  pendingBargainingUnitId: zod.string().nullish(),
+  pendingEmployeeGroupId: zod.string().nullish(),
+  pendingCurrentStep: zod.number().nullish(),
+  pendingCurrentLaneId: zod.string().nullish(),
+  pendingAnnualSalary: zod.string().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
 });
 
 /**

@@ -87,6 +87,18 @@ export const employeesTable = pgTable("employees", {
   primaryScheduleId: uuid("primary_schedule_id").references(
     () => compensationSchedulesTable.id
   ),
+  pendingEffectiveContractYear: integer("pending_effective_contract_year"),
+  pendingBargainingUnitId: uuid("pending_bargaining_unit_id").references(
+    () => bargainingUnitsTable.id
+  ),
+  pendingEmployeeGroupId: uuid("pending_employee_group_id").references(
+    () => employeeGroupsTable.id
+  ),
+  pendingCurrentStep: integer("pending_current_step"),
+  pendingCurrentLaneId: uuid("pending_current_lane_id").references(
+    () => lanesTable.id
+  ),
+  pendingAnnualSalary: numeric("pending_annual_salary", { precision: 15, scale: 2 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

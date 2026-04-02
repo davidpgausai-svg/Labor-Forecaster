@@ -349,7 +349,7 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
 
   if (isLoading) return <Skeleton className="h-[500px] w-full" />;
   if (!data || data.years.length === 0) {
-    const allInGroups = !!(data as Record<string, unknown>)?.allInGroups;
+    const allInGroups = !!(data as unknown as Record<string, unknown>)?.allInGroups;
     return (
       <Card className="bg-card border-border">
         <CardContent className="py-12 text-center text-muted-foreground">

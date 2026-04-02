@@ -1593,6 +1593,90 @@ export const useDeleteEmployee = <
 };
 
 /**
+ * @summary Discard a pending future position change for an employee
+ */
+export const getDiscardPendingChangeUrl = (id: string) => {
+  return `/api/employees/${id}/pending`;
+};
+
+export const discardPendingChange = async (
+  id: string,
+  options?: RequestInit,
+): Promise<Employee> => {
+  return customFetch<Employee>(getDiscardPendingChangeUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDiscardPendingChangeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardPendingChange>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof discardPendingChange>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["discardPendingChange"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof discardPendingChange>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return discardPendingChange(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DiscardPendingChangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof discardPendingChange>>
+>;
+
+export type DiscardPendingChangeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Discard a pending future position change for an employee
+ */
+export const useDiscardPendingChange = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof discardPendingChange>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof discardPendingChange>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDiscardPendingChangeMutationOptions(options));
+};
+
+/**
  * @summary List salary schedules
  */
 export const getListSalarySchedulesUrl = (

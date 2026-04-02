@@ -22,4 +22,6 @@ export interface UpdateEmployeeRequest {
   retirementTargetYear?: number;
   status?: string;
   notes?: string;
+  /** If > 0, saves position changes to pending columns only (future effective year). If absent or 0, applies immediately to live fields. */
+  effectiveContractYear?: number | null;
 }
