@@ -4,6 +4,8 @@ import {
   getListEmployeesQueryKey,
   useListBargainingUnits,
   getListBargainingUnitsQueryKey,
+  useListEmployeeGroups,
+  getListEmployeeGroupsQueryKey,
   type Employee,
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
@@ -58,6 +60,7 @@ export default function Employees() {
 
   const [search, setSearch] = useState("");
   const [unitFilter, setUnitFilter] = useState(ALL);
+  const [groupFilter, setGroupFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [laneFilter, setLaneFilter] = useState(ALL);
   const [insuranceFilter, setInsuranceFilter] = useState(ALL);
@@ -79,15 +82,26 @@ export default function Employees() {
     }
   );
 
+  const { data: employeeGroups } = useListEmployeeGroups(
+    { districtId: districtId! },
+    {
+      query: {
+        enabled: !!districtId,
+        queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }),
+      },
+    }
+  );
+
   const params = useMemo(
     () => ({
       districtId: districtId!,
       bargainingUnitId: unitFilter !== ALL ? unitFilter : undefined,
+      employeeGroupId: groupFilter !== ALL ? groupFilter : undefined,
       status: statusFilter !== ALL ? statusFilter : undefined,
       page,
       pageSize,
     }),
-    [districtId, unitFilter, statusFilter, page, pageSize]
+    [districtId, unitFilter, groupFilter, statusFilter, page, pageSize]
   );
 
   const { data, isLoading } = useListEmployees(params, {
@@ -152,15 +166,23 @@ export default function Employees() {
         ),
       }),
       columnHelper.accessor("bargainingUnitName", {
-        header: "Unit",
-        cell: ({ row }) => (
-          <Badge
-            variant="outline"
-            className={getBadgeColorClass(row.original.bargainingUnitName || "")}
-          >
-            {row.original.bargainingUnitName || "Unknown"}
-          </Badge>
-        ),
+        header: "Unit / Group",
+        cell: ({ row }) => {
+          const groupName = (row.original as Record<string, unknown>).employeeGroupName as string | undefined;
+          return (
+            <div className="flex flex-col gap-0.5">
+              {groupName ? (
+                <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20 w-fit text-xs">
+                  {groupName} · Non-Union
+                </Badge>
+              ) : (
+                <Badge variant="outline" className={getBadgeColorClass(row.original.bargainingUnitName || "")}>
+                  {row.original.bargainingUnitName || "Unknown"}
+                </Badge>
+              )}
+            </div>
+          );
+        },
       }),
       columnHelper.display({
         id: "stepLane",
@@ -233,6 +255,7 @@ export default function Employees() {
 
   const hasFilters =
     unitFilter !== ALL ||
+    groupFilter !== ALL ||
     statusFilter !== ALL ||
     laneFilter !== ALL ||
     insuranceFilter !== ALL ||
@@ -246,6 +269,7 @@ export default function Employees() {
   const clearFilters = () => {
     setSearch("");
     setUnitFilter(ALL);
+    setGroupFilter(ALL);
     setStatusFilter(ALL);
     setLaneFilter(ALL);
     setInsuranceFilter(ALL);
@@ -294,6 +318,7 @@ export default function Employees() {
               value={unitFilter}
               onValueChange={(v) => {
                 setUnitFilter(v);
+                setGroupFilter(ALL);
                 setPage(1);
               }}
             >
@@ -305,6 +330,27 @@ export default function Employees() {
                 {units?.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={groupFilter}
+              onValueChange={(v) => {
+                setGroupFilter(v);
+                setUnitFilter(ALL);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-52 h-9 bg-background/50 border-border text-sm">
+                <SelectValue placeholder="All Groups" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All Groups</SelectItem>
+                {employeeGroups?.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
                   </SelectItem>
                 ))}
               </SelectContent>

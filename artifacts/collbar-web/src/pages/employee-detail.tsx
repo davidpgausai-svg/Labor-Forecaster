@@ -255,11 +255,15 @@ export default function EmployeeDetail() {
             <CardTitle>
               {scenarioId ? "Scenario Projection by Year" : "5-Year Cost Projection"}
             </CardTitle>
-            {hasProjections && hasStepData && (
+            {hasProjections && (emp as Record<string, unknown>).compensationScheduleType === "individual_salary" ? (
+              <p className="text-xs text-amber-400/80 mt-1">
+                Individual salary — this employee's pay is driven by the configured increase %, not by schedule cell lookup. Step shown is for reference tracking only.
+              </p>
+            ) : hasProjections && hasStepData ? (
               <p className="text-xs text-muted-foreground mt-1">
                 Click a row to pin details in the profile panel. Step advancement is reflected per contract year.
               </p>
-            )}
+            ) : null}
           </CardHeader>
           <CardContent>
             <Table>

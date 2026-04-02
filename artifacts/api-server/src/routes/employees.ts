@@ -5,6 +5,7 @@ import {
   employeesTable,
   bargainingUnitsTable,
   employeeGroupsTable,
+  compensationSchedulesTable,
   lanesTable,
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
@@ -116,11 +117,12 @@ router.post("/employees/import", async (req, res) => {
 });
 
 router.get("/employees", async (req, res) => {
-  const { districtId, bargainingUnitId, status, contractYear, page = 1, pageSize = 50 } = req.query;
+  const { districtId, bargainingUnitId, employeeGroupId, status, contractYear, page = 1, pageSize = 50 } = req.query;
 
   const conditions = [];
   if (districtId) conditions.push(eq(employeesTable.districtId, districtId as string));
   if (bargainingUnitId) conditions.push(eq(employeesTable.bargainingUnitId, bargainingUnitId as string));
+  if (employeeGroupId) conditions.push(eq(employeesTable.employeeGroupId, employeeGroupId as string));
   if (status) conditions.push(eq(employeesTable.status, status as "active" | "new_hire" | "terminated" | "retired" | "on_leave"));
   if (contractYear) conditions.push(eq(employeesTable.contractYear, Number(contractYear)));
 
@@ -132,10 +134,12 @@ router.get("/employees", async (req, res) => {
       .select({
         employee: employeesTable,
         unitName: bargainingUnitsTable.name,
+        groupName: employeeGroupsTable.name,
         laneName: lanesTable.name,
       })
       .from(employeesTable)
       .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
+      .leftJoin(employeeGroupsTable, eq(employeesTable.employeeGroupId, employeeGroupsTable.id))
       .leftJoin(lanesTable, eq(employeesTable.currentLaneId, lanesTable.id))
       .where(whereClause)
       .orderBy(employeesTable.lastName, employeesTable.firstName)
@@ -150,6 +154,7 @@ router.get("/employees", async (req, res) => {
   const result = employees.map((row) => ({
     ...row.employee,
     bargainingUnitName: row.unitName,
+    employeeGroupName: row.groupName,
     laneName: row.laneName,
   }));
 
@@ -251,11 +256,13 @@ router.get("/employees/:id", async (req, res) => {
       employee: employeesTable,
       unitName: bargainingUnitsTable.name,
       groupName: employeeGroupsTable.name,
+      scheduleType: compensationSchedulesTable.scheduleType,
       laneName: lanesTable.name,
     })
     .from(employeesTable)
     .leftJoin(bargainingUnitsTable, eq(employeesTable.bargainingUnitId, bargainingUnitsTable.id))
     .leftJoin(employeeGroupsTable, eq(employeesTable.employeeGroupId, employeeGroupsTable.id))
+    .leftJoin(compensationSchedulesTable, eq(compensationSchedulesTable.employeeGroupId, employeeGroupsTable.id))
     .leftJoin(lanesTable, eq(employeesTable.currentLaneId, lanesTable.id))
     .where(eq(employeesTable.id, req.params.id));
 
@@ -267,6 +274,7 @@ router.get("/employees/:id", async (req, res) => {
 
   const emp = row.employee;
   const employeeGroupName = row.groupName ?? null;
+  const compensationScheduleType = row.scheduleType ?? null;
   let yearProjections: unknown[] = [];
 
   if (scenarioId) {
@@ -330,7 +338,7 @@ router.get("/employees/:id", async (req, res) => {
     };
   }
 
-  res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, laneName: row.laneName, yearProjections, retirementOptions });
+  res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, compensationScheduleType, laneName: row.laneName, yearProjections, retirementOptions });
 });
 
 router.put("/employees/:id", async (req, res) => {
