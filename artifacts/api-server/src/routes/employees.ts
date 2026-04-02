@@ -8,7 +8,7 @@ import {
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
 import {
   calcRetirementOption1,
   calcRetirementOption2,
@@ -266,16 +266,27 @@ router.get("/employees/:id", async (req, res) => {
   let yearProjections: unknown[] = [];
 
   if (scenarioId) {
-    const yearConfigs = await db
-      .select()
-      .from(scenarioYearConfigsTable)
-      .where(
-        and(
-          eq(scenarioYearConfigsTable.scenarioId, scenarioId as string),
-          eq(scenarioYearConfigsTable.bargainingUnitId, emp.bargainingUnitId)
-        )
-      )
-      .orderBy(scenarioYearConfigsTable.contractYear);
+    // Load year configs for this scenario — match by BU or by employee group
+    const buCondition = emp.bargainingUnitId
+      ? eq(scenarioYearConfigsTable.bargainingUnitId, emp.bargainingUnitId)
+      : null;
+    const groupCondition = emp.employeeGroupId
+      ? eq(scenarioYearConfigsTable.employeeGroupId, emp.employeeGroupId)
+      : null;
+
+    const configConditions = [buCondition, groupCondition].filter(Boolean);
+    const yearConfigs = configConditions.length > 0
+      ? await db
+          .select()
+          .from(scenarioYearConfigsTable)
+          .where(
+            and(
+              eq(scenarioYearConfigsTable.scenarioId, scenarioId as string),
+              or(...(configConditions as Parameters<typeof or>))
+            )
+          )
+          .orderBy(scenarioYearConfigsTable.contractYear)
+      : [];
 
     const records = await db
       .select()
@@ -288,9 +299,20 @@ router.get("/employees/:id", async (req, res) => {
       )
       .orderBy(employeeYearRecordsTable.contractYear);
 
+    // Resolve lane names for all projected lane IDs
+    const projectedLaneIds = [...new Set(records.map((r) => r.projectedLaneId).filter(Boolean))] as string[];
+    const projectedLanes = projectedLaneIds.length > 0
+      ? await db.select().from(lanesTable).where(inArray(lanesTable.id, projectedLaneIds))
+      : [];
+    const laneNameMap = new Map(projectedLanes.map((l) => [l.id, l.name]));
+
     yearProjections = records.map((r) => {
       const config = yearConfigs.find((c) => c.contractYear === r.contractYear);
-      return { ...r, yearLabel: config?.yearLabel ?? `Year ${r.contractYear}` };
+      return {
+        ...r,
+        yearLabel: config?.yearLabel ?? `Year ${r.contractYear}`,
+        projectedLaneName: r.projectedLaneId ? (laneNameMap.get(r.projectedLaneId) ?? null) : null,
+      };
     });
   }
 

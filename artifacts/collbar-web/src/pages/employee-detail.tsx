@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGetEmployee, getGetEmployeeQueryKey } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -14,8 +15,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type AnyOption = Record<string, unknown>;
 
@@ -151,8 +153,9 @@ function RetirementOption3Card({ opt }: { opt: AnyOption }) {
 export default function EmployeeDetail() {
   const params = useParams();
   const id = params.id as string;
-  const { scenarioId } = useDistrictContext();
+  const { scenarioId, activeContractYear } = useDistrictContext();
   const [, setLocation] = useLocation();
+  const [selectedProjYear, setSelectedProjYear] = useState<number | null>(null);
 
   const { data: emp, isLoading } = useGetEmployee(
     id,
@@ -184,6 +187,18 @@ export default function EmployeeDetail() {
   }
 
   const opts = emp.retirementOptions;
+  const projections = (emp.yearProjections ?? []) as unknown as Array<Record<string, unknown>>;
+
+  // Use selected projection year, fall back to active header year, then first year
+  const effectiveProjYear = selectedProjYear
+    ?? (activeContractYear !== null && projections.some((p) => Number(p.contractYear) === activeContractYear) ? activeContractYear : null)
+    ?? (projections[0] ? Number(projections[0].contractYear) : null);
+
+  const activeProjRow = projections.find((p) => Number(p.contractYear) === effectiveProjYear);
+
+  const hasProjections = projections.length > 0;
+  const hasStepData = projections.some((p) => p.projectedStep !== null && p.projectedStep !== undefined);
+  const hasLaneData = projections.some((p) => p.projectedLaneName !== null && p.projectedLaneName !== undefined);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -228,56 +243,106 @@ export default function EmployeeDetail() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-card border-border md:col-span-2">
           <CardHeader>
-            <CardTitle>5-Year Cost Projection</CardTitle>
+            <CardTitle>
+              {scenarioId ? "Scenario Projection by Year" : "5-Year Cost Projection"}
+            </CardTitle>
+            {hasProjections && hasStepData && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Click a row to pin details in the profile panel. Step advancement is reflected per contract year.
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow className="border-border">
                   <TableHead>Year</TableHead>
+                  {hasStepData && <TableHead className="text-center">Step</TableHead>}
+                  {hasLaneData && <TableHead>Lane</TableHead>}
                   <TableHead className="text-right">Base Salary</TableHead>
                   <TableHead className="text-right">Total Cost</TableHead>
                   <TableHead className="text-right">Effective Rate</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {emp.yearProjections && emp.yearProjections.length > 0 ? (
-                  emp.yearProjections.map((proj, i) => (
-                    <TableRow key={i} className="border-border">
-                      <TableCell className="font-medium">{proj.yearLabel}</TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(proj.projectedBaseSalary)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono font-semibold">
-                        {formatCurrency(proj.totalEmployerCost)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">
-                        {formatPercent(proj.effectiveRate)}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                {hasProjections ? (
+                  projections.map((proj, i) => {
+                    const cy = Number(proj.contractYear);
+                    const isActive = cy === effectiveProjYear;
+                    const prevProj = i > 0 ? projections[i - 1] : null;
+                    const stepAdvanced = prevProj !== null
+                      && proj.projectedStep !== null
+                      && prevProj.projectedStep !== null
+                      && Number(proj.projectedStep) > Number(prevProj.projectedStep);
+
+                    return (
+                      <TableRow
+                        key={i}
+                        className={cn(
+                          "border-border cursor-pointer transition-colors",
+                          isActive ? "bg-primary/8 border-l-2 border-l-primary" : "hover:bg-muted/30"
+                        )}
+                        onClick={() => setSelectedProjYear(cy === selectedProjYear ? null : cy)}
+                      >
+                        <TableCell className="font-medium">
+                          {s(proj.yearLabel)}
+                        </TableCell>
+                        {hasStepData && (
+                          <TableCell className="text-center">
+                            {proj.projectedStep !== null && proj.projectedStep !== undefined ? (
+                              <span className={cn(
+                                "inline-flex items-center gap-1 font-mono text-sm font-semibold",
+                                stepAdvanced ? "text-green-400" : ""
+                              )}>
+                                {stepAdvanced && <TrendingUp className="w-3 h-3" />}
+                                {s(proj.projectedStep)}
+                              </span>
+                            ) : "—"}
+                          </TableCell>
+                        )}
+                        {hasLaneData && (
+                          <TableCell className="text-sm text-muted-foreground">
+                            {s(proj.projectedLaneName) || "—"}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right font-mono">
+                          {proj.projectedBaseSalaryCents
+                            ? formatCurrency(String(Number(proj.projectedBaseSalaryCents) / 100))
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {proj.totalEmployerCostCents
+                            ? formatCurrency(String(Number(proj.totalEmployerCostCents) / 100))
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {proj.effectiveRate ? formatPercent(s(proj.effectiveRate)) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={6}
                       className="text-center py-8 text-muted-foreground"
                     >
-                      No projection data. Select a scenario from the header.
+                      {scenarioId
+                        ? "No projection data found. Run Calculate on the scenario first."
+                        : "Select a scenario from the header to view projections."}
                     </TableCell>
                   </TableRow>
                 )}
-                {emp.yearProjections && emp.yearProjections.length > 0 && (
+                {hasProjections && (
                   <TableRow className="border-t border-border bg-muted/20">
-                    <TableCell className="font-semibold text-sm">5-Year Total</TableCell>
+                    <TableCell className="font-semibold text-sm" colSpan={hasStepData && hasLaneData ? 3 : hasStepData || hasLaneData ? 2 : 1}>
+                      Total
+                    </TableCell>
                     <TableCell />
                     <TableCell className="text-right font-mono font-bold text-primary">
-                      {formatCurrency(
-                        emp.yearProjections.reduce(
-                          (sum, p) =>
-                            sum + (parseFloat(p.totalEmployerCost) || 0),
-                          0
-                        )
-                      )}
+                      {formatCurrency(String(
+                        projections.reduce((sum, p) => sum + (Number(p.totalEmployerCostCents) || 0) / 100, 0)
+                      ))}
                     </TableCell>
                     <TableCell />
                   </TableRow>
@@ -289,60 +354,177 @@ export default function EmployeeDetail() {
 
         <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle>Profile Details</CardTitle>
+            <CardTitle>
+              {activeProjRow ? (
+                <span className="flex items-center gap-2">
+                  {s(activeProjRow.yearLabel)}
+                  <span className="text-xs font-normal text-muted-foreground">Projected</span>
+                </span>
+              ) : "Profile Details"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                Current Salary
-              </div>
-              <div className="font-mono font-bold text-xl">
-                {formatCurrency(emp.currentAnnualSalary)}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                  Step
+            {activeProjRow ? (
+              <>
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    Projected Salary
+                  </div>
+                  <div className="font-mono font-bold text-xl">
+                    {activeProjRow.projectedBaseSalaryCents
+                      ? formatCurrency(String(Number(activeProjRow.projectedBaseSalaryCents) / 100))
+                      : "—"}
+                  </div>
                 </div>
-                <div className="font-medium">{emp.currentStep || "—"}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                  Lane
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Step
+                    </div>
+                    <div className="font-medium font-mono">
+                      {activeProjRow.projectedStep !== null && activeProjRow.projectedStep !== undefined
+                        ? s(activeProjRow.projectedStep)
+                        : (emp.currentStep || "—")}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Lane
+                    </div>
+                    <div className="font-medium">
+                      {s(activeProjRow.projectedLaneName) || emp.laneName || "—"}
+                    </div>
+                  </div>
                 </div>
-                <div className="font-medium">{emp.laneName || "—"}</div>
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                Insurance Election
-              </div>
-              <div className="font-medium capitalize">
-                {emp.insuranceElection || "—"}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                  Yrs in District
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Total Cost
+                    </div>
+                    <div className="font-mono font-semibold text-primary">
+                      {activeProjRow.totalEmployerCostCents
+                        ? formatCurrency(String(Number(activeProjRow.totalEmployerCostCents) / 100))
+                        : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Eff. Rate
+                    </div>
+                    <div className="font-mono text-muted-foreground">
+                      {activeProjRow.effectiveRate ? formatPercent(s(activeProjRow.effectiveRate)) : "—"}
+                    </div>
+                  </div>
                 </div>
-                <div className="font-medium">{emp.yearsInDistrict ?? "—"}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                  Total Service
+                <div className="border-t border-border/50 pt-3 grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Retirement
+                    </div>
+                    <div className="font-mono">
+                      {activeProjRow.retirementContributionCents
+                        ? formatCurrency(String(Number(activeProjRow.retirementContributionCents) / 100))
+                        : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      FICA
+                    </div>
+                    <div className="font-mono">
+                      {activeProjRow.ficaCostCents
+                        ? formatCurrency(String(Number(activeProjRow.ficaCostCents) / 100))
+                        : "—"}
+                    </div>
+                  </div>
                 </div>
-                <div className="font-medium">{emp.yearsTotalService ?? "—"}</div>
-              </div>
-            </div>
-            {emp.employeeNumber && (
-              <div>
-                <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                  Employee #
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Health
+                    </div>
+                    <div className="font-mono">
+                      {activeProjRow.healthInsuranceCostCents
+                        ? formatCurrency(String(Number(activeProjRow.healthInsuranceCostCents) / 100))
+                        : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Other Benefits
+                    </div>
+                    <div className="font-mono">
+                      {activeProjRow.otherBenefitsCostCents
+                        ? formatCurrency(String(Number(activeProjRow.otherBenefitsCostCents) / 100))
+                        : "—"}
+                    </div>
+                  </div>
                 </div>
-                <div className="font-mono text-sm">{emp.employeeNumber}</div>
-              </div>
+                <div className="border-t border-border/50 pt-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-1">
+                    Baseline (Current)
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <span>Salary: {formatCurrency(emp.currentAnnualSalary)}</span>
+                    <span>Step: {emp.currentStep ?? "—"} / {emp.laneName ?? "—"}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    Current Salary
+                  </div>
+                  <div className="font-mono font-bold text-xl">
+                    {formatCurrency(emp.currentAnnualSalary)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Step
+                    </div>
+                    <div className="font-medium">{emp.currentStep || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Lane
+                    </div>
+                    <div className="font-medium">{emp.laneName || "—"}</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    Insurance Election
+                  </div>
+                  <div className="font-medium capitalize">
+                    {emp.insuranceElection || "—"}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Yrs in District
+                    </div>
+                    <div className="font-medium">{emp.yearsInDistrict ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Total Service
+                    </div>
+                    <div className="font-medium">{emp.yearsTotalService ?? "—"}</div>
+                  </div>
+                </div>
+                {emp.employeeNumber && (
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                      Employee #
+                    </div>
+                    <div className="font-mono text-sm">{emp.employeeNumber}</div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
