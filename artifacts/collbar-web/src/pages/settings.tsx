@@ -382,7 +382,7 @@ function GroupEditDialog({
         {
           onSuccess: () => {
             queryClient.invalidateQueries({
-              queryKey: getListEmployeeGroupsQueryKey({ districtId }),
+              queryKey: getListEmployeeGroupsQueryKey(),
             });
             toast({ title: "Saved", description: `${form.name} updated.` });
             onClose();
@@ -403,7 +403,7 @@ function GroupEditDialog({
         {
           onSuccess: (created) => {
             queryClient.invalidateQueries({
-              queryKey: getListEmployeeGroupsQueryKey({ districtId }),
+              queryKey: getListEmployeeGroupsQueryKey(),
             });
             toast({
               title: "Group created",
