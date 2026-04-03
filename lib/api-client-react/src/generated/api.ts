@@ -25,6 +25,7 @@ import type {
   CreateDistrictRequest,
   CreateEmployeeGroupRequest,
   CreateEmployeeRequest,
+  CreateFlatRateCategoryRequest,
   CreateHourlyScheduleRequest,
   CreateSalaryScheduleRequest,
   CreateScenarioRequest,
@@ -40,6 +41,7 @@ import type {
   EmployeeStipendWithDefinition,
   EmployeeWithProjections,
   ExportEmployeesParams,
+  FlatRateCategory,
   GenerateReportBody,
   GetDashboardParams,
   GetEmployeeParams,
@@ -78,6 +80,7 @@ import type {
   UpdateDistrictSettingsBody,
   UpdateEmployeeGroupRequest,
   UpdateEmployeeRequest,
+  UpdateFlatRateCategoryRequest,
   UpdateScenarioRequest,
   UpdateStipendAssignmentRequest,
   UpdateStipendDefinitionRequest,
@@ -5932,6 +5935,366 @@ export const useDeleteStipendAssignment = <
   TContext
 > => {
   return useMutation(getDeleteStipendAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary List flat rate categories for a schedule
+ */
+export const getListFlatRateCategoriesUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/flat-rate-categories`;
+};
+
+export const listFlatRateCategories = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<FlatRateCategory[]> => {
+  return customFetch<FlatRateCategory[]>(
+    getListFlatRateCategoriesUrl(scheduleId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListFlatRateCategoriesQueryKey = (scheduleId: string) => {
+  return [
+    `/api/compensation-schedules/${scheduleId}/flat-rate-categories`,
+  ] as const;
+};
+
+export const getListFlatRateCategoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFlatRateCategories>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFlatRateCategories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListFlatRateCategoriesQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFlatRateCategories>>
+  > = ({ signal }) =>
+    listFlatRateCategories(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFlatRateCategories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFlatRateCategoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFlatRateCategories>>
+>;
+export type ListFlatRateCategoriesQueryError = ErrorType<void>;
+
+/**
+ * @summary List flat rate categories for a schedule
+ */
+
+export function useListFlatRateCategories<
+  TData = Awaited<ReturnType<typeof listFlatRateCategories>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFlatRateCategories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFlatRateCategoriesQueryOptions(
+    scheduleId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a flat rate category
+ */
+export const getCreateFlatRateCategoryUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/flat-rate-categories`;
+};
+
+export const createFlatRateCategory = async (
+  scheduleId: string,
+  createFlatRateCategoryRequest: CreateFlatRateCategoryRequest,
+  options?: RequestInit,
+): Promise<FlatRateCategory> => {
+  return customFetch<FlatRateCategory>(
+    getCreateFlatRateCategoryUrl(scheduleId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createFlatRateCategoryRequest),
+    },
+  );
+};
+
+export const getCreateFlatRateCategoryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFlatRateCategory>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateFlatRateCategoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFlatRateCategory>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateFlatRateCategoryRequest> },
+  TContext
+> => {
+  const mutationKey = ["createFlatRateCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFlatRateCategory>>,
+    { scheduleId: string; data: BodyType<CreateFlatRateCategoryRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return createFlatRateCategory(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFlatRateCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFlatRateCategory>>
+>;
+export type CreateFlatRateCategoryMutationBody =
+  BodyType<CreateFlatRateCategoryRequest>;
+export type CreateFlatRateCategoryMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a flat rate category
+ */
+export const useCreateFlatRateCategory = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFlatRateCategory>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateFlatRateCategoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFlatRateCategory>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateFlatRateCategoryRequest> },
+  TContext
+> => {
+  return useMutation(getCreateFlatRateCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Update a flat rate category
+ */
+export const getUpdateFlatRateCategoryUrl = (id: string) => {
+  return `/api/flat-rate-categories/${id}`;
+};
+
+export const updateFlatRateCategory = async (
+  id: string,
+  updateFlatRateCategoryRequest: UpdateFlatRateCategoryRequest,
+  options?: RequestInit,
+): Promise<FlatRateCategory> => {
+  return customFetch<FlatRateCategory>(getUpdateFlatRateCategoryUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateFlatRateCategoryRequest),
+  });
+};
+
+export const getUpdateFlatRateCategoryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFlatRateCategory>>,
+    TError,
+    { id: string; data: BodyType<UpdateFlatRateCategoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFlatRateCategory>>,
+  TError,
+  { id: string; data: BodyType<UpdateFlatRateCategoryRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateFlatRateCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFlatRateCategory>>,
+    { id: string; data: BodyType<UpdateFlatRateCategoryRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateFlatRateCategory(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFlatRateCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFlatRateCategory>>
+>;
+export type UpdateFlatRateCategoryMutationBody =
+  BodyType<UpdateFlatRateCategoryRequest>;
+export type UpdateFlatRateCategoryMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a flat rate category
+ */
+export const useUpdateFlatRateCategory = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFlatRateCategory>>,
+    TError,
+    { id: string; data: BodyType<UpdateFlatRateCategoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFlatRateCategory>>,
+  TError,
+  { id: string; data: BodyType<UpdateFlatRateCategoryRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateFlatRateCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a flat rate category
+ */
+export const getDeleteFlatRateCategoryUrl = (id: string) => {
+  return `/api/flat-rate-categories/${id}`;
+};
+
+export const deleteFlatRateCategory = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFlatRateCategoryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFlatRateCategoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFlatRateCategory>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFlatRateCategory>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteFlatRateCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFlatRateCategory>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteFlatRateCategory(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFlatRateCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFlatRateCategory>>
+>;
+
+export type DeleteFlatRateCategoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a flat rate category
+ */
+export const useDeleteFlatRateCategory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFlatRateCategory>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFlatRateCategory>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteFlatRateCategoryMutationOptions(options));
 };
 
 /**

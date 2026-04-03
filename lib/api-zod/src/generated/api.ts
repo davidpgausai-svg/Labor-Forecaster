@@ -2355,6 +2355,65 @@ export const DeleteStipendAssignmentParams = zod.object({
 });
 
 /**
+ * @summary List flat rate categories for a schedule
+ */
+export const ListFlatRateCategoriesParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListFlatRateCategoriesResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  positionTitle: zod.string(),
+  annualAmountCents: zod.number(),
+  displayOrder: zod.number(),
+});
+export const ListFlatRateCategoriesResponse = zod.array(
+  ListFlatRateCategoriesResponseItem,
+);
+
+/**
+ * @summary Create a flat rate category
+ */
+export const CreateFlatRateCategoryParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const CreateFlatRateCategoryBody = zod.object({
+  positionTitle: zod.string(),
+  annualAmountCents: zod.number(),
+  displayOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a flat rate category
+ */
+export const UpdateFlatRateCategoryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateFlatRateCategoryBody = zod.object({
+  positionTitle: zod.string().optional(),
+  annualAmountCents: zod.number().optional(),
+  displayOrder: zod.number().optional(),
+});
+
+export const UpdateFlatRateCategoryResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  positionTitle: zod.string(),
+  annualAmountCents: zod.number(),
+  displayOrder: zod.number(),
+});
+
+/**
+ * @summary Delete a flat rate category
+ */
+export const DeleteFlatRateCategoryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
  * @summary List all stipend assignments for an employee (with definition details)
  */
 export const ListEmployeeStipendsParams = zod.object({

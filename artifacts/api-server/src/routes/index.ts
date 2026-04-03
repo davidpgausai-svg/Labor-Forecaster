@@ -13,6 +13,7 @@ import settingsRouter from "./settings";
 import employeeGroupsRouter from "./employee-groups";
 import compensationSchedulesRouter from "./compensation-schedules";
 import stipendsRouter from "./stipends";
+import flatRatesRouter from "./flat-rates";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(settingsRouter);
 router.use(employeeGroupsRouter);
 router.use(compensationSchedulesRouter);
 router.use(stipendsRouter);
+router.use(flatRatesRouter);
 
 export default router;

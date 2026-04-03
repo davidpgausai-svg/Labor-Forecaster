@@ -32,6 +32,8 @@ tags:
     description: Compensation schedule management
   - name: stipends
     description: Stipend table definitions and employee assignments
+  - name: flat-rates
+    description: Flat rate category management
 paths:
   /healthz:
     get:
@@ -1337,6 +1339,94 @@ paths:
       operationId: deleteStipendAssignment
       tags: [stipends]
       summary: Remove an employee from a stipend
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules/{scheduleId}/flat-rate-categories:
+    get:
+      operationId: listFlatRateCategories
+      tags: [flat-rates]
+      summary: List flat rate categories for a schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of flat rate categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FlatRateCategory"
+        "404":
+          description: Compensation schedule not found
+    post:
+      operationId: createFlatRateCategory
+      tags: [flat-rates]
+      summary: Create a flat rate category
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFlatRateCategoryRequest"
+      responses:
+        "201":
+          description: Created flat rate category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlatRateCategory"
+        "404":
+          description: Compensation schedule not found
+
+  /flat-rate-categories/{id}:
+    put:
+      operationId: updateFlatRateCategory
+      tags: [flat-rates]
+      summary: Update a flat rate category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFlatRateCategoryRequest"
+      responses:
+        "200":
+          description: Updated flat rate category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlatRateCategory"
+        "404":
+          description: Flat rate category not found
+    delete:
+      operationId: deleteFlatRateCategory
+      tags: [flat-rates]
+      summary: Delete a flat rate category
       parameters:
         - name: id
           in: path
@@ -3157,6 +3247,49 @@ components:
         notes:
           type: string
           nullable: true
+
+    FlatRateCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        positionTitle:
+          type: string
+        annualAmountCents:
+          type: number
+        displayOrder:
+          type: number
+      required:
+        - id
+        - compensationScheduleId
+        - positionTitle
+        - annualAmountCents
+        - displayOrder
+
+    CreateFlatRateCategoryRequest:
+      type: object
+      properties:
+        positionTitle:
+          type: string
+        annualAmountCents:
+          type: number
+        displayOrder:
+          type: number
+      required:
+        - positionTitle
+        - annualAmountCents
+
+    UpdateFlatRateCategoryRequest:
+      type: object
+      properties:
+        positionTitle:
+          type: string
+        annualAmountCents:
+          type: number
+        displayOrder:
+          type: number
 
     EmployeeStipendWithDefinition:
       type: object

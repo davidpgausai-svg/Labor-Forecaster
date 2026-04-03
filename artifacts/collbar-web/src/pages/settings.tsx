@@ -68,6 +68,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StipendTableEditor } from "@/components/StipendTableEditor";
+import { FlatRateCategoryEditor } from "@/components/FlatRateCategoryEditor";
 
 const GROUP_INDEX_COLORS = [
   "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -962,6 +963,7 @@ function ScheduleRow({
   const queryClient = useQueryClient();
   const setPrimaryMutation = useSetCompensationSchedulePrimary();
   const [stipendEditorOpen, setStipendEditorOpen] = useState(false);
+  const [flatRateEditorOpen, setFlatRateEditorOpen] = useState(false);
 
   const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
     label: schedule.scheduleType,
@@ -1032,6 +1034,16 @@ function ScheduleRow({
             Manage Table
           </Button>
         )}
+        {schedule.scheduleType === "flat_rate" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setFlatRateEditorOpen(true)}
+          >
+            Manage Positions
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1057,6 +1069,15 @@ function ScheduleRow({
           scheduleId={schedule.id}
           scheduleName={schedule.name}
           employeeGroupId={employeeGroupId}
+        />
+      )}
+
+      {schedule.scheduleType === "flat_rate" && (
+        <FlatRateCategoryEditor
+          open={flatRateEditorOpen}
+          onClose={() => setFlatRateEditorOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
         />
       )}
     </div>

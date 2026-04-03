@@ -898,6 +898,26 @@ export interface UpdateStipendAssignmentRequest {
   notes?: string | null;
 }
 
+export interface FlatRateCategory {
+  id: string;
+  compensationScheduleId: string;
+  positionTitle: string;
+  annualAmountCents: number;
+  displayOrder: number;
+}
+
+export interface CreateFlatRateCategoryRequest {
+  positionTitle: string;
+  annualAmountCents: number;
+  displayOrder?: number;
+}
+
+export interface UpdateFlatRateCategoryRequest {
+  positionTitle?: string;
+  annualAmountCents?: number;
+  displayOrder?: number;
+}
+
 export type EmployeeStipendWithDefinitionDefinitionAmountType =
   (typeof EmployeeStipendWithDefinitionDefinitionAmountType)[keyof typeof EmployeeStipendWithDefinitionDefinitionAmountType];
 
