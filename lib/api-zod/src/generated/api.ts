@@ -2355,6 +2355,104 @@ export const DeleteStipendAssignmentParams = zod.object({
 });
 
 /**
+ * @summary Get per-diem config for a schedule (null if not yet set)
+ */
+export const GetPerDiemConfigParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const GetPerDiemConfigResponse = zod.union([
+  zod.object({
+    id: zod.string(),
+    compensationScheduleId: zod.string(),
+    sourceScheduleId: zod.string().nullish(),
+    contractDays: zod.number(),
+    derivationMethod: zod.enum(["from_salary_schedule", "independent"]),
+    createdAt: zod.string(),
+  }),
+  zod.null(),
+]);
+
+/**
+ * @summary Upsert per-diem config for a schedule
+ */
+export const UpsertPerDiemConfigParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const UpsertPerDiemConfigBody = zod.object({
+  contractDays: zod.number(),
+  derivationMethod: zod.enum(["from_salary_schedule", "independent"]),
+  sourceScheduleId: zod.string().nullish(),
+});
+
+export const UpsertPerDiemConfigResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  sourceScheduleId: zod.string().nullish(),
+  contractDays: zod.number(),
+  derivationMethod: zod.enum(["from_salary_schedule", "independent"]),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary List per-diem caps for a schedule
+ */
+export const ListPerDiemCapsParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListPerDiemCapsResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  laneId: zod.string(),
+  capStep: zod.number(),
+  capRateCents: zod.number(),
+});
+export const ListPerDiemCapsResponse = zod.array(ListPerDiemCapsResponseItem);
+
+/**
+ * @summary Add a per-diem cap
+ */
+export const CreatePerDiemCapParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const CreatePerDiemCapBody = zod.object({
+  laneId: zod.string(),
+  capStep: zod.number(),
+  capRateCents: zod.number(),
+});
+
+/**
+ * @summary Update a per-diem cap
+ */
+export const UpdatePerDiemCapParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdatePerDiemCapBody = zod.object({
+  laneId: zod.string().optional(),
+  capStep: zod.number().optional(),
+  capRateCents: zod.number().optional(),
+});
+
+export const UpdatePerDiemCapResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  laneId: zod.string(),
+  capStep: zod.number(),
+  capRateCents: zod.number(),
+});
+
+/**
+ * @summary Delete a per-diem cap
+ */
+export const DeletePerDiemCapParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
  * @summary List flat rate categories for a schedule
  */
 export const ListFlatRateCategoriesParams = zod.object({

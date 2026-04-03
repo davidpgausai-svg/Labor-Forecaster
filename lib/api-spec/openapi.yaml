@@ -34,6 +34,8 @@ tags:
     description: Stipend table definitions and employee assignments
   - name: flat-rates
     description: Flat rate category management
+  - name: per-diem
+    description: Per-diem schedule configuration and caps
 paths:
   /healthz:
     get:
@@ -1339,6 +1341,148 @@ paths:
       operationId: deleteStipendAssignment
       tags: [stipends]
       summary: Remove an employee from a stipend
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules/{scheduleId}/per-diem-config:
+    get:
+      operationId: getPerDiemConfig
+      tags: [per-diem]
+      summary: Get per-diem config for a schedule (null if not yet set)
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Per-diem config or null
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PerDiemConfig"
+                  - type: "null"
+        "404":
+          description: Compensation schedule not found
+    put:
+      operationId: upsertPerDiemConfig
+      tags: [per-diem]
+      summary: Upsert per-diem config for a schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertPerDiemConfigRequest"
+      responses:
+        "200":
+          description: Updated per-diem config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerDiemConfig"
+        "201":
+          description: Created per-diem config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerDiemConfig"
+        "404":
+          description: Compensation schedule not found
+
+  /compensation-schedules/{scheduleId}/per-diem-caps:
+    get:
+      operationId: listPerDiemCaps
+      tags: [per-diem]
+      summary: List per-diem caps for a schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of per-diem caps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerDiemCap"
+        "404":
+          description: Compensation schedule not found
+    post:
+      operationId: createPerDiemCap
+      tags: [per-diem]
+      summary: Add a per-diem cap
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePerDiemCapRequest"
+      responses:
+        "201":
+          description: Created per-diem cap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerDiemCap"
+        "404":
+          description: Compensation schedule not found
+
+  /per-diem-caps/{id}:
+    put:
+      operationId: updatePerDiemCap
+      tags: [per-diem]
+      summary: Update a per-diem cap
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePerDiemCapRequest"
+      responses:
+        "200":
+          description: Updated per-diem cap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PerDiemCap"
+        "404":
+          description: Per-diem cap not found
+    delete:
+      operationId: deletePerDiemCap
+      tags: [per-diem]
+      summary: Delete a per-diem cap
       parameters:
         - name: id
           in: path
@@ -3247,6 +3391,89 @@ components:
         notes:
           type: string
           nullable: true
+
+    PerDiemConfig:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        sourceScheduleId:
+          type: string
+          nullable: true
+        contractDays:
+          type: number
+        derivationMethod:
+          type: string
+          enum: [from_salary_schedule, independent]
+        createdAt:
+          type: string
+      required:
+        - id
+        - compensationScheduleId
+        - contractDays
+        - derivationMethod
+        - createdAt
+
+    UpsertPerDiemConfigRequest:
+      type: object
+      properties:
+        contractDays:
+          type: number
+        derivationMethod:
+          type: string
+          enum: [from_salary_schedule, independent]
+        sourceScheduleId:
+          type: string
+          nullable: true
+      required:
+        - contractDays
+        - derivationMethod
+
+    PerDiemCap:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        laneId:
+          type: string
+        capStep:
+          type: number
+        capRateCents:
+          type: number
+      required:
+        - id
+        - compensationScheduleId
+        - laneId
+        - capStep
+        - capRateCents
+
+    CreatePerDiemCapRequest:
+      type: object
+      properties:
+        laneId:
+          type: string
+        capStep:
+          type: number
+        capRateCents:
+          type: number
+      required:
+        - laneId
+        - capStep
+        - capRateCents
+
+    UpdatePerDiemCapRequest:
+      type: object
+      properties:
+        laneId:
+          type: string
+        capStep:
+          type: number
+        capRateCents:
+          type: number
 
     FlatRateCategory:
       type: object

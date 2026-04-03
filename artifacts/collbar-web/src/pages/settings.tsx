@@ -69,6 +69,7 @@ import {
 import { cn } from "@/lib/utils";
 import { StipendTableEditor } from "@/components/StipendTableEditor";
 import { FlatRateCategoryEditor } from "@/components/FlatRateCategoryEditor";
+import { PerDiemEditor } from "@/components/PerDiemEditor";
 
 const GROUP_INDEX_COLORS = [
   "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -964,6 +965,7 @@ function ScheduleRow({
   const setPrimaryMutation = useSetCompensationSchedulePrimary();
   const [stipendEditorOpen, setStipendEditorOpen] = useState(false);
   const [flatRateEditorOpen, setFlatRateEditorOpen] = useState(false);
+  const [perDiemEditorOpen, setPerDiemEditorOpen] = useState(false);
 
   const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
     label: schedule.scheduleType,
@@ -1044,6 +1046,16 @@ function ScheduleRow({
             Manage Positions
           </Button>
         )}
+        {schedule.scheduleType === "per_diem" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setPerDiemEditorOpen(true)}
+          >
+            Configure
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1078,6 +1090,16 @@ function ScheduleRow({
           onClose={() => setFlatRateEditorOpen(false)}
           scheduleId={schedule.id}
           scheduleName={schedule.name}
+        />
+      )}
+
+      {schedule.scheduleType === "per_diem" && (
+        <PerDiemEditor
+          open={perDiemEditorOpen}
+          onClose={() => setPerDiemEditorOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+          employeeGroupId={employeeGroupId}
         />
       )}
     </div>

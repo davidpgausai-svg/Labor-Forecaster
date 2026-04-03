@@ -27,6 +27,7 @@ import type {
   CreateEmployeeRequest,
   CreateFlatRateCategoryRequest,
   CreateHourlyScheduleRequest,
+  CreatePerDiemCapRequest,
   CreateSalaryScheduleRequest,
   CreateScenarioRequest,
   CreateStipendAssignmentRequest,
@@ -61,6 +62,8 @@ import type {
   ListRetirementEligibleEmployeesParams,
   ListSalarySchedulesParams,
   ListScenariosParams,
+  PerDiemCap,
+  PerDiemConfig,
   ReportData,
   ReportSummary,
   RetirementEligibleEmployee,
@@ -81,9 +84,11 @@ import type {
   UpdateEmployeeGroupRequest,
   UpdateEmployeeRequest,
   UpdateFlatRateCategoryRequest,
+  UpdatePerDiemCapRequest,
   UpdateScenarioRequest,
   UpdateStipendAssignmentRequest,
   UpdateStipendDefinitionRequest,
+  UpsertPerDiemConfigRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -5935,6 +5940,529 @@ export const useDeleteStipendAssignment = <
   TContext
 > => {
   return useMutation(getDeleteStipendAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Get per-diem config for a schedule (null if not yet set)
+ */
+export const getGetPerDiemConfigUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/per-diem-config`;
+};
+
+export const getPerDiemConfig = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<PerDiemConfig | null> => {
+  return customFetch<PerDiemConfig | null>(getGetPerDiemConfigUrl(scheduleId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPerDiemConfigQueryKey = (scheduleId: string) => {
+  return [`/api/compensation-schedules/${scheduleId}/per-diem-config`] as const;
+};
+
+export const getGetPerDiemConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPerDiemConfig>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPerDiemConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPerDiemConfigQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPerDiemConfig>>
+  > = ({ signal }) =>
+    getPerDiemConfig(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPerDiemConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPerDiemConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPerDiemConfig>>
+>;
+export type GetPerDiemConfigQueryError = ErrorType<void>;
+
+/**
+ * @summary Get per-diem config for a schedule (null if not yet set)
+ */
+
+export function useGetPerDiemConfig<
+  TData = Awaited<ReturnType<typeof getPerDiemConfig>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPerDiemConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPerDiemConfigQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upsert per-diem config for a schedule
+ */
+export const getUpsertPerDiemConfigUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/per-diem-config`;
+};
+
+export const upsertPerDiemConfig = async (
+  scheduleId: string,
+  upsertPerDiemConfigRequest: UpsertPerDiemConfigRequest,
+  options?: RequestInit,
+): Promise<PerDiemConfig> => {
+  return customFetch<PerDiemConfig>(getUpsertPerDiemConfigUrl(scheduleId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertPerDiemConfigRequest),
+  });
+};
+
+export const getUpsertPerDiemConfigMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertPerDiemConfig>>,
+    TError,
+    { scheduleId: string; data: BodyType<UpsertPerDiemConfigRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertPerDiemConfig>>,
+  TError,
+  { scheduleId: string; data: BodyType<UpsertPerDiemConfigRequest> },
+  TContext
+> => {
+  const mutationKey = ["upsertPerDiemConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertPerDiemConfig>>,
+    { scheduleId: string; data: BodyType<UpsertPerDiemConfigRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return upsertPerDiemConfig(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertPerDiemConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertPerDiemConfig>>
+>;
+export type UpsertPerDiemConfigMutationBody =
+  BodyType<UpsertPerDiemConfigRequest>;
+export type UpsertPerDiemConfigMutationError = ErrorType<void>;
+
+/**
+ * @summary Upsert per-diem config for a schedule
+ */
+export const useUpsertPerDiemConfig = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertPerDiemConfig>>,
+    TError,
+    { scheduleId: string; data: BodyType<UpsertPerDiemConfigRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertPerDiemConfig>>,
+  TError,
+  { scheduleId: string; data: BodyType<UpsertPerDiemConfigRequest> },
+  TContext
+> => {
+  return useMutation(getUpsertPerDiemConfigMutationOptions(options));
+};
+
+/**
+ * @summary List per-diem caps for a schedule
+ */
+export const getListPerDiemCapsUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/per-diem-caps`;
+};
+
+export const listPerDiemCaps = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<PerDiemCap[]> => {
+  return customFetch<PerDiemCap[]>(getListPerDiemCapsUrl(scheduleId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPerDiemCapsQueryKey = (scheduleId: string) => {
+  return [`/api/compensation-schedules/${scheduleId}/per-diem-caps`] as const;
+};
+
+export const getListPerDiemCapsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPerDiemCaps>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPerDiemCaps>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPerDiemCapsQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPerDiemCaps>>> = ({
+    signal,
+  }) => listPerDiemCaps(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPerDiemCaps>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPerDiemCapsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPerDiemCaps>>
+>;
+export type ListPerDiemCapsQueryError = ErrorType<void>;
+
+/**
+ * @summary List per-diem caps for a schedule
+ */
+
+export function useListPerDiemCaps<
+  TData = Awaited<ReturnType<typeof listPerDiemCaps>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listPerDiemCaps>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPerDiemCapsQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a per-diem cap
+ */
+export const getCreatePerDiemCapUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/per-diem-caps`;
+};
+
+export const createPerDiemCap = async (
+  scheduleId: string,
+  createPerDiemCapRequest: CreatePerDiemCapRequest,
+  options?: RequestInit,
+): Promise<PerDiemCap> => {
+  return customFetch<PerDiemCap>(getCreatePerDiemCapUrl(scheduleId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createPerDiemCapRequest),
+  });
+};
+
+export const getCreatePerDiemCapMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPerDiemCap>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreatePerDiemCapRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPerDiemCap>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreatePerDiemCapRequest> },
+  TContext
+> => {
+  const mutationKey = ["createPerDiemCap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPerDiemCap>>,
+    { scheduleId: string; data: BodyType<CreatePerDiemCapRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return createPerDiemCap(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePerDiemCapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPerDiemCap>>
+>;
+export type CreatePerDiemCapMutationBody = BodyType<CreatePerDiemCapRequest>;
+export type CreatePerDiemCapMutationError = ErrorType<void>;
+
+/**
+ * @summary Add a per-diem cap
+ */
+export const useCreatePerDiemCap = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPerDiemCap>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreatePerDiemCapRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPerDiemCap>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreatePerDiemCapRequest> },
+  TContext
+> => {
+  return useMutation(getCreatePerDiemCapMutationOptions(options));
+};
+
+/**
+ * @summary Update a per-diem cap
+ */
+export const getUpdatePerDiemCapUrl = (id: string) => {
+  return `/api/per-diem-caps/${id}`;
+};
+
+export const updatePerDiemCap = async (
+  id: string,
+  updatePerDiemCapRequest: UpdatePerDiemCapRequest,
+  options?: RequestInit,
+): Promise<PerDiemCap> => {
+  return customFetch<PerDiemCap>(getUpdatePerDiemCapUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePerDiemCapRequest),
+  });
+};
+
+export const getUpdatePerDiemCapMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePerDiemCap>>,
+    TError,
+    { id: string; data: BodyType<UpdatePerDiemCapRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePerDiemCap>>,
+  TError,
+  { id: string; data: BodyType<UpdatePerDiemCapRequest> },
+  TContext
+> => {
+  const mutationKey = ["updatePerDiemCap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePerDiemCap>>,
+    { id: string; data: BodyType<UpdatePerDiemCapRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePerDiemCap(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePerDiemCapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePerDiemCap>>
+>;
+export type UpdatePerDiemCapMutationBody = BodyType<UpdatePerDiemCapRequest>;
+export type UpdatePerDiemCapMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a per-diem cap
+ */
+export const useUpdatePerDiemCap = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePerDiemCap>>,
+    TError,
+    { id: string; data: BodyType<UpdatePerDiemCapRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePerDiemCap>>,
+  TError,
+  { id: string; data: BodyType<UpdatePerDiemCapRequest> },
+  TContext
+> => {
+  return useMutation(getUpdatePerDiemCapMutationOptions(options));
+};
+
+/**
+ * @summary Delete a per-diem cap
+ */
+export const getDeletePerDiemCapUrl = (id: string) => {
+  return `/api/per-diem-caps/${id}`;
+};
+
+export const deletePerDiemCap = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeletePerDiemCapUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePerDiemCapMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePerDiemCap>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePerDiemCap>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deletePerDiemCap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePerDiemCap>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deletePerDiemCap(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePerDiemCapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePerDiemCap>>
+>;
+
+export type DeletePerDiemCapMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a per-diem cap
+ */
+export const useDeletePerDiemCap = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePerDiemCap>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePerDiemCap>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeletePerDiemCapMutationOptions(options));
 };
 
 /**

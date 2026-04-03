@@ -898,6 +898,57 @@ export interface UpdateStipendAssignmentRequest {
   notes?: string | null;
 }
 
+export type PerDiemConfigDerivationMethod =
+  (typeof PerDiemConfigDerivationMethod)[keyof typeof PerDiemConfigDerivationMethod];
+
+export const PerDiemConfigDerivationMethod = {
+  from_salary_schedule: "from_salary_schedule",
+  independent: "independent",
+} as const;
+
+export interface PerDiemConfig {
+  id: string;
+  compensationScheduleId: string;
+  sourceScheduleId?: string | null;
+  contractDays: number;
+  derivationMethod: PerDiemConfigDerivationMethod;
+  createdAt: string;
+}
+
+export type UpsertPerDiemConfigRequestDerivationMethod =
+  (typeof UpsertPerDiemConfigRequestDerivationMethod)[keyof typeof UpsertPerDiemConfigRequestDerivationMethod];
+
+export const UpsertPerDiemConfigRequestDerivationMethod = {
+  from_salary_schedule: "from_salary_schedule",
+  independent: "independent",
+} as const;
+
+export interface UpsertPerDiemConfigRequest {
+  contractDays: number;
+  derivationMethod: UpsertPerDiemConfigRequestDerivationMethod;
+  sourceScheduleId?: string | null;
+}
+
+export interface PerDiemCap {
+  id: string;
+  compensationScheduleId: string;
+  laneId: string;
+  capStep: number;
+  capRateCents: number;
+}
+
+export interface CreatePerDiemCapRequest {
+  laneId: string;
+  capStep: number;
+  capRateCents: number;
+}
+
+export interface UpdatePerDiemCapRequest {
+  laneId?: string;
+  capStep?: number;
+  capRateCents?: number;
+}
+
 export interface FlatRateCategory {
   id: string;
   compensationScheduleId: string;
