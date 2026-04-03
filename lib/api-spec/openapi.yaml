@@ -36,6 +36,8 @@ tags:
     description: Flat rate category management
   - name: per-diem
     description: Per-diem schedule configuration and caps
+  - name: hourly-categories
+    description: Hourly rate category management
 paths:
   /healthz:
     get:
@@ -1571,6 +1573,94 @@ paths:
       operationId: deleteFlatRateCategory
       tags: [flat-rates]
       summary: Delete a flat rate category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules/{scheduleId}/hourly-categories:
+    get:
+      operationId: listHourlyCategories
+      tags: [hourly-categories]
+      summary: List hourly categories for a schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of hourly categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompensationHourlyCategory"
+        "404":
+          description: Compensation schedule not found
+    post:
+      operationId: createHourlyCategory
+      tags: [hourly-categories]
+      summary: Create a hourly category
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCompensationHourlyCategoryRequest"
+      responses:
+        "201":
+          description: Created hourly category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompensationHourlyCategory"
+        "404":
+          description: Compensation schedule not found
+
+  /hourly-categories/{id}:
+    put:
+      operationId: updateHourlyCategory
+      tags: [hourly-categories]
+      summary: Update a hourly category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCompensationHourlyCategoryRequest"
+      responses:
+        "200":
+          description: Updated hourly category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompensationHourlyCategory"
+        "404":
+          description: Hourly category not found
+    delete:
+      operationId: deleteHourlyCategory
+      tags: [hourly-categories]
+      summary: Delete a hourly category
       parameters:
         - name: id
           in: path
@@ -3568,3 +3658,53 @@ components:
         - definitionAmountCents
         - definitionTrsCreditable
         - definitionImrfCreditable
+
+    CompensationHourlyCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        name:
+          type: string
+        baseHourlyRate:
+          type: string
+        annualHours:
+          type: string
+        displayOrder:
+          type: number
+      required:
+        - id
+        - compensationScheduleId
+        - name
+        - baseHourlyRate
+        - annualHours
+        - displayOrder
+
+    CreateCompensationHourlyCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        baseHourlyRate:
+          type: string
+        annualHours:
+          type: string
+        displayOrder:
+          type: number
+      required:
+        - name
+        - baseHourlyRate
+
+    UpdateCompensationHourlyCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        baseHourlyRate:
+          type: string
+        annualHours:
+          type: string
+        displayOrder:
+          type: number

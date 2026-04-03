@@ -19,8 +19,10 @@ import type {
 import type {
   BargainingUnit,
   CompareScenariosParams,
+  CompensationHourlyCategory,
   CompensationSchedule,
   CreateBargainingUnitRequest,
+  CreateCompensationHourlyCategoryRequest,
   CreateCompensationScheduleRequest,
   CreateDistrictRequest,
   CreateEmployeeGroupRequest,
@@ -78,6 +80,7 @@ import type {
   StipendDefinitionWithAssignments,
   UpdateBargainingUnitRequest,
   UpdateBargainingUnitSettingsBody,
+  UpdateCompensationHourlyCategoryRequest,
   UpdateCompensationScheduleRequest,
   UpdateDistrictRequest,
   UpdateDistrictSettingsBody,
@@ -6823,6 +6826,381 @@ export const useDeleteFlatRateCategory = <
   TContext
 > => {
   return useMutation(getDeleteFlatRateCategoryMutationOptions(options));
+};
+
+/**
+ * @summary List hourly categories for a schedule
+ */
+export const getListHourlyCategoriesUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/hourly-categories`;
+};
+
+export const listHourlyCategories = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<CompensationHourlyCategory[]> => {
+  return customFetch<CompensationHourlyCategory[]>(
+    getListHourlyCategoriesUrl(scheduleId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListHourlyCategoriesQueryKey = (scheduleId: string) => {
+  return [
+    `/api/compensation-schedules/${scheduleId}/hourly-categories`,
+  ] as const;
+};
+
+export const getListHourlyCategoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHourlyCategories>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHourlyCategories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHourlyCategoriesQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHourlyCategories>>
+  > = ({ signal }) =>
+    listHourlyCategories(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHourlyCategories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHourlyCategoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHourlyCategories>>
+>;
+export type ListHourlyCategoriesQueryError = ErrorType<void>;
+
+/**
+ * @summary List hourly categories for a schedule
+ */
+
+export function useListHourlyCategories<
+  TData = Awaited<ReturnType<typeof listHourlyCategories>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHourlyCategories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHourlyCategoriesQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a hourly category
+ */
+export const getCreateHourlyCategoryUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/hourly-categories`;
+};
+
+export const createHourlyCategory = async (
+  scheduleId: string,
+  createCompensationHourlyCategoryRequest: CreateCompensationHourlyCategoryRequest,
+  options?: RequestInit,
+): Promise<CompensationHourlyCategory> => {
+  return customFetch<CompensationHourlyCategory>(
+    getCreateHourlyCategoryUrl(scheduleId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createCompensationHourlyCategoryRequest),
+    },
+  );
+};
+
+export const getCreateHourlyCategoryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHourlyCategory>>,
+    TError,
+    {
+      scheduleId: string;
+      data: BodyType<CreateCompensationHourlyCategoryRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createHourlyCategory>>,
+  TError,
+  {
+    scheduleId: string;
+    data: BodyType<CreateCompensationHourlyCategoryRequest>;
+  },
+  TContext
+> => {
+  const mutationKey = ["createHourlyCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createHourlyCategory>>,
+    {
+      scheduleId: string;
+      data: BodyType<CreateCompensationHourlyCategoryRequest>;
+    }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return createHourlyCategory(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateHourlyCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createHourlyCategory>>
+>;
+export type CreateHourlyCategoryMutationBody =
+  BodyType<CreateCompensationHourlyCategoryRequest>;
+export type CreateHourlyCategoryMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a hourly category
+ */
+export const useCreateHourlyCategory = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHourlyCategory>>,
+    TError,
+    {
+      scheduleId: string;
+      data: BodyType<CreateCompensationHourlyCategoryRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createHourlyCategory>>,
+  TError,
+  {
+    scheduleId: string;
+    data: BodyType<CreateCompensationHourlyCategoryRequest>;
+  },
+  TContext
+> => {
+  return useMutation(getCreateHourlyCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Update a hourly category
+ */
+export const getUpdateHourlyCategoryUrl = (id: string) => {
+  return `/api/hourly-categories/${id}`;
+};
+
+export const updateHourlyCategory = async (
+  id: string,
+  updateCompensationHourlyCategoryRequest: UpdateCompensationHourlyCategoryRequest,
+  options?: RequestInit,
+): Promise<CompensationHourlyCategory> => {
+  return customFetch<CompensationHourlyCategory>(
+    getUpdateHourlyCategoryUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateCompensationHourlyCategoryRequest),
+    },
+  );
+};
+
+export const getUpdateHourlyCategoryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHourlyCategory>>,
+    TError,
+    { id: string; data: BodyType<UpdateCompensationHourlyCategoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateHourlyCategory>>,
+  TError,
+  { id: string; data: BodyType<UpdateCompensationHourlyCategoryRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateHourlyCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateHourlyCategory>>,
+    { id: string; data: BodyType<UpdateCompensationHourlyCategoryRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateHourlyCategory(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateHourlyCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateHourlyCategory>>
+>;
+export type UpdateHourlyCategoryMutationBody =
+  BodyType<UpdateCompensationHourlyCategoryRequest>;
+export type UpdateHourlyCategoryMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a hourly category
+ */
+export const useUpdateHourlyCategory = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHourlyCategory>>,
+    TError,
+    { id: string; data: BodyType<UpdateCompensationHourlyCategoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateHourlyCategory>>,
+  TError,
+  { id: string; data: BodyType<UpdateCompensationHourlyCategoryRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateHourlyCategoryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a hourly category
+ */
+export const getDeleteHourlyCategoryUrl = (id: string) => {
+  return `/api/hourly-categories/${id}`;
+};
+
+export const deleteHourlyCategory = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteHourlyCategoryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteHourlyCategoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHourlyCategory>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteHourlyCategory>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteHourlyCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteHourlyCategory>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteHourlyCategory(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteHourlyCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteHourlyCategory>>
+>;
+
+export type DeleteHourlyCategoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a hourly category
+ */
+export const useDeleteHourlyCategory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHourlyCategory>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteHourlyCategory>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteHourlyCategoryMutationOptions(options));
 };
 
 /**

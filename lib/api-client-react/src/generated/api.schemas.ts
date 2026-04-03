@@ -997,6 +997,29 @@ export interface EmployeeStipendWithDefinition {
   definitionImrfCreditable: boolean;
 }
 
+export interface CompensationHourlyCategory {
+  id: string;
+  compensationScheduleId: string;
+  name: string;
+  baseHourlyRate: string;
+  annualHours: string;
+  displayOrder: number;
+}
+
+export interface CreateCompensationHourlyCategoryRequest {
+  name: string;
+  baseHourlyRate: string;
+  annualHours?: string;
+  displayOrder?: number;
+}
+
+export interface UpdateCompensationHourlyCategoryRequest {
+  name?: string;
+  baseHourlyRate?: string;
+  annualHours?: string;
+  displayOrder?: number;
+}
+
 export type ListBargainingUnitsParams = {
   districtId?: string;
 };

@@ -104,6 +104,24 @@ export const employeeStipendsTable = pgTable("employee_stipends", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const compensationHourlyCategoriesTable = pgTable(
+  "compensation_hourly_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    compensationScheduleId: uuid("compensation_schedule_id")
+      .notNull()
+      .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    baseHourlyRate: numeric("base_hourly_rate", { precision: 10, scale: 4 })
+      .notNull()
+      .default("0"),
+    annualHours: numeric("annual_hours", { precision: 10, scale: 2 })
+      .notNull()
+      .default("2080"),
+    displayOrder: integer("display_order").notNull().default(0),
+  }
+);
+
 export const insertPerDiemConfigSchema = createInsertSchema(
   perDiemConfigsTable
 ).omit({ id: true, createdAt: true });
@@ -118,6 +136,12 @@ export const insertFlatRateSchema = createInsertSchema(flatRatesTable).omit({
 });
 
 export const insertEmployeeStipendSchema = createInsertSchema(employeeStipendsTable).omit({ id: true, createdAt: true });
+
+export const insertCompensationHourlyCategorySchema = createInsertSchema(
+  compensationHourlyCategoriesTable
+).omit({ id: true });
+export type CompensationHourlyCategory =
+  typeof compensationHourlyCategoriesTable.$inferSelect;
 
 export type PerDiemConfig = typeof perDiemConfigsTable.$inferSelect;
 export type PerDiemCap = typeof perDiemCapsTable.$inferSelect;

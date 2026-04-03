@@ -2512,6 +2512,69 @@ export const DeleteFlatRateCategoryParams = zod.object({
 });
 
 /**
+ * @summary List hourly categories for a schedule
+ */
+export const ListHourlyCategoriesParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListHourlyCategoriesResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  name: zod.string(),
+  baseHourlyRate: zod.string(),
+  annualHours: zod.string(),
+  displayOrder: zod.number(),
+});
+export const ListHourlyCategoriesResponse = zod.array(
+  ListHourlyCategoriesResponseItem,
+);
+
+/**
+ * @summary Create a hourly category
+ */
+export const CreateHourlyCategoryParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const CreateHourlyCategoryBody = zod.object({
+  name: zod.string(),
+  baseHourlyRate: zod.string(),
+  annualHours: zod.string().optional(),
+  displayOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a hourly category
+ */
+export const UpdateHourlyCategoryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateHourlyCategoryBody = zod.object({
+  name: zod.string().optional(),
+  baseHourlyRate: zod.string().optional(),
+  annualHours: zod.string().optional(),
+  displayOrder: zod.number().optional(),
+});
+
+export const UpdateHourlyCategoryResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  name: zod.string(),
+  baseHourlyRate: zod.string(),
+  annualHours: zod.string(),
+  displayOrder: zod.number(),
+});
+
+/**
+ * @summary Delete a hourly category
+ */
+export const DeleteHourlyCategoryParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
  * @summary List all stipend assignments for an employee (with definition details)
  */
 export const ListEmployeeStipendsParams = zod.object({
