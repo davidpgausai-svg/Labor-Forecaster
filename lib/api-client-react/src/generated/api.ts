@@ -30,6 +30,7 @@ import type {
   CreateFlatRateCategoryRequest,
   CreateHourlyScheduleRequest,
   CreatePerDiemCapRequest,
+  CreateSalaryRangeRequest,
   CreateSalaryScheduleRequest,
   CreateScenarioRequest,
   CreateStipendAssignmentRequest,
@@ -69,6 +70,7 @@ import type {
   ReportData,
   ReportSummary,
   RetirementEligibleEmployee,
+  SalaryRangeRow,
   SalarySchedule,
   SalaryScheduleWithGrid,
   Scenario,
@@ -88,6 +90,7 @@ import type {
   UpdateEmployeeRequest,
   UpdateFlatRateCategoryRequest,
   UpdatePerDiemCapRequest,
+  UpdateSalaryRangeRequest,
   UpdateScenarioRequest,
   UpdateStipendAssignmentRequest,
   UpdateStipendDefinitionRequest,
@@ -7201,6 +7204,353 @@ export const useDeleteHourlyCategory = <
   TContext
 > => {
   return useMutation(getDeleteHourlyCategoryMutationOptions(options));
+};
+
+/**
+ * @summary List salary ranges for a schedule
+ */
+export const getListSalaryRangesUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/salary-ranges`;
+};
+
+export const listSalaryRanges = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<SalaryRangeRow[]> => {
+  return customFetch<SalaryRangeRow[]>(getListSalaryRangesUrl(scheduleId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSalaryRangesQueryKey = (scheduleId: string) => {
+  return [`/api/compensation-schedules/${scheduleId}/salary-ranges`] as const;
+};
+
+export const getListSalaryRangesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSalaryRanges>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSalaryRanges>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSalaryRangesQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSalaryRanges>>
+  > = ({ signal }) =>
+    listSalaryRanges(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSalaryRanges>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSalaryRangesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSalaryRanges>>
+>;
+export type ListSalaryRangesQueryError = ErrorType<void>;
+
+/**
+ * @summary List salary ranges for a schedule
+ */
+
+export function useListSalaryRanges<
+  TData = Awaited<ReturnType<typeof listSalaryRanges>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSalaryRanges>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSalaryRangesQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a salary range
+ */
+export const getCreateSalaryRangeUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/salary-ranges`;
+};
+
+export const createSalaryRange = async (
+  scheduleId: string,
+  createSalaryRangeRequest: CreateSalaryRangeRequest,
+  options?: RequestInit,
+): Promise<SalaryRangeRow> => {
+  return customFetch<SalaryRangeRow>(getCreateSalaryRangeUrl(scheduleId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSalaryRangeRequest),
+  });
+};
+
+export const getCreateSalaryRangeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSalaryRange>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateSalaryRangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSalaryRange>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateSalaryRangeRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSalaryRange"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSalaryRange>>,
+    { scheduleId: string; data: BodyType<CreateSalaryRangeRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return createSalaryRange(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSalaryRangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSalaryRange>>
+>;
+export type CreateSalaryRangeMutationBody = BodyType<CreateSalaryRangeRequest>;
+export type CreateSalaryRangeMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a salary range
+ */
+export const useCreateSalaryRange = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSalaryRange>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateSalaryRangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSalaryRange>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateSalaryRangeRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSalaryRangeMutationOptions(options));
+};
+
+/**
+ * @summary Update a salary range
+ */
+export const getUpdateSalaryRangeUrl = (id: string) => {
+  return `/api/salary-ranges/${id}`;
+};
+
+export const updateSalaryRange = async (
+  id: string,
+  updateSalaryRangeRequest: UpdateSalaryRangeRequest,
+  options?: RequestInit,
+): Promise<SalaryRangeRow> => {
+  return customFetch<SalaryRangeRow>(getUpdateSalaryRangeUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSalaryRangeRequest),
+  });
+};
+
+export const getUpdateSalaryRangeMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSalaryRange>>,
+    TError,
+    { id: string; data: BodyType<UpdateSalaryRangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSalaryRange>>,
+  TError,
+  { id: string; data: BodyType<UpdateSalaryRangeRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSalaryRange"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSalaryRange>>,
+    { id: string; data: BodyType<UpdateSalaryRangeRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSalaryRange(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSalaryRangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSalaryRange>>
+>;
+export type UpdateSalaryRangeMutationBody = BodyType<UpdateSalaryRangeRequest>;
+export type UpdateSalaryRangeMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a salary range
+ */
+export const useUpdateSalaryRange = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSalaryRange>>,
+    TError,
+    { id: string; data: BodyType<UpdateSalaryRangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSalaryRange>>,
+  TError,
+  { id: string; data: BodyType<UpdateSalaryRangeRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSalaryRangeMutationOptions(options));
+};
+
+/**
+ * @summary Delete a salary range
+ */
+export const getDeleteSalaryRangeUrl = (id: string) => {
+  return `/api/salary-ranges/${id}`;
+};
+
+export const deleteSalaryRange = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteSalaryRangeUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSalaryRangeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSalaryRange>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSalaryRange>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteSalaryRange"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSalaryRange>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSalaryRange(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSalaryRangeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSalaryRange>>
+>;
+
+export type DeleteSalaryRangeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a salary range
+ */
+export const useDeleteSalaryRange = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSalaryRange>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSalaryRange>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteSalaryRangeMutationOptions(options));
 };
 
 /**

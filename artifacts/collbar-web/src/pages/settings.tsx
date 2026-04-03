@@ -70,6 +70,8 @@ import { cn } from "@/lib/utils";
 import { StipendTableEditor } from "@/components/StipendTableEditor";
 import { FlatRateCategoryEditor } from "@/components/FlatRateCategoryEditor";
 import { PerDiemEditor } from "@/components/PerDiemEditor";
+import { HourlyCategoryEditor } from "@/components/HourlyCategoryEditor";
+import { SalaryRangeEditor } from "@/components/SalaryRangeEditor";
 
 const GROUP_INDEX_COLORS = [
   "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -966,6 +968,8 @@ function ScheduleRow({
   const [stipendEditorOpen, setStipendEditorOpen] = useState(false);
   const [flatRateEditorOpen, setFlatRateEditorOpen] = useState(false);
   const [perDiemEditorOpen, setPerDiemEditorOpen] = useState(false);
+  const [hourlyEditorOpen, setHourlyEditorOpen] = useState(false);
+  const [salaryRangeEditorOpen, setSalaryRangeEditorOpen] = useState(false);
 
   const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
     label: schedule.scheduleType,
@@ -1056,6 +1060,26 @@ function ScheduleRow({
             Configure
           </Button>
         )}
+        {schedule.scheduleType === "hourly" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setHourlyEditorOpen(true)}
+          >
+            Manage Categories
+          </Button>
+        )}
+        {schedule.scheduleType === "range_based" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setSalaryRangeEditorOpen(true)}
+          >
+            Manage Ranges
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1100,6 +1124,24 @@ function ScheduleRow({
           scheduleId={schedule.id}
           scheduleName={schedule.name}
           employeeGroupId={employeeGroupId}
+        />
+      )}
+
+      {schedule.scheduleType === "hourly" && (
+        <HourlyCategoryEditor
+          open={hourlyEditorOpen}
+          onClose={() => setHourlyEditorOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+        />
+      )}
+
+      {schedule.scheduleType === "range_based" && (
+        <SalaryRangeEditor
+          open={salaryRangeEditorOpen}
+          onClose={() => setSalaryRangeEditorOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
         />
       )}
     </div>

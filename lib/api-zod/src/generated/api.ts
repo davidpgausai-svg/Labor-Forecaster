@@ -2575,6 +2575,71 @@ export const DeleteHourlyCategoryParams = zod.object({
 });
 
 /**
+ * @summary List salary ranges for a schedule
+ */
+export const ListSalaryRangesParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListSalaryRangesResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  positionTitle: zod.string(),
+  minSalaryCents: zod.number(),
+  midSalaryCents: zod.number(),
+  maxSalaryCents: zod.number(),
+  displayOrder: zod.number(),
+});
+export const ListSalaryRangesResponse = zod.array(ListSalaryRangesResponseItem);
+
+/**
+ * @summary Create a salary range
+ */
+export const CreateSalaryRangeParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const CreateSalaryRangeBody = zod.object({
+  positionTitle: zod.string(),
+  minSalaryCents: zod.number(),
+  midSalaryCents: zod.number(),
+  maxSalaryCents: zod.number(),
+  displayOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a salary range
+ */
+export const UpdateSalaryRangeParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateSalaryRangeBody = zod.object({
+  positionTitle: zod.string().optional(),
+  minSalaryCents: zod.number().optional(),
+  midSalaryCents: zod.number().optional(),
+  maxSalaryCents: zod.number().optional(),
+  displayOrder: zod.number().optional(),
+});
+
+export const UpdateSalaryRangeResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  positionTitle: zod.string(),
+  minSalaryCents: zod.number(),
+  midSalaryCents: zod.number(),
+  maxSalaryCents: zod.number(),
+  displayOrder: zod.number(),
+});
+
+/**
+ * @summary Delete a salary range
+ */
+export const DeleteSalaryRangeParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
  * @summary List all stipend assignments for an employee (with definition details)
  */
 export const ListEmployeeStipendsParams = zod.object({

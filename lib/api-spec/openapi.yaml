@@ -38,6 +38,8 @@ tags:
     description: Per-diem schedule configuration and caps
   - name: hourly-categories
     description: Hourly rate category management
+  - name: salary-ranges
+    description: Range-based salary schedule management
 paths:
   /healthz:
     get:
@@ -1661,6 +1663,94 @@ paths:
       operationId: deleteHourlyCategory
       tags: [hourly-categories]
       summary: Delete a hourly category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules/{scheduleId}/salary-ranges:
+    get:
+      operationId: listSalaryRanges
+      tags: [salary-ranges]
+      summary: List salary ranges for a schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of salary ranges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalaryRangeRow"
+        "404":
+          description: Compensation schedule not found
+    post:
+      operationId: createSalaryRange
+      tags: [salary-ranges]
+      summary: Create a salary range
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSalaryRangeRequest"
+      responses:
+        "201":
+          description: Created salary range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalaryRangeRow"
+        "404":
+          description: Compensation schedule not found
+
+  /salary-ranges/{id}:
+    put:
+      operationId: updateSalaryRange
+      tags: [salary-ranges]
+      summary: Update a salary range
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSalaryRangeRequest"
+      responses:
+        "200":
+          description: Updated salary range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalaryRangeRow"
+        "404":
+          description: Salary range not found
+    delete:
+      operationId: deleteSalaryRange
+      tags: [salary-ranges]
+      summary: Delete a salary range
       parameters:
         - name: id
           in: path
@@ -3706,5 +3796,64 @@ components:
           type: string
         annualHours:
           type: string
+        displayOrder:
+          type: number
+
+    SalaryRangeRow:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        positionTitle:
+          type: string
+        minSalaryCents:
+          type: number
+        midSalaryCents:
+          type: number
+        maxSalaryCents:
+          type: number
+        displayOrder:
+          type: number
+      required:
+        - id
+        - compensationScheduleId
+        - positionTitle
+        - minSalaryCents
+        - midSalaryCents
+        - maxSalaryCents
+        - displayOrder
+
+    CreateSalaryRangeRequest:
+      type: object
+      properties:
+        positionTitle:
+          type: string
+        minSalaryCents:
+          type: number
+        midSalaryCents:
+          type: number
+        maxSalaryCents:
+          type: number
+        displayOrder:
+          type: number
+      required:
+        - positionTitle
+        - minSalaryCents
+        - midSalaryCents
+        - maxSalaryCents
+
+    UpdateSalaryRangeRequest:
+      type: object
+      properties:
+        positionTitle:
+          type: string
+        minSalaryCents:
+          type: number
+        midSalaryCents:
+          type: number
+        maxSalaryCents:
+          type: number
         displayOrder:
           type: number

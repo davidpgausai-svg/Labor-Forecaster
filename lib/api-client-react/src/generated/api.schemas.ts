@@ -1020,6 +1020,32 @@ export interface UpdateCompensationHourlyCategoryRequest {
   displayOrder?: number;
 }
 
+export interface SalaryRangeRow {
+  id: string;
+  compensationScheduleId: string;
+  positionTitle: string;
+  minSalaryCents: number;
+  midSalaryCents: number;
+  maxSalaryCents: number;
+  displayOrder: number;
+}
+
+export interface CreateSalaryRangeRequest {
+  positionTitle: string;
+  minSalaryCents: number;
+  midSalaryCents: number;
+  maxSalaryCents: number;
+  displayOrder?: number;
+}
+
+export interface UpdateSalaryRangeRequest {
+  positionTitle?: string;
+  minSalaryCents?: number;
+  midSalaryCents?: number;
+  maxSalaryCents?: number;
+  displayOrder?: number;
+}
+
 export type ListBargainingUnitsParams = {
   districtId?: string;
 };
