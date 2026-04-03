@@ -12,6 +12,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { compensationSchedulesTable } from "./compensation-schedules";
 import { lanesTable } from "./salary-schedules";
+import { employeesTable } from "./employees";
 
 export const perDiemConfigsTable = pgTable("per_diem_configs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -88,6 +89,21 @@ export const flatRatesTable = pgTable("flat_rates", {
   displayOrder: integer("display_order").notNull().default(0),
 });
 
+export const employeeStipendsTable = pgTable("employee_stipends", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employeesTable.id, { onDelete: "cascade" }),
+  stipendDefinitionId: uuid("stipend_definition_id")
+    .notNull()
+    .references(() => stipendDefinitionsTable.id, { onDelete: "cascade" }),
+  effectiveYear: integer("effective_year").notNull().default(0),
+  overrideAmountCents: bigint("override_amount_cents", { mode: "number" }),
+  hoursOrEvents: numeric("hours_or_events", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertPerDiemConfigSchema = createInsertSchema(
   perDiemConfigsTable
 ).omit({ id: true, createdAt: true });
@@ -101,8 +117,12 @@ export const insertFlatRateSchema = createInsertSchema(flatRatesTable).omit({
   id: true,
 });
 
+export const insertEmployeeStipendSchema = createInsertSchema(employeeStipendsTable).omit({ id: true, createdAt: true });
+
 export type PerDiemConfig = typeof perDiemConfigsTable.$inferSelect;
 export type PerDiemCap = typeof perDiemCapsTable.$inferSelect;
 export type StipendDefinition = typeof stipendDefinitionsTable.$inferSelect;
 export type SalaryRange = typeof salaryRangesTable.$inferSelect;
 export type FlatRate = typeof flatRatesTable.$inferSelect;
+export type EmployeeStipend = typeof employeeStipendsTable.$inferSelect;
+export type InsertEmployeeStipend = z.infer<typeof insertEmployeeStipendSchema>;

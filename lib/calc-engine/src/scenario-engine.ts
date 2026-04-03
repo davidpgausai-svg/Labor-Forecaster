@@ -3,6 +3,8 @@ import { calcSalariedEmployeeYear } from "./salary-engine.js";
 import { calcHourlyEmployeeYear } from "./hourly-engine.js";
 import { calcBenefits, calcProRateFraction } from "./benefits-engine.js";
 import { calcIndexBasedEmployeeYear } from "./index-based-engine.js";
+import { calcFlatRateEmployeeYear } from "./flat-rate-engine.js";
+import { calcRangeBasedEmployeeYear } from "./range-based-engine.js";
 import type {
   YearConfig,
   YearConfigWithSchedule,
@@ -29,7 +31,8 @@ export function calcEmployeeProjection(
   indexGridConfig?: IndexGridConfig | null,
   pendingUnitConfig?: BargainingUnitConfig | null,
   pendingSchedule?: SalaryScheduleData | null,
-  pendingYearConfigs?: (YearConfig | YearConfigWithSchedule)[] | null
+  pendingYearConfigs?: (YearConfig | YearConfigWithSchedule)[] | null,
+  salaryRanges?: import("./range-based-engine.js").SalaryRangeData[] | null
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -95,6 +98,7 @@ export function calcEmployeeProjection(
     let projectedStep: number | null = currentStep;
     const projectedLaneId: string | null = currentLaneId;
     let effectiveRate: Decimal | null = null;
+    let rangePos: string | null = null;
 
     // Pro-rate fraction applies only to the base year (yearIdx=0) for mid-year hires/terms
     const proRateFraction =
@@ -104,7 +108,42 @@ export function calcEmployeeProjection(
 
     const scheduleType = (config as YearConfigWithSchedule).scheduleType;
 
-    if (scheduleType === "index_based_grid" && indexGridConfig) {
+    if (scheduleType === "flat_rate") {
+      const tempEmployee: EmployeeInput = {
+        ...employee,
+        currentAnnualSalary: currentSalary.toString(),
+        currentStep,
+      };
+      const result = calcFlatRateEmployeeYear(tempEmployee, yearIdx, config, null, proRateFraction);
+      projectedBaseSalary = result.salary;
+      projectedStep = null;
+      effectiveRate = result.effectiveRate;
+      currentSalary = yearIdx === 0 && proRateFraction.lt("1")
+        ? new Decimal(employee.currentAnnualSalary)
+        : result.salary;
+    } else if (scheduleType === "range_based") {
+      const tempEmployee: EmployeeInput = {
+        ...employee,
+        currentAnnualSalary: currentSalary.toString(),
+        currentStep,
+      };
+      // Find the best-matching range by salary amount (first range where salary falls within min–max)
+      let matchedRange: import("./range-based-engine.js").SalaryRangeData | null = null;
+      if (salaryRanges && salaryRanges.length > 0) {
+        const salaryCents = currentSalary.times(100).toDecimalPlaces(0).toNumber();
+        matchedRange = salaryRanges.find(
+          (r) => salaryCents >= r.minSalaryCents && salaryCents <= r.maxSalaryCents
+        ) ?? salaryRanges[0];
+      }
+      const result = calcRangeBasedEmployeeYear(tempEmployee, yearIdx, config, matchedRange, proRateFraction);
+      projectedBaseSalary = result.salary;
+      projectedStep = null;
+      effectiveRate = result.effectiveRate;
+      rangePos = result.rangePosition;
+      currentSalary = yearIdx === 0 && proRateFraction.lt("1")
+        ? new Decimal(employee.currentAnnualSalary)
+        : result.salary;
+    } else if (scheduleType === "index_based_grid" && indexGridConfig) {
       const indexResult = calcIndexBasedEmployeeYear(
         employee,
         yearIdx,
@@ -121,7 +160,7 @@ export function calcEmployeeProjection(
       currentSalary = yearIdx === 0 && proRateFraction.lt("1")
         ? new Decimal(employee.currentAnnualSalary)
         : indexResult.salary;
-    } else if (employee.compensationType === "salary") {
+    } else if (scheduleType === "individual_salary" || employee.compensationType === "salary") {
       const tempEmployee: EmployeeInput = {
         ...employee,
         currentAnnualSalary: currentSalary.toString(),
@@ -185,6 +224,10 @@ export function calcEmployeeProjection(
       effectiveRate: effectiveRate?.toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toString() ?? null,
       isRetirementYear: false,
       retirementIncentiveAmount: null,
+      projectedDailyRate: null,
+      rangePosition: rangePos,
+      stipendTotalAmount: null,
+      stipendBreakdown: null,
     });
   }
 

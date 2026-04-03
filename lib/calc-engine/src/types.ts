@@ -184,6 +184,10 @@ export interface EmployeeYearResult {
   effectiveRate: string | null;
   isRetirementYear: boolean;
   retirementIncentiveAmount: string | null;
+  projectedDailyRate: string | null;
+  rangePosition: string | null;
+  stipendTotalAmount: string | null;
+  stipendBreakdown: Array<{ stipendId: string; stipendName: string; amount: string }> | null;
 }
 
 export interface ScenarioYearSummary {

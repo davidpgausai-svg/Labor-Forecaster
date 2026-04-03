@@ -10,6 +10,11 @@ import {
   compensationSchedulesTable,
   indexGridConfigsTable,
   scheduleIndicesTable,
+  salaryRangesTable,
+  stipendDefinitionsTable,
+  employeeStipendsTable,
+  perDiemConfigsTable,
+  perDiemCapsTable,
   salarySchedulesTable,
   lanesTable,
   stepsTable,
@@ -28,6 +33,11 @@ import type {
   ScenarioCalculationResult,
   IndexGridConfig,
 } from "./types.js";
+import type { SalaryRangeData } from "./range-based-engine.js";
+import { calcEmployeeStipends } from "./stipend-engine.js";
+import type { StipendDefinition } from "./stipend-engine.js";
+import { calcPerDiemEmployeeYear } from "./per-diem-engine.js";
+import type { PerDiemConfig, PerDiemCap } from "./per-diem-engine.js";
 
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP, precision: 28 });
 
@@ -105,6 +115,21 @@ async function loadScheduleForUnit(bargainingUnitId: string): Promise<SalarySche
     steps: steps.map((s) => ({ id: s.id, stepNumber: s.stepNumber, incrementMultiplier: s.incrementMultiplier })),
     cells: cellsWithStep,
   };
+}
+
+async function loadSalaryRanges(compensationScheduleId: string): Promise<SalaryRangeData[]> {
+  const rows = await db
+    .select()
+    .from(salaryRangesTable)
+    .where(eq(salaryRangesTable.compensationScheduleId, compensationScheduleId))
+    .orderBy(salaryRangesTable.displayOrder);
+  return rows.map((r) => ({
+    id: r.id,
+    positionTitle: r.positionTitle,
+    minSalaryCents: r.minSalaryCents,
+    midSalaryCents: r.midSalaryCents,
+    maxSalaryCents: r.maxSalaryCents,
+  }));
 }
 
 function toYearConfigs(
@@ -276,6 +301,9 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         effectiveRate: r.effectiveRate,
         isRetirementYear: r.isRetirementYear,
         retirementIncentiveAmountCents: toCents(r.retirementIncentiveAmount),
+        projectedDailyRateCents: toCents(r.projectedDailyRate),
+        stipendTotalCents: toCents(r.stipendTotalAmount),
+        rangePosition: r.rangePosition ?? null,
       });
     }
   }
@@ -490,6 +518,91 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     const indexGridConfig = primaryScheduleId && primaryScheduleType === "index_based_grid"
       ? await loadIndexGridConfig(primaryScheduleId)
       : null;
+    const salaryRanges = primaryScheduleId && primaryScheduleType === "range_based"
+      ? await loadSalaryRanges(primaryScheduleId)
+      : null;
+
+    // For individual_salary groups the salary schedule lives on the BU — load it via
+    // the first employee's bargainingUnitId (all employees in a group share the same BU).
+    const groupBuId = primaryScheduleType === "individual_salary"
+      ? (groupEmps[0]?.employee.bargainingUnitId ?? null)
+      : null;
+    const groupScheduleData = groupBuId ? await loadScheduleForUnit(groupBuId) : null;
+
+    // Load stipend definitions for this schedule and assignments for all employees in the group
+    const stipendDefs: StipendDefinition[] = primaryScheduleId
+      ? (await db
+          .select()
+          .from(stipendDefinitionsTable)
+          .where(
+            and(
+              eq(stipendDefinitionsTable.compensationScheduleId, primaryScheduleId),
+              eq(stipendDefinitionsTable.active, true)
+            )
+          )).map((d) => ({
+            id: d.id,
+            name: d.name,
+            category: d.category,
+            amountType: d.amountType as StipendDefinition["amountType"],
+            amountCents: d.amountCents,
+            percentageValue: d.percentageValue,
+            maxAmountCents: d.maxAmountCents ?? null,
+            increaseWithBase: d.increaseWithBase,
+            trsCreditable: d.trsCreditable,
+            imrfCreditable: d.imrfCreditable,
+          }))
+      : [];
+
+    const groupEmpIds = groupEmps.map((r) => r.employee.id);
+    const stipendAssignmentRows = stipendDefs.length > 0 && groupEmpIds.length > 0
+      ? await db
+          .select()
+          .from(employeeStipendsTable)
+          .where(inArray(employeeStipendsTable.employeeId, groupEmpIds))
+      : [];
+
+    // Load per-diem secondary schedule for this group if present
+    const perDiemScheduleRow = await db
+      .select()
+      .from(compensationSchedulesTable)
+      .where(
+        and(
+          eq(compensationSchedulesTable.employeeGroupId, employeeGroupId),
+          eq(compensationSchedulesTable.active, true)
+        )
+      )
+      .then((rows) => rows.find((r) => r.scheduleType === "per_diem") ?? null);
+
+    let perDiemConfig: PerDiemConfig | null = null;
+    let perDiemCaps: PerDiemCap[] = [];
+
+    if (perDiemScheduleRow) {
+      const perDiemConfigRow = await db
+        .select()
+        .from(perDiemConfigsTable)
+        .where(eq(perDiemConfigsTable.compensationScheduleId, perDiemScheduleRow.id))
+        .limit(1)
+        .then((r) => r[0] ?? null);
+
+      if (perDiemConfigRow) {
+        perDiemConfig = {
+          compensationScheduleId: perDiemScheduleRow.id,
+          sourceScheduleId: perDiemConfigRow.sourceScheduleId ?? null,
+          contractDays: perDiemConfigRow.contractDays,
+          derivationMethod: perDiemConfigRow.derivationMethod as PerDiemConfig["derivationMethod"],
+        };
+        perDiemCaps = (
+          await db
+            .select()
+            .from(perDiemCapsTable)
+            .where(eq(perDiemCapsTable.compensationScheduleId, perDiemScheduleRow.id))
+        ).map((c) => ({
+          laneId: c.laneId,
+          capStep: c.capStep,
+          capRateCents: c.capRateCents,
+        }));
+      }
+    }
 
     const buConfig: BargainingUnitConfig = {
       id: groupConfig.id,
@@ -526,8 +639,83 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         pendingScheduleData = null;
         pendingYearCfgs = pendingGroupYearConfigsMap.get(empInput.pendingEmployeeGroupId) ?? null;
       }
-      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, null, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData, pendingYearCfgs);
-      pushResults(yearResults);
+      let finalResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, groupScheduleData, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData, pendingYearCfgs, salaryRanges);
+
+      // Pass 1: per-diem daily rate (secondary schedule — sets projectedDailyRate only)
+      if (perDiemConfig) {
+        finalResults = finalResults.map((yr) => {
+          const primarySalary = new Decimal(yr.projectedBaseSalary);
+          const perDiemResult = calcPerDiemEmployeeYear(
+            empInput,
+            yr.contractYear,
+            (typedYearConfigs[yr.contractYear] ?? typedYearConfigs[0]) as import("./types.js").YearConfigWithSchedule,
+            perDiemConfig!,
+            perDiemCaps,
+            primarySalary,
+            empInput.currentLaneId ?? null,
+            yr.projectedStep,
+            new Decimal("1")
+          );
+          return { ...yr, projectedDailyRate: perDiemResult.dailyRate.toString() };
+        });
+      }
+
+      // Pass 2: stipends (additive to primary base salary, modifies totals)
+      const empStipendRows = stipendAssignmentRows.filter((s) => s.employeeId === empInput.id);
+      if (empStipendRows.length > 0 && stipendDefs.length > 0) {
+        finalResults = finalResults.map((yr) => {
+          const activeAssignments = empStipendRows
+            .filter((s) => s.effectiveYear <= yr.contractYear)
+            .map((s) => ({
+              stipendDefinitionId: s.stipendDefinitionId,
+              overrideAmountCents: s.overrideAmountCents ?? null,
+              hoursOrEvents: s.hoursOrEvents != null ? parseFloat(s.hoursOrEvents) : null,
+            }));
+          if (activeAssignments.length === 0) return yr;
+
+          const baseSalary = new Decimal(yr.projectedBaseSalary);
+          const baseIncreaseRate = yr.effectiveRate ? new Decimal(yr.effectiveRate) : null;
+
+          const stipendResult = calcEmployeeStipends(
+            activeAssignments,
+            stipendDefs,
+            baseSalary,
+            yr.contractYear,
+            baseIncreaseRate
+          );
+
+          const stipendTotal = stipendResult.totalStipendAmount;
+          const additionalRetirement = stipendResult.trsCreditable
+            .plus(stipendResult.imrfCreditable)
+            .times(new Decimal(buConfig.retirementGrossUpRate))
+            .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+
+          return {
+            ...yr,
+            projectedTotalCompensation: baseSalary
+              .plus(stipendTotal)
+              .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+              .toString(),
+            retirementContribution: new Decimal(yr.retirementContribution)
+              .plus(additionalRetirement)
+              .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+              .toString(),
+            totalEmployerCost: new Decimal(yr.totalEmployerCost)
+              .plus(stipendTotal)
+              .plus(additionalRetirement)
+              .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+              .toString(),
+            stipendTotalAmount: stipendTotal.toString(),
+            stipendBreakdown: stipendResult.breakdown.map((b) => ({
+              stipendId: b.stipendId,
+              stipendName: b.stipendName,
+              amount: b.amount.toString(),
+            })),
+          };
+        });
+      }
+
+      pushResults(finalResults);
     }
   }
 
@@ -584,6 +772,10 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         effectiveRate: r.effectiveRate,
         isRetirementYear: r.isRetirementYear,
         retirementIncentiveAmount: fromCents(r.retirementIncentiveAmountCents),
+        projectedDailyRate: fromCents(r.projectedDailyRateCents ?? null),
+        stipendTotalAmount: fromCents(r.stipendTotalCents ?? null),
+        rangePosition: r.rangePosition ?? null,
+        stipendBreakdown: null,
       })),
       typedConfigs,
       bargainingUnitId,
@@ -632,6 +824,10 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         effectiveRate: r.effectiveRate,
         isRetirementYear: r.isRetirementYear,
         retirementIncentiveAmount: fromCents(r.retirementIncentiveAmountCents),
+        projectedDailyRate: fromCents(r.projectedDailyRateCents ?? null),
+        stipendTotalAmount: fromCents(r.stipendTotalCents ?? null),
+        rangePosition: r.rangePosition ?? null,
+        stipendBreakdown: null,
       })),
       typedConfigs,
       employeeGroupId,

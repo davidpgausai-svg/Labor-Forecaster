@@ -133,6 +133,9 @@ export const employeeYearRecordsTable = pgTable("employee_year_records", {
   effectiveRate: numeric("effective_rate", { precision: 10, scale: 4 }),
   isRetirementYear: boolean("is_retirement_year").notNull().default(false),
   retirementIncentiveAmountCents: bigint("retirement_incentive_amount_cents", { mode: "number" }),
+  projectedDailyRateCents: bigint("projected_daily_rate_cents", { mode: "number" }),
+  stipendTotalCents: bigint("stipend_total_cents", { mode: "number" }),
+  rangePosition: text("range_position"),
 });
 
 export const insertScenarioSchema = createInsertSchema(scenariosTable).omit({
