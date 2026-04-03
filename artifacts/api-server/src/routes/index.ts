@@ -12,6 +12,7 @@ import reportsRouter from "./reports";
 import settingsRouter from "./settings";
 import employeeGroupsRouter from "./employee-groups";
 import compensationSchedulesRouter from "./compensation-schedules";
+import stipendsRouter from "./stipends";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(reportsRouter);
 router.use(settingsRouter);
 router.use(employeeGroupsRouter);
 router.use(compensationSchedulesRouter);
+router.use(stipendsRouter);
 
 export default router;

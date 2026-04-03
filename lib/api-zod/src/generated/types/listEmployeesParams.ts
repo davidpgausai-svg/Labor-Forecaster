@@ -9,6 +9,7 @@
 export type ListEmployeesParams = {
   districtId?: string;
   bargainingUnitId?: string;
+  employeeGroupId?: string;
   status?: string;
   contractYear?: number;
   page?: number;

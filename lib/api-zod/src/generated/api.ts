@@ -244,6 +244,7 @@ export const listEmployeesQueryPageSizeDefault = 50;
 export const ListEmployeesQueryParams = zod.object({
   districtId: zod.coerce.string().optional(),
   bargainingUnitId: zod.coerce.string().optional(),
+  employeeGroupId: zod.coerce.string().optional(),
   status: zod.coerce.string().optional(),
   contractYear: zod.coerce.number().optional(),
   page: zod.coerce.number().default(listEmployeesQueryPageDefault),
@@ -2125,3 +2126,263 @@ export const SetCompensationSchedulePrimaryResponse = zod.object({
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
+
+/**
+ * @summary List stipend definitions for a compensation schedule
+ */
+export const ListStipendDefinitionsParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListStipendDefinitionsResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  name: zod.string(),
+  category: zod.string(),
+  amountType: zod.enum([
+    "fixed_dollar",
+    "percentage_of_base",
+    "hourly",
+    "per_event",
+  ]),
+  amountCents: zod.number(),
+  percentageValue: zod.string().nullish(),
+  maxAmountCents: zod.number().nullish(),
+  increaseWithBase: zod.boolean(),
+  trsCreditable: zod.boolean(),
+  imrfCreditable: zod.boolean(),
+  displayOrder: zod.number(),
+  active: zod.boolean(),
+});
+export const ListStipendDefinitionsResponse = zod.array(
+  ListStipendDefinitionsResponseItem,
+);
+
+/**
+ * @summary Create a stipend definition on a compensation schedule
+ */
+export const CreateStipendDefinitionParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const CreateStipendDefinitionBody = zod.object({
+  name: zod.string(),
+  category: zod.string().optional(),
+  amountType: zod.enum([
+    "fixed_dollar",
+    "percentage_of_base",
+    "hourly",
+    "per_event",
+  ]),
+  amountCents: zod.number().optional(),
+  percentageValue: zod.string().nullish(),
+  maxAmountCents: zod.number().nullish(),
+  increaseWithBase: zod.boolean().optional(),
+  trsCreditable: zod.boolean().optional(),
+  imrfCreditable: zod.boolean().optional(),
+  displayOrder: zod.number().optional(),
+  active: zod.boolean().optional(),
+});
+
+/**
+ * @summary Get a stipend definition with its employee assignments
+ */
+export const GetStipendDefinitionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetStipendDefinitionResponse = zod
+  .object({
+    id: zod.string(),
+    compensationScheduleId: zod.string(),
+    name: zod.string(),
+    category: zod.string(),
+    amountType: zod.enum([
+      "fixed_dollar",
+      "percentage_of_base",
+      "hourly",
+      "per_event",
+    ]),
+    amountCents: zod.number(),
+    percentageValue: zod.string().nullish(),
+    maxAmountCents: zod.number().nullish(),
+    increaseWithBase: zod.boolean(),
+    trsCreditable: zod.boolean(),
+    imrfCreditable: zod.boolean(),
+    displayOrder: zod.number(),
+    active: zod.boolean(),
+  })
+  .and(
+    zod.object({
+      assignments: zod.array(
+        zod.object({
+          id: zod.string(),
+          employeeId: zod.string(),
+          stipendDefinitionId: zod.string(),
+          effectiveYear: zod.number(),
+          overrideAmountCents: zod.number().nullish(),
+          hoursOrEvents: zod.string().nullish(),
+          notes: zod.string().nullish(),
+          createdAt: zod.string(),
+          employeeFirstName: zod.string(),
+          employeeLastName: zod.string(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update a stipend definition
+ */
+export const UpdateStipendDefinitionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateStipendDefinitionBody = zod.object({
+  name: zod.string().optional(),
+  category: zod.string().optional(),
+  amountType: zod
+    .enum(["fixed_dollar", "percentage_of_base", "hourly", "per_event"])
+    .optional(),
+  amountCents: zod.number().optional(),
+  percentageValue: zod.string().nullish(),
+  maxAmountCents: zod.number().nullish(),
+  increaseWithBase: zod.boolean().optional(),
+  trsCreditable: zod.boolean().optional(),
+  imrfCreditable: zod.boolean().optional(),
+  displayOrder: zod.number().optional(),
+  active: zod.boolean().optional(),
+});
+
+export const UpdateStipendDefinitionResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  name: zod.string(),
+  category: zod.string(),
+  amountType: zod.enum([
+    "fixed_dollar",
+    "percentage_of_base",
+    "hourly",
+    "per_event",
+  ]),
+  amountCents: zod.number(),
+  percentageValue: zod.string().nullish(),
+  maxAmountCents: zod.number().nullish(),
+  increaseWithBase: zod.boolean(),
+  trsCreditable: zod.boolean(),
+  imrfCreditable: zod.boolean(),
+  displayOrder: zod.number(),
+  active: zod.boolean(),
+});
+
+/**
+ * @summary Delete a stipend definition (cascades employee assignments)
+ */
+export const DeleteStipendDefinitionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List employee assignments for a stipend definition
+ */
+export const ListStipendAssignmentsParams = zod.object({
+  definitionId: zod.coerce.string(),
+});
+
+export const ListStipendAssignmentsResponseItem = zod.object({
+  id: zod.string(),
+  employeeId: zod.string(),
+  stipendDefinitionId: zod.string(),
+  effectiveYear: zod.number(),
+  overrideAmountCents: zod.number().nullish(),
+  hoursOrEvents: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+  employeeFirstName: zod.string(),
+  employeeLastName: zod.string(),
+});
+export const ListStipendAssignmentsResponse = zod.array(
+  ListStipendAssignmentsResponseItem,
+);
+
+/**
+ * @summary Assign an employee to a stipend
+ */
+export const CreateStipendAssignmentParams = zod.object({
+  definitionId: zod.coerce.string(),
+});
+
+export const CreateStipendAssignmentBody = zod.object({
+  employeeId: zod.string(),
+  effectiveYear: zod.number().optional(),
+  overrideAmountCents: zod.number().nullish(),
+  hoursOrEvents: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a stipend assignment (override amount, hours/events, notes)
+ */
+export const UpdateStipendAssignmentParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateStipendAssignmentBody = zod.object({
+  effectiveYear: zod.number().optional(),
+  overrideAmountCents: zod.number().nullish(),
+  hoursOrEvents: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateStipendAssignmentResponse = zod.object({
+  id: zod.string(),
+  employeeId: zod.string(),
+  stipendDefinitionId: zod.string(),
+  effectiveYear: zod.number(),
+  overrideAmountCents: zod.number().nullish(),
+  hoursOrEvents: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+  employeeFirstName: zod.string(),
+  employeeLastName: zod.string(),
+});
+
+/**
+ * @summary Remove an employee from a stipend
+ */
+export const DeleteStipendAssignmentParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List all stipend assignments for an employee (with definition details)
+ */
+export const ListEmployeeStipendsParams = zod.object({
+  employeeId: zod.coerce.string(),
+});
+
+export const ListEmployeeStipendsResponseItem = zod.object({
+  id: zod.string(),
+  employeeId: zod.string(),
+  stipendDefinitionId: zod.string(),
+  effectiveYear: zod.number(),
+  overrideAmountCents: zod.number().nullish(),
+  hoursOrEvents: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string(),
+  definitionName: zod.string(),
+  definitionCategory: zod.string(),
+  definitionAmountType: zod.enum([
+    "fixed_dollar",
+    "percentage_of_base",
+    "hourly",
+    "per_event",
+  ]),
+  definitionAmountCents: zod.number(),
+  definitionPercentageValue: zod.string().nullish(),
+  definitionTrsCreditable: zod.boolean(),
+  definitionImrfCreditable: zod.boolean(),
+});
+export const ListEmployeeStipendsResponse = zod.array(
+  ListEmployeeStipendsResponseItem,
+);

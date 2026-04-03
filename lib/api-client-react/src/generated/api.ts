@@ -28,12 +28,16 @@ import type {
   CreateHourlyScheduleRequest,
   CreateSalaryScheduleRequest,
   CreateScenarioRequest,
+  CreateStipendAssignmentRequest,
+  CreateStipendDefinitionRequest,
   DashboardData,
   District,
   DistrictSettings,
   Employee,
   EmployeeGroupWithSchedules,
   EmployeeList,
+  EmployeeStipendAssignment,
+  EmployeeStipendWithDefinition,
   EmployeeWithProjections,
   ExportEmployeesParams,
   GenerateReportBody,
@@ -65,6 +69,8 @@ import type {
   ScenarioComparison,
   ScenarioSummary,
   ScenarioYearConfig,
+  StipendDefinition,
+  StipendDefinitionWithAssignments,
   UpdateBargainingUnitRequest,
   UpdateBargainingUnitSettingsBody,
   UpdateCompensationScheduleRequest,
@@ -73,6 +79,8 @@ import type {
   UpdateEmployeeGroupRequest,
   UpdateEmployeeRequest,
   UpdateScenarioRequest,
+  UpdateStipendAssignmentRequest,
+  UpdateStipendDefinitionRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -5113,3 +5121,907 @@ export const useSetCompensationSchedulePrimary = <
 > => {
   return useMutation(getSetCompensationSchedulePrimaryMutationOptions(options));
 };
+
+/**
+ * @summary List stipend definitions for a compensation schedule
+ */
+export const getListStipendDefinitionsUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/stipend-definitions`;
+};
+
+export const listStipendDefinitions = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<StipendDefinition[]> => {
+  return customFetch<StipendDefinition[]>(
+    getListStipendDefinitionsUrl(scheduleId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListStipendDefinitionsQueryKey = (scheduleId: string) => {
+  return [
+    `/api/compensation-schedules/${scheduleId}/stipend-definitions`,
+  ] as const;
+};
+
+export const getListStipendDefinitionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStipendDefinitions>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listStipendDefinitions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListStipendDefinitionsQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listStipendDefinitions>>
+  > = ({ signal }) =>
+    listStipendDefinitions(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStipendDefinitions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListStipendDefinitionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listStipendDefinitions>>
+>;
+export type ListStipendDefinitionsQueryError = ErrorType<void>;
+
+/**
+ * @summary List stipend definitions for a compensation schedule
+ */
+
+export function useListStipendDefinitions<
+  TData = Awaited<ReturnType<typeof listStipendDefinitions>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listStipendDefinitions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListStipendDefinitionsQueryOptions(
+    scheduleId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a stipend definition on a compensation schedule
+ */
+export const getCreateStipendDefinitionUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/stipend-definitions`;
+};
+
+export const createStipendDefinition = async (
+  scheduleId: string,
+  createStipendDefinitionRequest: CreateStipendDefinitionRequest,
+  options?: RequestInit,
+): Promise<StipendDefinition> => {
+  return customFetch<StipendDefinition>(
+    getCreateStipendDefinitionUrl(scheduleId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createStipendDefinitionRequest),
+    },
+  );
+};
+
+export const getCreateStipendDefinitionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createStipendDefinition>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateStipendDefinitionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createStipendDefinition>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateStipendDefinitionRequest> },
+  TContext
+> => {
+  const mutationKey = ["createStipendDefinition"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createStipendDefinition>>,
+    { scheduleId: string; data: BodyType<CreateStipendDefinitionRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return createStipendDefinition(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateStipendDefinitionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createStipendDefinition>>
+>;
+export type CreateStipendDefinitionMutationBody =
+  BodyType<CreateStipendDefinitionRequest>;
+export type CreateStipendDefinitionMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a stipend definition on a compensation schedule
+ */
+export const useCreateStipendDefinition = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createStipendDefinition>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateStipendDefinitionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createStipendDefinition>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateStipendDefinitionRequest> },
+  TContext
+> => {
+  return useMutation(getCreateStipendDefinitionMutationOptions(options));
+};
+
+/**
+ * @summary Get a stipend definition with its employee assignments
+ */
+export const getGetStipendDefinitionUrl = (id: string) => {
+  return `/api/stipend-definitions/${id}`;
+};
+
+export const getStipendDefinition = async (
+  id: string,
+  options?: RequestInit,
+): Promise<StipendDefinitionWithAssignments> => {
+  return customFetch<StipendDefinitionWithAssignments>(
+    getGetStipendDefinitionUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetStipendDefinitionQueryKey = (id: string) => {
+  return [`/api/stipend-definitions/${id}`] as const;
+};
+
+export const getGetStipendDefinitionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStipendDefinition>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStipendDefinition>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetStipendDefinitionQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStipendDefinition>>
+  > = ({ signal }) => getStipendDefinition(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStipendDefinition>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStipendDefinitionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStipendDefinition>>
+>;
+export type GetStipendDefinitionQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a stipend definition with its employee assignments
+ */
+
+export function useGetStipendDefinition<
+  TData = Awaited<ReturnType<typeof getStipendDefinition>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStipendDefinition>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStipendDefinitionQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a stipend definition
+ */
+export const getUpdateStipendDefinitionUrl = (id: string) => {
+  return `/api/stipend-definitions/${id}`;
+};
+
+export const updateStipendDefinition = async (
+  id: string,
+  updateStipendDefinitionRequest: UpdateStipendDefinitionRequest,
+  options?: RequestInit,
+): Promise<StipendDefinition> => {
+  return customFetch<StipendDefinition>(getUpdateStipendDefinitionUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateStipendDefinitionRequest),
+  });
+};
+
+export const getUpdateStipendDefinitionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStipendDefinition>>,
+    TError,
+    { id: string; data: BodyType<UpdateStipendDefinitionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStipendDefinition>>,
+  TError,
+  { id: string; data: BodyType<UpdateStipendDefinitionRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateStipendDefinition"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStipendDefinition>>,
+    { id: string; data: BodyType<UpdateStipendDefinitionRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateStipendDefinition(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStipendDefinitionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStipendDefinition>>
+>;
+export type UpdateStipendDefinitionMutationBody =
+  BodyType<UpdateStipendDefinitionRequest>;
+export type UpdateStipendDefinitionMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a stipend definition
+ */
+export const useUpdateStipendDefinition = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStipendDefinition>>,
+    TError,
+    { id: string; data: BodyType<UpdateStipendDefinitionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateStipendDefinition>>,
+  TError,
+  { id: string; data: BodyType<UpdateStipendDefinitionRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateStipendDefinitionMutationOptions(options));
+};
+
+/**
+ * @summary Delete a stipend definition (cascades employee assignments)
+ */
+export const getDeleteStipendDefinitionUrl = (id: string) => {
+  return `/api/stipend-definitions/${id}`;
+};
+
+export const deleteStipendDefinition = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteStipendDefinitionUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteStipendDefinitionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteStipendDefinition>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteStipendDefinition>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteStipendDefinition"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteStipendDefinition>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteStipendDefinition(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteStipendDefinitionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteStipendDefinition>>
+>;
+
+export type DeleteStipendDefinitionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a stipend definition (cascades employee assignments)
+ */
+export const useDeleteStipendDefinition = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteStipendDefinition>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteStipendDefinition>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteStipendDefinitionMutationOptions(options));
+};
+
+/**
+ * @summary List employee assignments for a stipend definition
+ */
+export const getListStipendAssignmentsUrl = (definitionId: string) => {
+  return `/api/stipend-definitions/${definitionId}/assignments`;
+};
+
+export const listStipendAssignments = async (
+  definitionId: string,
+  options?: RequestInit,
+): Promise<EmployeeStipendAssignment[]> => {
+  return customFetch<EmployeeStipendAssignment[]>(
+    getListStipendAssignmentsUrl(definitionId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListStipendAssignmentsQueryKey = (definitionId: string) => {
+  return [`/api/stipend-definitions/${definitionId}/assignments`] as const;
+};
+
+export const getListStipendAssignmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStipendAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  definitionId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listStipendAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListStipendAssignmentsQueryKey(definitionId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listStipendAssignments>>
+  > = ({ signal }) =>
+    listStipendAssignments(definitionId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!definitionId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStipendAssignments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListStipendAssignmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listStipendAssignments>>
+>;
+export type ListStipendAssignmentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List employee assignments for a stipend definition
+ */
+
+export function useListStipendAssignments<
+  TData = Awaited<ReturnType<typeof listStipendAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  definitionId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listStipendAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListStipendAssignmentsQueryOptions(
+    definitionId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Assign an employee to a stipend
+ */
+export const getCreateStipendAssignmentUrl = (definitionId: string) => {
+  return `/api/stipend-definitions/${definitionId}/assignments`;
+};
+
+export const createStipendAssignment = async (
+  definitionId: string,
+  createStipendAssignmentRequest: CreateStipendAssignmentRequest,
+  options?: RequestInit,
+): Promise<EmployeeStipendAssignment> => {
+  return customFetch<EmployeeStipendAssignment>(
+    getCreateStipendAssignmentUrl(definitionId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createStipendAssignmentRequest),
+    },
+  );
+};
+
+export const getCreateStipendAssignmentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createStipendAssignment>>,
+    TError,
+    { definitionId: string; data: BodyType<CreateStipendAssignmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createStipendAssignment>>,
+  TError,
+  { definitionId: string; data: BodyType<CreateStipendAssignmentRequest> },
+  TContext
+> => {
+  const mutationKey = ["createStipendAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createStipendAssignment>>,
+    { definitionId: string; data: BodyType<CreateStipendAssignmentRequest> }
+  > = (props) => {
+    const { definitionId, data } = props ?? {};
+
+    return createStipendAssignment(definitionId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateStipendAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createStipendAssignment>>
+>;
+export type CreateStipendAssignmentMutationBody =
+  BodyType<CreateStipendAssignmentRequest>;
+export type CreateStipendAssignmentMutationError = ErrorType<void>;
+
+/**
+ * @summary Assign an employee to a stipend
+ */
+export const useCreateStipendAssignment = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createStipendAssignment>>,
+    TError,
+    { definitionId: string; data: BodyType<CreateStipendAssignmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createStipendAssignment>>,
+  TError,
+  { definitionId: string; data: BodyType<CreateStipendAssignmentRequest> },
+  TContext
+> => {
+  return useMutation(getCreateStipendAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Update a stipend assignment (override amount, hours/events, notes)
+ */
+export const getUpdateStipendAssignmentUrl = (id: string) => {
+  return `/api/stipend-assignments/${id}`;
+};
+
+export const updateStipendAssignment = async (
+  id: string,
+  updateStipendAssignmentRequest: UpdateStipendAssignmentRequest,
+  options?: RequestInit,
+): Promise<EmployeeStipendAssignment> => {
+  return customFetch<EmployeeStipendAssignment>(
+    getUpdateStipendAssignmentUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateStipendAssignmentRequest),
+    },
+  );
+};
+
+export const getUpdateStipendAssignmentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStipendAssignment>>,
+    TError,
+    { id: string; data: BodyType<UpdateStipendAssignmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStipendAssignment>>,
+  TError,
+  { id: string; data: BodyType<UpdateStipendAssignmentRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateStipendAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStipendAssignment>>,
+    { id: string; data: BodyType<UpdateStipendAssignmentRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateStipendAssignment(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStipendAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStipendAssignment>>
+>;
+export type UpdateStipendAssignmentMutationBody =
+  BodyType<UpdateStipendAssignmentRequest>;
+export type UpdateStipendAssignmentMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a stipend assignment (override amount, hours/events, notes)
+ */
+export const useUpdateStipendAssignment = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStipendAssignment>>,
+    TError,
+    { id: string; data: BodyType<UpdateStipendAssignmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateStipendAssignment>>,
+  TError,
+  { id: string; data: BodyType<UpdateStipendAssignmentRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateStipendAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary Remove an employee from a stipend
+ */
+export const getDeleteStipendAssignmentUrl = (id: string) => {
+  return `/api/stipend-assignments/${id}`;
+};
+
+export const deleteStipendAssignment = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteStipendAssignmentUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteStipendAssignmentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteStipendAssignment>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteStipendAssignment>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteStipendAssignment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteStipendAssignment>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteStipendAssignment(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteStipendAssignmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteStipendAssignment>>
+>;
+
+export type DeleteStipendAssignmentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove an employee from a stipend
+ */
+export const useDeleteStipendAssignment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteStipendAssignment>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteStipendAssignment>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteStipendAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary List all stipend assignments for an employee (with definition details)
+ */
+export const getListEmployeeStipendsUrl = (employeeId: string) => {
+  return `/api/employees/${employeeId}/stipends`;
+};
+
+export const listEmployeeStipends = async (
+  employeeId: string,
+  options?: RequestInit,
+): Promise<EmployeeStipendWithDefinition[]> => {
+  return customFetch<EmployeeStipendWithDefinition[]>(
+    getListEmployeeStipendsUrl(employeeId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListEmployeeStipendsQueryKey = (employeeId: string) => {
+  return [`/api/employees/${employeeId}/stipends`] as const;
+};
+
+export const getListEmployeeStipendsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEmployeeStipends>>,
+  TError = ErrorType<unknown>,
+>(
+  employeeId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmployeeStipends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListEmployeeStipendsQueryKey(employeeId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEmployeeStipends>>
+  > = ({ signal }) =>
+    listEmployeeStipends(employeeId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!employeeId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEmployeeStipends>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEmployeeStipendsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEmployeeStipends>>
+>;
+export type ListEmployeeStipendsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all stipend assignments for an employee (with definition details)
+ */
+
+export function useListEmployeeStipends<
+  TData = Awaited<ReturnType<typeof listEmployeeStipends>>,
+  TError = ErrorType<unknown>,
+>(
+  employeeId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmployeeStipends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEmployeeStipendsQueryOptions(employeeId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

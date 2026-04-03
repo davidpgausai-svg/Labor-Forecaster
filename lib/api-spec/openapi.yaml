@@ -30,6 +30,8 @@ tags:
     description: Employee group management
   - name: compensation-schedules
     description: Compensation schedule management
+  - name: stipends
+    description: Stipend table definitions and employee assignments
 paths:
   /healthz:
     get:
@@ -221,6 +223,10 @@ paths:
           schema:
             type: string
         - name: bargainingUnitId
+          in: query
+          schema:
+            type: string
+        - name: employeeGroupId
           in: query
           schema:
             type: string
@@ -1147,6 +1153,220 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CompensationSchedule"
+
+  /compensation-schedules/{scheduleId}/stipend-definitions:
+    get:
+      operationId: listStipendDefinitions
+      tags: [stipends]
+      summary: List stipend definitions for a compensation schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of stipend definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StipendDefinition"
+        "404":
+          description: Compensation schedule not found
+    post:
+      operationId: createStipendDefinition
+      tags: [stipends]
+      summary: Create a stipend definition on a compensation schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStipendDefinitionRequest"
+      responses:
+        "201":
+          description: Created stipend definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StipendDefinition"
+        "404":
+          description: Compensation schedule not found
+
+  /stipend-definitions/{id}:
+    get:
+      operationId: getStipendDefinition
+      tags: [stipends]
+      summary: Get a stipend definition with its employee assignments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stipend definition with assignments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StipendDefinitionWithAssignments"
+        "404":
+          description: Stipend definition not found
+    put:
+      operationId: updateStipendDefinition
+      tags: [stipends]
+      summary: Update a stipend definition
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStipendDefinitionRequest"
+      responses:
+        "200":
+          description: Updated stipend definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StipendDefinition"
+        "404":
+          description: Stipend definition not found
+    delete:
+      operationId: deleteStipendDefinition
+      tags: [stipends]
+      summary: Delete a stipend definition (cascades employee assignments)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /stipend-definitions/{definitionId}/assignments:
+    get:
+      operationId: listStipendAssignments
+      tags: [stipends]
+      summary: List employee assignments for a stipend definition
+      parameters:
+        - name: definitionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of employee stipend assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeStipendAssignment"
+    post:
+      operationId: createStipendAssignment
+      tags: [stipends]
+      summary: Assign an employee to a stipend
+      parameters:
+        - name: definitionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStipendAssignmentRequest"
+      responses:
+        "201":
+          description: Created stipend assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeStipendAssignment"
+        "404":
+          description: Stipend definition not found
+
+  /stipend-assignments/{id}:
+    put:
+      operationId: updateStipendAssignment
+      tags: [stipends]
+      summary: Update a stipend assignment (override amount, hours/events, notes)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStipendAssignmentRequest"
+      responses:
+        "200":
+          description: Updated stipend assignment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeStipendAssignment"
+        "404":
+          description: Stipend assignment not found
+    delete:
+      operationId: deleteStipendAssignment
+      tags: [stipends]
+      summary: Remove an employee from a stipend
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /employees/{employeeId}/stipends:
+    get:
+      operationId: listEmployeeStipends
+      tags: [stipends]
+      summary: List all stipend assignments for an employee (with definition details)
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of employee stipend assignments with definition details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeStipendWithDefinition"
 
 components:
   schemas:
@@ -2750,3 +2970,241 @@ components:
           nullable: true
         active:
           type: boolean
+
+    StipendDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        amountType:
+          type: string
+          enum: [fixed_dollar, percentage_of_base, hourly, per_event]
+        amountCents:
+          type: number
+        percentageValue:
+          type: string
+          nullable: true
+        maxAmountCents:
+          type: number
+          nullable: true
+        increaseWithBase:
+          type: boolean
+        trsCreditable:
+          type: boolean
+        imrfCreditable:
+          type: boolean
+        displayOrder:
+          type: number
+        active:
+          type: boolean
+      required:
+        - id
+        - compensationScheduleId
+        - name
+        - category
+        - amountType
+        - amountCents
+        - increaseWithBase
+        - trsCreditable
+        - imrfCreditable
+        - displayOrder
+        - active
+
+    StipendDefinitionWithAssignments:
+      allOf:
+        - $ref: "#/components/schemas/StipendDefinition"
+        - type: object
+          properties:
+            assignments:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmployeeStipendAssignment"
+          required:
+            - assignments
+
+    CreateStipendDefinitionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        amountType:
+          type: string
+          enum: [fixed_dollar, percentage_of_base, hourly, per_event]
+        amountCents:
+          type: number
+        percentageValue:
+          type: string
+          nullable: true
+        maxAmountCents:
+          type: number
+          nullable: true
+        increaseWithBase:
+          type: boolean
+        trsCreditable:
+          type: boolean
+        imrfCreditable:
+          type: boolean
+        displayOrder:
+          type: number
+        active:
+          type: boolean
+      required:
+        - name
+        - amountType
+
+    UpdateStipendDefinitionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        amountType:
+          type: string
+          enum: [fixed_dollar, percentage_of_base, hourly, per_event]
+        amountCents:
+          type: number
+        percentageValue:
+          type: string
+          nullable: true
+        maxAmountCents:
+          type: number
+          nullable: true
+        increaseWithBase:
+          type: boolean
+        trsCreditable:
+          type: boolean
+        imrfCreditable:
+          type: boolean
+        displayOrder:
+          type: number
+        active:
+          type: boolean
+
+    EmployeeStipendAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        stipendDefinitionId:
+          type: string
+        effectiveYear:
+          type: number
+        overrideAmountCents:
+          type: number
+          nullable: true
+        hoursOrEvents:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        employeeFirstName:
+          type: string
+        employeeLastName:
+          type: string
+      required:
+        - id
+        - employeeId
+        - stipendDefinitionId
+        - effectiveYear
+        - createdAt
+        - employeeFirstName
+        - employeeLastName
+
+    CreateStipendAssignmentRequest:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        effectiveYear:
+          type: number
+        overrideAmountCents:
+          type: number
+          nullable: true
+        hoursOrEvents:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - employeeId
+
+    UpdateStipendAssignmentRequest:
+      type: object
+      properties:
+        effectiveYear:
+          type: number
+        overrideAmountCents:
+          type: number
+          nullable: true
+        hoursOrEvents:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    EmployeeStipendWithDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        stipendDefinitionId:
+          type: string
+        effectiveYear:
+          type: number
+        overrideAmountCents:
+          type: number
+          nullable: true
+        hoursOrEvents:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        definitionName:
+          type: string
+        definitionCategory:
+          type: string
+        definitionAmountType:
+          type: string
+          enum: [fixed_dollar, percentage_of_base, hourly, per_event]
+        definitionAmountCents:
+          type: number
+        definitionPercentageValue:
+          type: string
+          nullable: true
+        definitionTrsCreditable:
+          type: boolean
+        definitionImrfCreditable:
+          type: boolean
+      required:
+        - id
+        - employeeId
+        - stipendDefinitionId
+        - effectiveYear
+        - createdAt
+        - definitionName
+        - definitionCategory
+        - definitionAmountType
+        - definitionAmountCents
+        - definitionTrsCreditable
+        - definitionImrfCreditable

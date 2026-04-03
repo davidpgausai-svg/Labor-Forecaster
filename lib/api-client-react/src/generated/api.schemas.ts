@@ -792,6 +792,140 @@ export interface UpdateCompensationScheduleRequest {
   active?: boolean;
 }
 
+export type StipendDefinitionAmountType =
+  (typeof StipendDefinitionAmountType)[keyof typeof StipendDefinitionAmountType];
+
+export const StipendDefinitionAmountType = {
+  fixed_dollar: "fixed_dollar",
+  percentage_of_base: "percentage_of_base",
+  hourly: "hourly",
+  per_event: "per_event",
+} as const;
+
+export interface StipendDefinition {
+  id: string;
+  compensationScheduleId: string;
+  name: string;
+  category: string;
+  amountType: StipendDefinitionAmountType;
+  amountCents: number;
+  percentageValue?: string | null;
+  maxAmountCents?: number | null;
+  increaseWithBase: boolean;
+  trsCreditable: boolean;
+  imrfCreditable: boolean;
+  displayOrder: number;
+  active: boolean;
+}
+
+export interface EmployeeStipendAssignment {
+  id: string;
+  employeeId: string;
+  stipendDefinitionId: string;
+  effectiveYear: number;
+  overrideAmountCents?: number | null;
+  hoursOrEvents?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  employeeFirstName: string;
+  employeeLastName: string;
+}
+
+export type StipendDefinitionWithAssignments = StipendDefinition & {
+  assignments: EmployeeStipendAssignment[];
+};
+
+export type CreateStipendDefinitionRequestAmountType =
+  (typeof CreateStipendDefinitionRequestAmountType)[keyof typeof CreateStipendDefinitionRequestAmountType];
+
+export const CreateStipendDefinitionRequestAmountType = {
+  fixed_dollar: "fixed_dollar",
+  percentage_of_base: "percentage_of_base",
+  hourly: "hourly",
+  per_event: "per_event",
+} as const;
+
+export interface CreateStipendDefinitionRequest {
+  name: string;
+  category?: string;
+  amountType: CreateStipendDefinitionRequestAmountType;
+  amountCents?: number;
+  percentageValue?: string | null;
+  maxAmountCents?: number | null;
+  increaseWithBase?: boolean;
+  trsCreditable?: boolean;
+  imrfCreditable?: boolean;
+  displayOrder?: number;
+  active?: boolean;
+}
+
+export type UpdateStipendDefinitionRequestAmountType =
+  (typeof UpdateStipendDefinitionRequestAmountType)[keyof typeof UpdateStipendDefinitionRequestAmountType];
+
+export const UpdateStipendDefinitionRequestAmountType = {
+  fixed_dollar: "fixed_dollar",
+  percentage_of_base: "percentage_of_base",
+  hourly: "hourly",
+  per_event: "per_event",
+} as const;
+
+export interface UpdateStipendDefinitionRequest {
+  name?: string;
+  category?: string;
+  amountType?: UpdateStipendDefinitionRequestAmountType;
+  amountCents?: number;
+  percentageValue?: string | null;
+  maxAmountCents?: number | null;
+  increaseWithBase?: boolean;
+  trsCreditable?: boolean;
+  imrfCreditable?: boolean;
+  displayOrder?: number;
+  active?: boolean;
+}
+
+export interface CreateStipendAssignmentRequest {
+  employeeId: string;
+  effectiveYear?: number;
+  overrideAmountCents?: number | null;
+  hoursOrEvents?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateStipendAssignmentRequest {
+  effectiveYear?: number;
+  overrideAmountCents?: number | null;
+  hoursOrEvents?: string | null;
+  notes?: string | null;
+}
+
+export type EmployeeStipendWithDefinitionDefinitionAmountType =
+  (typeof EmployeeStipendWithDefinitionDefinitionAmountType)[keyof typeof EmployeeStipendWithDefinitionDefinitionAmountType];
+
+export const EmployeeStipendWithDefinitionDefinitionAmountType = {
+  fixed_dollar: "fixed_dollar",
+  percentage_of_base: "percentage_of_base",
+  hourly: "hourly",
+  per_event: "per_event",
+} as const;
+
+export interface EmployeeStipendWithDefinition {
+  id: string;
+  employeeId: string;
+  stipendDefinitionId: string;
+  effectiveYear: number;
+  overrideAmountCents?: number | null;
+  hoursOrEvents?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  definitionName: string;
+  definitionCategory: string;
+  definitionAmountType: EmployeeStipendWithDefinitionDefinitionAmountType;
+  definitionAmountCents: number;
+  definitionPercentageValue?: string | null;
+  definitionTrsCreditable: boolean;
+  definitionImrfCreditable: boolean;
+}
+
 export type ListBargainingUnitsParams = {
   districtId?: string;
 };
@@ -799,6 +933,7 @@ export type ListBargainingUnitsParams = {
 export type ListEmployeesParams = {
   districtId?: string;
   bargainingUnitId?: string;
+  employeeGroupId?: string;
   status?: string;
   contractYear?: number;
   page?: number;

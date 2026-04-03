@@ -67,6 +67,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StipendTableEditor } from "@/components/StipendTableEditor";
 
 const GROUP_INDEX_COLORS = [
   "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -948,16 +949,19 @@ function ScheduleDialog({
 
 function ScheduleRow({
   schedule,
+  employeeGroupId,
   onEdit,
   onDelete,
 }: {
   schedule: CompensationSchedule;
+  employeeGroupId: string;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const setPrimaryMutation = useSetCompensationSchedulePrimary();
+  const [stipendEditorOpen, setStipendEditorOpen] = useState(false);
 
   const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
     label: schedule.scheduleType,
@@ -1018,6 +1022,16 @@ function ScheduleRow({
         {cfg.label}
       </Badge>
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {schedule.scheduleType === "stipend_table" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setStipendEditorOpen(true)}
+          >
+            Manage Table
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1035,6 +1049,16 @@ function ScheduleRow({
           <Trash2 className="h-3 w-3" />
         </Button>
       </div>
+
+      {schedule.scheduleType === "stipend_table" && (
+        <StipendTableEditor
+          open={stipendEditorOpen}
+          onClose={() => setStipendEditorOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+          employeeGroupId={employeeGroupId}
+        />
+      )}
     </div>
   );
 }
@@ -1204,6 +1228,7 @@ function EmployeeGroupRow({
                   <ScheduleRow
                     key={s.id}
                     schedule={s}
+                    employeeGroupId={group.id}
                     onEdit={() => setEditSchedule(s)}
                     onDelete={() => setDeleteSchedule(s)}
                   />
