@@ -4,9 +4,7 @@ import {
   uuid,
   numeric,
   integer,
-  bigint,
   timestamp,
-  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -70,24 +68,6 @@ export const scheduleCellsTable = pgTable("schedule_cells", {
     .default("0"),
 });
 
-export const importGridCellsTable = pgTable(
-  "import_grid_cells",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    compensationScheduleId: uuid("compensation_schedule_id")
-      .notNull()
-      .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
-    laneId: uuid("lane_id")
-      .notNull()
-      .references(() => lanesTable.id, { onDelete: "cascade" }),
-    stepNumber: integer("step_number").notNull(),
-    salaryCents: bigint("salary_cents", { mode: "number" }).notNull().default(0),
-  },
-  (t) => [
-    unique().on(t.compensationScheduleId, t.laneId, t.stepNumber),
-  ]
-);
-
 export const insertSalaryScheduleSchema = createInsertSchema(
   salarySchedulesTable
 ).omit({ id: true, createdAt: true });
@@ -100,14 +80,9 @@ export const insertStepSchema = createInsertSchema(stepsTable).omit({
 export const insertScheduleCellSchema = createInsertSchema(
   scheduleCellsTable
 ).omit({ id: true });
-export const insertImportGridCellSchema = createInsertSchema(
-  importGridCellsTable
-).omit({ id: true });
 
 export type InsertSalarySchedule = z.infer<typeof insertSalaryScheduleSchema>;
 export type SalarySchedule = typeof salarySchedulesTable.$inferSelect;
 export type Lane = typeof lanesTable.$inferSelect;
 export type Step = typeof stepsTable.$inferSelect;
 export type ScheduleCell = typeof scheduleCellsTable.$inferSelect;
-export type ImportGridCell = typeof importGridCellsTable.$inferSelect;
-export type InsertImportGridCell = z.infer<typeof insertImportGridCellSchema>;
