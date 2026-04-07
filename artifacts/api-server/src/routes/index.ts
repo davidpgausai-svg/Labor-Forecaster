@@ -18,6 +18,7 @@ import perDiemRouter from "./per-diem";
 import hourlyCategoriesRouter from "./hourly-categories";
 import salaryRangesRouter from "./salary-ranges";
 import importGridRouter from "./import-grid";
+import indexGridConfigRouter from "./index-grid-config";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(perDiemRouter);
 router.use(hourlyCategoriesRouter);
 router.use(salaryRangesRouter);
 router.use(importGridRouter);
+router.use(indexGridConfigRouter);
 
 export default router;

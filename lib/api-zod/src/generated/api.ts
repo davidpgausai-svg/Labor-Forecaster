@@ -1722,6 +1722,7 @@ export const ListEmployeeGroupsResponseItem = zod
             "stipend_table",
             "range_based",
           ]),
+          payType: zod.enum(["salary", "hourly", "per_diem"]),
           isPrimary: zod.boolean(),
           displayOrder: zod.number().optional(),
           description: zod.string().nullish(),
@@ -1828,6 +1829,7 @@ export const GetEmployeeGroupResponse = zod
             "stipend_table",
             "range_based",
           ]),
+          payType: zod.enum(["salary", "hourly", "per_diem"]),
           isPrimary: zod.boolean(),
           displayOrder: zod.number().optional(),
           description: zod.string().nullish(),
@@ -1927,6 +1929,7 @@ export const UpdateEmployeeGroupResponse = zod
             "stipend_table",
             "range_based",
           ]),
+          payType: zod.enum(["salary", "hourly", "per_diem"]),
           isPrimary: zod.boolean(),
           displayOrder: zod.number().optional(),
           description: zod.string().nullish(),
@@ -1968,6 +1971,7 @@ export const ListCompensationSchedulesResponseItem = zod.object({
     "stipend_table",
     "range_based",
   ]),
+  payType: zod.enum(["salary", "hourly", "per_diem"]),
   isPrimary: zod.boolean(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -1997,6 +2001,7 @@ export const CreateCompensationScheduleBody = zod.object({
     "stipend_table",
     "range_based",
   ]),
+  payType: zod.enum(["salary", "hourly", "per_diem"]).optional(),
   isPrimary: zod.boolean().optional(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -2026,6 +2031,7 @@ export const GetCompensationScheduleResponse = zod.object({
     "stipend_table",
     "range_based",
   ]),
+  payType: zod.enum(["salary", "hourly", "per_diem"]),
   isPrimary: zod.boolean(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -2057,6 +2063,7 @@ export const UpdateCompensationScheduleBody = zod.object({
       "range_based",
     ])
     .optional(),
+  payType: zod.enum(["salary", "hourly", "per_diem"]).optional(),
   isPrimary: zod.boolean().optional(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -2079,6 +2086,7 @@ export const UpdateCompensationScheduleResponse = zod.object({
     "stipend_table",
     "range_based",
   ]),
+  payType: zod.enum(["salary", "hourly", "per_diem"]),
   isPrimary: zod.boolean(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -2117,6 +2125,7 @@ export const SetCompensationSchedulePrimaryResponse = zod.object({
     "stipend_table",
     "range_based",
   ]),
+  payType: zod.enum(["salary", "hourly", "per_diem"]),
   isPrimary: zod.boolean(),
   displayOrder: zod.number().optional(),
   description: zod.string().nullish(),
@@ -2742,6 +2751,81 @@ export const BulkUpsertImportGridCellsResponseItem = zod.object({
 });
 export const BulkUpsertImportGridCellsResponse = zod.array(
   BulkUpsertImportGridCellsResponseItem,
+);
+
+/**
+ * @summary Get (or auto-create) the index grid config and indices for a schedule
+ */
+export const GetIndexGridConfigParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const GetIndexGridConfigResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  baseAnchorSalary: zod.string(),
+  maxSteps: zod.number(),
+  createdAt: zod.string().optional(),
+  indices: zod.array(
+    zod.object({
+      id: zod.string(),
+      compensationScheduleId: zod.string(),
+      laneId: zod.string(),
+      stepNumber: zod.number(),
+      indexValue: zod.string(),
+      isCapped: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Upsert base anchor salary and max steps
+ */
+export const UpsertIndexGridConfigParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const UpsertIndexGridConfigBody = zod.object({
+  baseAnchorSalary: zod.string(),
+  maxSteps: zod.number(),
+});
+
+export const UpsertIndexGridConfigResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  baseAnchorSalary: zod.string(),
+  maxSteps: zod.number(),
+  createdAt: zod.string().optional(),
+});
+
+/**
+ * @summary Replace all index values for the schedule
+ */
+export const BulkUpsertIndexGridIndicesParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const BulkUpsertIndexGridIndicesBody = zod.object({
+  indices: zod.array(
+    zod.object({
+      laneId: zod.string(),
+      stepNumber: zod.number(),
+      indexValue: zod.string(),
+      isCapped: zod.boolean().optional(),
+    }),
+  ),
+});
+
+export const BulkUpsertIndexGridIndicesResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  laneId: zod.string(),
+  stepNumber: zod.number(),
+  indexValue: zod.string(),
+  isCapped: zod.boolean(),
+});
+export const BulkUpsertIndexGridIndicesResponse = zod.array(
+  BulkUpsertIndexGridIndicesResponseItem,
 );
 
 /**

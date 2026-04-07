@@ -5,11 +5,13 @@
  * CollBar — Collective Bargaining Compensation Modeling API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateCompensationScheduleRequestPayType } from "./updateCompensationScheduleRequestPayType";
 import type { UpdateCompensationScheduleRequestScheduleType } from "./updateCompensationScheduleRequestScheduleType";
 
 export interface UpdateCompensationScheduleRequest {
   name?: string;
   scheduleType?: UpdateCompensationScheduleRequestScheduleType;
+  payType?: UpdateCompensationScheduleRequestPayType;
   isPrimary?: boolean;
   displayOrder?: number;
   description?: string | null;

@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import {
   compensationSchedulesTable,
   COMPENSATION_SCHEDULE_TYPES,
+  COMPENSATION_PAY_TYPES,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
@@ -11,6 +12,7 @@ const createCompensationScheduleSchema = z.object({
   employeeGroupId: z.string().uuid(),
   name: z.string().min(1),
   scheduleType: z.enum(COMPENSATION_SCHEDULE_TYPES),
+  payType: z.enum(COMPENSATION_PAY_TYPES).default("salary"),
   isPrimary: z.boolean().default(false),
   displayOrder: z.number().int().nonnegative().default(0),
   description: z.string().optional().nullable(),

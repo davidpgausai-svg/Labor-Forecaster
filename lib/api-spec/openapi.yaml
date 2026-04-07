@@ -42,6 +42,8 @@ tags:
     description: Range-based salary schedule management
   - name: import-grid
     description: Direct import grid lane and cell management
+  - name: index-grid
+    description: Index-based salary grid configuration and indices
 paths:
   /healthz:
     get:
@@ -1903,6 +1905,81 @@ paths:
         "404":
           description: Compensation schedule not found
 
+  /compensation-schedules/{scheduleId}/index-grid-config:
+    get:
+      operationId: getIndexGridConfig
+      tags: [index-grid]
+      summary: Get (or auto-create) the index grid config and indices for a schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Index grid config with indices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexGridConfigWithIndices"
+        "404":
+          description: Compensation schedule not found
+    put:
+      operationId: upsertIndexGridConfig
+      tags: [index-grid]
+      summary: Upsert base anchor salary and max steps
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertIndexGridConfigRequest"
+      responses:
+        "200":
+          description: Updated index grid config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexGridConfigRow"
+        "404":
+          description: Compensation schedule not found
+
+  /compensation-schedules/{scheduleId}/index-grid-indices:
+    put:
+      operationId: bulkUpsertIndexGridIndices
+      tags: [index-grid]
+      summary: Replace all index values for the schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkUpsertIndexGridIndicesRequest"
+      responses:
+        "200":
+          description: Updated index list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleIndex"
+        "404":
+          description: Compensation schedule not found
+
   /employees/{employeeId}/stipends:
     get:
       operationId: listEmployeeStipends
@@ -3428,6 +3505,12 @@ components:
             - flat_rate
             - stipend_table
             - range_based
+        payType:
+          type: string
+          enum:
+            - salary
+            - hourly
+            - per_diem
         isPrimary:
           type: boolean
         displayOrder:
@@ -3452,6 +3535,7 @@ components:
         - employeeGroupId
         - name
         - scheduleType
+        - payType
         - isPrimary
         - active
         - createdAt
@@ -3475,6 +3559,12 @@ components:
             - flat_rate
             - stipend_table
             - range_based
+        payType:
+          type: string
+          enum:
+            - salary
+            - hourly
+            - per_diem
         isPrimary:
           type: boolean
         displayOrder:
@@ -3511,6 +3601,12 @@ components:
             - flat_rate
             - stipend_table
             - range_based
+        payType:
+          type: string
+          enum:
+            - salary
+            - hourly
+            - per_diem
         isPrimary:
           type: boolean
         displayOrder:
@@ -4081,3 +4177,103 @@ components:
               - salaryCents
       required:
         - cells
+
+    IndexGridConfigRow:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        baseAnchorSalary:
+          type: string
+        maxSteps:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - compensationScheduleId
+        - baseAnchorSalary
+        - maxSteps
+
+    ScheduleIndex:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        laneId:
+          type: string
+        stepNumber:
+          type: number
+        indexValue:
+          type: string
+        isCapped:
+          type: boolean
+      required:
+        - id
+        - compensationScheduleId
+        - laneId
+        - stepNumber
+        - indexValue
+        - isCapped
+
+    IndexGridConfigWithIndices:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        baseAnchorSalary:
+          type: string
+        maxSteps:
+          type: number
+        createdAt:
+          type: string
+        indices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduleIndex"
+      required:
+        - id
+        - compensationScheduleId
+        - baseAnchorSalary
+        - maxSteps
+        - indices
+
+    UpsertIndexGridConfigRequest:
+      type: object
+      properties:
+        baseAnchorSalary:
+          type: string
+        maxSteps:
+          type: number
+      required:
+        - baseAnchorSalary
+        - maxSteps
+
+    BulkUpsertIndexGridIndicesRequest:
+      type: object
+      properties:
+        indices:
+          type: array
+          items:
+            type: object
+            properties:
+              laneId:
+                type: string
+              stepNumber:
+                type: number
+              indexValue:
+                type: string
+              isCapped:
+                type: boolean
+            required:
+              - laneId
+              - stepNumber
+              - indexValue
+      required:
+        - indices

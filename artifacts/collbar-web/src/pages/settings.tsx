@@ -16,6 +16,7 @@ import {
   EmployeeGroupWithSchedules,
   CompensationSchedule,
   CreateCompensationScheduleRequestScheduleType,
+  CreateCompensationScheduleRequestPayType,
   CreateEmployeeGroupRequest,
   UpdateEmployeeGroupRequest,
 } from "@workspace/api-client-react";
@@ -74,6 +75,7 @@ import { HourlyCategoryEditor } from "@/components/HourlyCategoryEditor";
 import { SalaryRangeEditor } from "@/components/SalaryRangeEditor";
 import { IndividualSalaryViewer } from "@/components/IndividualSalaryViewer";
 import { ImportGridEditor } from "@/components/ImportGridEditor";
+import { IndexBasedGridEditor } from "@/components/IndexBasedGridEditor";
 
 const GROUP_INDEX_COLORS = [
   "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -748,6 +750,7 @@ function ScheduleDialog({
     name: "",
     scheduleType:
       "individual_salary" as CreateCompensationScheduleRequestScheduleType,
+    payType: "salary" as CreateCompensationScheduleRequestPayType,
     description: "",
     effectiveDate: "",
     effectiveDateRule: "",
@@ -760,6 +763,7 @@ function ScheduleDialog({
         setForm({
           name: schedule.name,
           scheduleType: schedule.scheduleType,
+          payType: (schedule.payType ?? "salary") as CreateCompensationScheduleRequestPayType,
           description: schedule.description ?? "",
           effectiveDate: schedule.effectiveDate
             ? schedule.effectiveDate.substring(0, 10)
@@ -771,6 +775,7 @@ function ScheduleDialog({
         setForm({
           name: "",
           scheduleType: "individual_salary",
+          payType: "salary",
           description: "",
           effectiveDate: "",
           effectiveDateRule: "",
@@ -800,6 +805,7 @@ function ScheduleDialog({
           data: {
             name: form.name,
             scheduleType: form.scheduleType,
+            payType: form.payType,
             description: form.description || undefined,
             effectiveDate: form.effectiveDate || undefined,
             effectiveDateRule: form.effectiveDateRule || undefined,
@@ -827,6 +833,7 @@ function ScheduleDialog({
             employeeGroupId: groupId,
             name: form.name,
             scheduleType: form.scheduleType,
+            payType: form.payType,
             description: form.description || undefined,
             effectiveDate: form.effectiveDate || undefined,
             effectiveDateRule: form.effectiveDateRule || undefined,
@@ -874,27 +881,47 @@ function ScheduleDialog({
               className="bg-background/50"
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label>Schedule Type</Label>
-            <Select
-              value={form.scheduleType}
-              onValueChange={(v) =>
-                set("scheduleType")(
-                  v as CreateCompensationScheduleRequestScheduleType
-                )
-              }
-            >
-              <SelectTrigger className="bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SCHEDULE_TYPE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Schedule Type</Label>
+              <Select
+                value={form.scheduleType}
+                onValueChange={(v) =>
+                  set("scheduleType")(
+                    v as CreateCompensationScheduleRequestScheduleType
+                  )
+                }
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHEDULE_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Pay Type</Label>
+              <Select
+                value={form.payType}
+                onValueChange={(v) =>
+                  set("payType")(v as CreateCompensationScheduleRequestPayType)
+                }
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="salary">Salary (× FTE)</SelectItem>
+                  <SelectItem value="hourly">Hourly (FTE × rate × 2080 hrs)</SelectItem>
+                  <SelectItem value="per_diem">Per Diem (rate × contract days)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="grid gap-1.5">
             <Label>Description (optional)</Label>
@@ -974,6 +1001,7 @@ function ScheduleRow({
   const [salaryRangeEditorOpen, setSalaryRangeEditorOpen] = useState(false);
   const [individualSalaryOpen, setIndividualSalaryOpen] = useState(false);
   const [importGridOpen, setImportGridOpen] = useState(false);
+  const [indexGridOpen, setIndexGridOpen] = useState(false);
 
   const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
     label: schedule.scheduleType,
@@ -1104,6 +1132,16 @@ function ScheduleRow({
             Edit Grid
           </Button>
         )}
+        {schedule.scheduleType === "index_based_grid" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setIndexGridOpen(true)}
+          >
+            Edit Grid
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1183,6 +1221,15 @@ function ScheduleRow({
         <ImportGridEditor
           open={importGridOpen}
           onClose={() => setImportGridOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+        />
+      )}
+
+      {schedule.scheduleType === "index_based_grid" && (
+        <IndexBasedGridEditor
+          open={indexGridOpen}
+          onClose={() => setIndexGridOpen(false)}
           scheduleId={schedule.id}
           scheduleName={schedule.name}
         />

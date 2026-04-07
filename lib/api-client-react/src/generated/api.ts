@@ -19,6 +19,7 @@ import type {
 import type {
   BargainingUnit,
   BulkUpsertImportGridCellsRequest,
+  BulkUpsertIndexGridIndicesRequest,
   CompareScenariosParams,
   CompensationHourlyCategory,
   CompensationSchedule,
@@ -60,6 +61,8 @@ import type {
   ImportGridCell,
   ImportGridLane,
   ImportResult,
+  IndexGridConfigRow,
+  IndexGridConfigWithIndices,
   ListBargainingUnitsParams,
   ListCompensationSchedulesParams,
   ListEmployeeGroupsParams,
@@ -82,6 +85,7 @@ import type {
   ScenarioComparison,
   ScenarioSummary,
   ScenarioYearConfig,
+  ScheduleIndex,
   StipendDefinition,
   StipendDefinitionWithAssignments,
   UpdateBargainingUnitRequest,
@@ -99,6 +103,7 @@ import type {
   UpdateScenarioRequest,
   UpdateStipendAssignmentRequest,
   UpdateStipendDefinitionRequest,
+  UpsertIndexGridConfigRequest,
   UpsertPerDiemConfigRequest,
 } from "./api.schemas";
 
@@ -8089,6 +8094,282 @@ export const useBulkUpsertImportGridCells = <
   TContext
 > => {
   return useMutation(getBulkUpsertImportGridCellsMutationOptions(options));
+};
+
+/**
+ * @summary Get (or auto-create) the index grid config and indices for a schedule
+ */
+export const getGetIndexGridConfigUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/index-grid-config`;
+};
+
+export const getIndexGridConfig = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<IndexGridConfigWithIndices> => {
+  return customFetch<IndexGridConfigWithIndices>(
+    getGetIndexGridConfigUrl(scheduleId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetIndexGridConfigQueryKey = (scheduleId: string) => {
+  return [
+    `/api/compensation-schedules/${scheduleId}/index-grid-config`,
+  ] as const;
+};
+
+export const getGetIndexGridConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getIndexGridConfig>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIndexGridConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetIndexGridConfigQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getIndexGridConfig>>
+  > = ({ signal }) =>
+    getIndexGridConfig(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getIndexGridConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetIndexGridConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getIndexGridConfig>>
+>;
+export type GetIndexGridConfigQueryError = ErrorType<void>;
+
+/**
+ * @summary Get (or auto-create) the index grid config and indices for a schedule
+ */
+
+export function useGetIndexGridConfig<
+  TData = Awaited<ReturnType<typeof getIndexGridConfig>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIndexGridConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetIndexGridConfigQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upsert base anchor salary and max steps
+ */
+export const getUpsertIndexGridConfigUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/index-grid-config`;
+};
+
+export const upsertIndexGridConfig = async (
+  scheduleId: string,
+  upsertIndexGridConfigRequest: UpsertIndexGridConfigRequest,
+  options?: RequestInit,
+): Promise<IndexGridConfigRow> => {
+  return customFetch<IndexGridConfigRow>(
+    getUpsertIndexGridConfigUrl(scheduleId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(upsertIndexGridConfigRequest),
+    },
+  );
+};
+
+export const getUpsertIndexGridConfigMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertIndexGridConfig>>,
+    TError,
+    { scheduleId: string; data: BodyType<UpsertIndexGridConfigRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertIndexGridConfig>>,
+  TError,
+  { scheduleId: string; data: BodyType<UpsertIndexGridConfigRequest> },
+  TContext
+> => {
+  const mutationKey = ["upsertIndexGridConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertIndexGridConfig>>,
+    { scheduleId: string; data: BodyType<UpsertIndexGridConfigRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return upsertIndexGridConfig(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertIndexGridConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertIndexGridConfig>>
+>;
+export type UpsertIndexGridConfigMutationBody =
+  BodyType<UpsertIndexGridConfigRequest>;
+export type UpsertIndexGridConfigMutationError = ErrorType<void>;
+
+/**
+ * @summary Upsert base anchor salary and max steps
+ */
+export const useUpsertIndexGridConfig = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertIndexGridConfig>>,
+    TError,
+    { scheduleId: string; data: BodyType<UpsertIndexGridConfigRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertIndexGridConfig>>,
+  TError,
+  { scheduleId: string; data: BodyType<UpsertIndexGridConfigRequest> },
+  TContext
+> => {
+  return useMutation(getUpsertIndexGridConfigMutationOptions(options));
+};
+
+/**
+ * @summary Replace all index values for the schedule
+ */
+export const getBulkUpsertIndexGridIndicesUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/index-grid-indices`;
+};
+
+export const bulkUpsertIndexGridIndices = async (
+  scheduleId: string,
+  bulkUpsertIndexGridIndicesRequest: BulkUpsertIndexGridIndicesRequest,
+  options?: RequestInit,
+): Promise<ScheduleIndex[]> => {
+  return customFetch<ScheduleIndex[]>(
+    getBulkUpsertIndexGridIndicesUrl(scheduleId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(bulkUpsertIndexGridIndicesRequest),
+    },
+  );
+};
+
+export const getBulkUpsertIndexGridIndicesMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpsertIndexGridIndices>>,
+    TError,
+    { scheduleId: string; data: BodyType<BulkUpsertIndexGridIndicesRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkUpsertIndexGridIndices>>,
+  TError,
+  { scheduleId: string; data: BodyType<BulkUpsertIndexGridIndicesRequest> },
+  TContext
+> => {
+  const mutationKey = ["bulkUpsertIndexGridIndices"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkUpsertIndexGridIndices>>,
+    { scheduleId: string; data: BodyType<BulkUpsertIndexGridIndicesRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return bulkUpsertIndexGridIndices(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkUpsertIndexGridIndicesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkUpsertIndexGridIndices>>
+>;
+export type BulkUpsertIndexGridIndicesMutationBody =
+  BodyType<BulkUpsertIndexGridIndicesRequest>;
+export type BulkUpsertIndexGridIndicesMutationError = ErrorType<void>;
+
+/**
+ * @summary Replace all index values for the schedule
+ */
+export const useBulkUpsertIndexGridIndices = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpsertIndexGridIndices>>,
+    TError,
+    { scheduleId: string; data: BodyType<BulkUpsertIndexGridIndicesRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkUpsertIndexGridIndices>>,
+  TError,
+  { scheduleId: string; data: BodyType<BulkUpsertIndexGridIndicesRequest> },
+  TContext
+> => {
+  return useMutation(getBulkUpsertIndexGridIndicesMutationOptions(options));
 };
 
 /**

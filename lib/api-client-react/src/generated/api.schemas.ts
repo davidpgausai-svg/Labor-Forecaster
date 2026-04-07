@@ -663,11 +663,21 @@ export const CompensationScheduleScheduleType = {
   range_based: "range_based",
 } as const;
 
+export type CompensationSchedulePayType =
+  (typeof CompensationSchedulePayType)[keyof typeof CompensationSchedulePayType];
+
+export const CompensationSchedulePayType = {
+  salary: "salary",
+  hourly: "hourly",
+  per_diem: "per_diem",
+} as const;
+
 export interface CompensationSchedule {
   id: string;
   employeeGroupId: string;
   name: string;
   scheduleType: CompensationScheduleScheduleType;
+  payType: CompensationSchedulePayType;
   isPrimary: boolean;
   displayOrder?: number;
   description?: string | null;
@@ -755,10 +765,20 @@ export const CreateCompensationScheduleRequestScheduleType = {
   range_based: "range_based",
 } as const;
 
+export type CreateCompensationScheduleRequestPayType =
+  (typeof CreateCompensationScheduleRequestPayType)[keyof typeof CreateCompensationScheduleRequestPayType];
+
+export const CreateCompensationScheduleRequestPayType = {
+  salary: "salary",
+  hourly: "hourly",
+  per_diem: "per_diem",
+} as const;
+
 export interface CreateCompensationScheduleRequest {
   employeeGroupId: string;
   name: string;
   scheduleType: CreateCompensationScheduleRequestScheduleType;
+  payType?: CreateCompensationScheduleRequestPayType;
   isPrimary?: boolean;
   displayOrder?: number;
   description?: string | null;
@@ -781,9 +801,19 @@ export const UpdateCompensationScheduleRequestScheduleType = {
   range_based: "range_based",
 } as const;
 
+export type UpdateCompensationScheduleRequestPayType =
+  (typeof UpdateCompensationScheduleRequestPayType)[keyof typeof UpdateCompensationScheduleRequestPayType];
+
+export const UpdateCompensationScheduleRequestPayType = {
+  salary: "salary",
+  hourly: "hourly",
+  per_diem: "per_diem",
+} as const;
+
 export interface UpdateCompensationScheduleRequest {
   name?: string;
   scheduleType?: UpdateCompensationScheduleRequestScheduleType;
+  payType?: UpdateCompensationScheduleRequestPayType;
   isPrimary?: boolean;
   displayOrder?: number;
   description?: string | null;
@@ -1081,6 +1111,48 @@ export type BulkUpsertImportGridCellsRequestCellsItem = {
 
 export interface BulkUpsertImportGridCellsRequest {
   cells: BulkUpsertImportGridCellsRequestCellsItem[];
+}
+
+export interface IndexGridConfigRow {
+  id: string;
+  compensationScheduleId: string;
+  baseAnchorSalary: string;
+  maxSteps: number;
+  createdAt?: string;
+}
+
+export interface ScheduleIndex {
+  id: string;
+  compensationScheduleId: string;
+  laneId: string;
+  stepNumber: number;
+  indexValue: string;
+  isCapped: boolean;
+}
+
+export interface IndexGridConfigWithIndices {
+  id: string;
+  compensationScheduleId: string;
+  baseAnchorSalary: string;
+  maxSteps: number;
+  createdAt?: string;
+  indices: ScheduleIndex[];
+}
+
+export interface UpsertIndexGridConfigRequest {
+  baseAnchorSalary: string;
+  maxSteps: number;
+}
+
+export type BulkUpsertIndexGridIndicesRequestIndicesItem = {
+  laneId: string;
+  stepNumber: number;
+  indexValue: string;
+  isCapped?: boolean;
+};
+
+export interface BulkUpsertIndexGridIndicesRequest {
+  indices: BulkUpsertIndexGridIndicesRequestIndicesItem[];
 }
 
 export type ListBargainingUnitsParams = {

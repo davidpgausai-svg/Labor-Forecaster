@@ -1,5 +1,6 @@
 import {
   useListEmployees,
+  getListEmployeesQueryKey,
   useGetCompensationSchedule,
 } from "@workspace/api-client-react";
 import {
@@ -38,10 +39,11 @@ export function IndividualSalaryViewer({
   const { districtId } = useDistrictContext();
 
   const { data: employeeList, isLoading } = useListEmployees(
-    { districtId, employeeGroupId, pageSize: 500 },
+    { districtId: districtId ?? undefined, employeeGroupId, pageSize: 500 },
     {
       query: {
         enabled: open && !!districtId,
+        queryKey: getListEmployeesQueryKey({ districtId: districtId ?? undefined, employeeGroupId, pageSize: 500 }),
       },
     }
   );

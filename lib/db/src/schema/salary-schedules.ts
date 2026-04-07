@@ -14,8 +14,9 @@ import { compensationSchedulesTable } from "./compensation-schedules";
 export const salarySchedulesTable = pgTable("salary_schedules", {
   id: uuid("id").primaryKey().defaultRandom(),
   bargainingUnitId: uuid("bargaining_unit_id")
-    .notNull()
     .references(() => bargainingUnitsTable.id, { onDelete: "cascade" }),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   effectiveYear: integer("effective_year").notNull().default(0),
   baseSalary: numeric("base_salary", { precision: 15, scale: 2 })

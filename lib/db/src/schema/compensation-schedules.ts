@@ -22,7 +22,10 @@ export const COMPENSATION_SCHEDULE_TYPES = [
   "range_based",
 ] as const;
 
+export const COMPENSATION_PAY_TYPES = ["salary", "hourly", "per_diem"] as const;
+
 export type CompensationScheduleType = (typeof COMPENSATION_SCHEDULE_TYPES)[number];
+export type CompensationPayType = (typeof COMPENSATION_PAY_TYPES)[number];
 
 export const compensationSchedulesTable = pgTable("compensation_schedules", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -31,6 +34,7 @@ export const compensationSchedulesTable = pgTable("compensation_schedules", {
     .references(() => employeeGroupsTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   scheduleType: text("schedule_type").notNull(),
+  payType: text("pay_type").notNull().default("salary"),
   isPrimary: boolean("is_primary").notNull().default(false),
   displayOrder: integer("display_order").notNull().default(0),
   description: text("description"),

@@ -5,6 +5,7 @@
  * CollBar — Collective Bargaining Compensation Modeling API
  * OpenAPI spec version: 0.1.0
  */
+import type { CompensationSchedulePayType } from "./compensationSchedulePayType";
 import type { CompensationScheduleScheduleType } from "./compensationScheduleScheduleType";
 
 export interface CompensationSchedule {
@@ -12,6 +13,7 @@ export interface CompensationSchedule {
   employeeGroupId: string;
   name: string;
   scheduleType: CompensationScheduleScheduleType;
+  payType: CompensationSchedulePayType;
   isPrimary: boolean;
   displayOrder?: number;
   description?: string | null;
