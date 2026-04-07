@@ -1,0 +1,23 @@
+Task: Apply pending Drizzle schema changes to the PostgreSQL database
+                                                                                                      
+  The codebase has schema changes that have been committed to GitHub but not yet applied to the     
+  database. You need to run the Drizzle push command to sync the schema.                              
+                                                                                                    
+  Steps:                                                                                              
+                                                                                                    
+  1. Make sure the .env file (or Replit Secrets) has DATABASE_URL set to the Neon PostgreSQL          
+  connection string.
+  2. Run the following command from the repo root:                                                    
+                                                                                                    
+  cd lib/db && pnpm run push
+                                                                                                      
+  3. When Drizzle prompts you to confirm changes, review them and type yes to apply. The expected     
+  changes are:                                                                                        
+    - Add pay_type column (text, not null, default 'salary') to compensation_schedules table          
+    - Make bargaining_unit_id nullable on salary_schedules table                                      
+    - Add compensation_schedule_id column (uuid, nullable FK) to salary_schedules table
+    - Add compensation_schedule_id column (uuid, nullable FK) to lanes table                          
+  4. Confirm the push completed without errors.                                                     
+                                                                                                      
+  Do not run any migrations, do not modify any schema files, do not run pnpm install or pnpm build.   
+  Only run cd lib/db && pnpm run push and confirm the prompts.        
