@@ -12,6 +12,7 @@ export interface District {
   state: string;
   fiscalYearStart: string;
   studentEnrollment?: number | null;
+  benefitEligibleFteThreshold: number;
   createdAt: string;
   updatedAt: string;
 }

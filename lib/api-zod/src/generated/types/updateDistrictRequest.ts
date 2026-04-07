@@ -11,4 +11,5 @@ export interface UpdateDistrictRequest {
   state?: string;
   fiscalYearStart?: string;
   studentEnrollment?: number | null;
+  benefitEligibleFteThreshold?: number;
 }

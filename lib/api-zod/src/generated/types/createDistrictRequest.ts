@@ -11,4 +11,5 @@ export interface CreateDistrictRequest {
   state?: string;
   fiscalYearStart?: string;
   studentEnrollment?: number | null;
+  benefitEligibleFteThreshold?: number;
 }

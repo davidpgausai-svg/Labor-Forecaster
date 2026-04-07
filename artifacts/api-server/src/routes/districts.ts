@@ -9,6 +9,7 @@ const createDistrictSchema = z.object({
   state: z.string().length(2).optional(),
   fiscalYearStart: z.string().optional(),
   studentEnrollment: z.number().int().nonnegative().optional(),
+  benefitEligibleFteThreshold: z.number().min(0).max(1).optional(),
 });
 
 const updateDistrictSchema = createDistrictSchema.partial();
@@ -26,10 +27,12 @@ router.post("/districts", async (req, res) => {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
-  const [district] = await db
-    .insert(districtsTable)
-    .values(parsed.data)
-    .returning();
+  const { benefitEligibleFteThreshold, ...rest } = parsed.data;
+  const values: typeof districtsTable.$inferInsert = {
+    ...rest,
+    ...(benefitEligibleFteThreshold != null ? { benefitEligibleFteThreshold: String(benefitEligibleFteThreshold) } : {}),
+  };
+  const [district] = await db.insert(districtsTable).values(values).returning();
   res.status(201).json(district);
 });
 
@@ -51,9 +54,15 @@ router.put("/districts/:id", async (req, res) => {
     res.status(400).json({ error: "Validation failed", details: parsed.error.issues });
     return;
   }
+  const { benefitEligibleFteThreshold, ...rest } = parsed.data;
+  const updates: Partial<typeof districtsTable.$inferInsert> & { updatedAt: Date } = {
+    ...rest,
+    updatedAt: new Date(),
+    ...(benefitEligibleFteThreshold != null ? { benefitEligibleFteThreshold: String(benefitEligibleFteThreshold) } : {}),
+  };
   const [district] = await db
     .update(districtsTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set(updates)
     .where(eq(districtsTable.id, req.params.id))
     .returning();
   if (!district) {

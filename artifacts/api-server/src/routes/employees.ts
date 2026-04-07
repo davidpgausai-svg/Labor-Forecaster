@@ -10,6 +10,7 @@ import {
   scenarioYearConfigsTable,
   employeeYearRecordsTable,
   scenariosTable,
+  employeePositionsTable,
 } from "@workspace/db";
 import { eq, and, sql, or, inArray, isNull } from "drizzle-orm";
 import {
@@ -290,6 +291,13 @@ router.get("/employees/:id", async (req, res) => {
   const emp = row.employee;
   const employeeGroupName = row.groupName ?? null;
   const compensationScheduleType = row.scheduleType ?? null;
+
+  const positions = await db
+    .select()
+    .from(employeePositionsTable)
+    .where(eq(employeePositionsTable.employeeId, emp.id))
+    .orderBy(employeePositionsTable.displayOrder, employeePositionsTable.createdAt);
+
   let yearProjections: unknown[] = [];
 
   if (scenarioId) {
@@ -353,7 +361,7 @@ router.get("/employees/:id", async (req, res) => {
     };
   }
 
-  res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, compensationScheduleType, laneName: row.laneName, yearProjections, retirementOptions });
+  res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, compensationScheduleType, laneName: row.laneName, positions, yearProjections, retirementOptions });
 });
 
 async function recalcDistrictScenarios(districtId: string, context: string): Promise<{ count: number; errors: string[] }> {

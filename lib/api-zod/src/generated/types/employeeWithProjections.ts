@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Employee } from "./employee";
+import type { EmployeePosition } from "./employeePosition";
 import type { EmployeeYearRecord } from "./employeeYearRecord";
 import type { RetirementOptions } from "./retirementOptions";
 
 export type EmployeeWithProjections = Employee & {
+  positions?: EmployeePosition[];
   yearProjections?: EmployeeYearRecord[];
   retirementOptions?: RetirementOptions | null;
 };

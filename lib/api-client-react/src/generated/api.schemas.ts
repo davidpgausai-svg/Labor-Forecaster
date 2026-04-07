@@ -41,6 +41,7 @@ export interface District {
   state: string;
   fiscalYearStart: string;
   studentEnrollment?: number | null;
+  benefitEligibleFteThreshold: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +101,7 @@ export interface CreateDistrictRequest {
   state?: string;
   fiscalYearStart?: string;
   studentEnrollment?: number | null;
+  benefitEligibleFteThreshold?: number;
 }
 
 export interface UpdateDistrictRequest {
@@ -107,6 +109,65 @@ export interface UpdateDistrictRequest {
   state?: string;
   fiscalYearStart?: string;
   studentEnrollment?: number | null;
+  benefitEligibleFteThreshold?: number;
+}
+
+export interface EmployeePosition {
+  id: string;
+  employeeId: string;
+  employeeGroupId?: string | null;
+  bargainingUnitId?: string | null;
+  compensationScheduleId?: string | null;
+  jobTitle?: string | null;
+  fteFraction: string;
+  currentStep?: number | null;
+  currentLaneId?: string | null;
+  currentAnnualSalary: string;
+  currentHourlyRate?: string | null;
+  annualHours?: string | null;
+  isPrimary: boolean;
+  status: string;
+  effectiveDate?: string | null;
+  endDate?: string | null;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEmployeePositionRequest {
+  employeeGroupId?: string | null;
+  bargainingUnitId?: string | null;
+  compensationScheduleId?: string | null;
+  jobTitle?: string | null;
+  fteFraction?: string;
+  currentStep?: number | null;
+  currentLaneId?: string | null;
+  currentAnnualSalary?: string;
+  currentHourlyRate?: string | null;
+  annualHours?: string | null;
+  isPrimary?: boolean;
+  status?: string;
+  effectiveDate?: string | null;
+  endDate?: string | null;
+  displayOrder?: number;
+}
+
+export interface UpdateEmployeePositionRequest {
+  employeeGroupId?: string | null;
+  bargainingUnitId?: string | null;
+  compensationScheduleId?: string | null;
+  jobTitle?: string | null;
+  fteFraction?: string;
+  currentStep?: number | null;
+  currentLaneId?: string | null;
+  currentAnnualSalary?: string;
+  currentHourlyRate?: string | null;
+  annualHours?: string | null;
+  isPrimary?: boolean;
+  status?: string;
+  effectiveDate?: string | null;
+  endDate?: string | null;
+  displayOrder?: number;
 }
 
 export type CreateBargainingUnitRequestCompensationType =
@@ -235,6 +296,7 @@ export interface RetirementOptions {
 }
 
 export type EmployeeWithProjections = Employee & {
+  positions?: EmployeePosition[];
   yearProjections?: EmployeeYearRecord[];
   retirementOptions?: RetirementOptions | null;
 };

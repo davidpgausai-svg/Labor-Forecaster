@@ -13,7 +13,13 @@ import {
   getListSalarySchedulesQueryKey,
   useListImportGridLanes,
   getListImportGridLanesQueryKey,
+  useListEmployeePositions,
+  getListEmployeePositionsQueryKey,
+  useCreateEmployeePosition,
+  useUpdateEmployeePosition,
+  useDeleteEmployeePosition,
   type SalaryScheduleWithGrid,
+  type EmployeePosition,
   getListScenariosQueryKey,
   getListEmployeesQueryKey,
   getGetDashboardQueryKey,
@@ -48,8 +54,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, AlertTriangle, TrendingUp, Pencil, Loader2, Clock, X } from "lucide-react";
+import { ArrowLeft, AlertTriangle, TrendingUp, Pencil, Loader2, Clock, X, Plus, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +132,150 @@ export default function EmployeeDetail() {
       },
     },
   });
+
+  // ── Positions ──────────────────────────────────────────────────────────────
+  const [showPositionDialog, setShowPositionDialog] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<EmployeePosition | null>(null);
+  const [positionForm, setPositionForm] = useState({
+    assignType: "group" as "union" | "group",
+    employeeGroupId: "",
+    bargainingUnitId: "",
+    compensationScheduleId: "",
+    jobTitle: "",
+    fteFraction: "1.0000",
+    currentStep: "",
+    currentLaneId: "",
+    currentAnnualSalary: "0",
+    currentHourlyRate: "",
+    annualHours: "",
+    isPrimary: false,
+    status: "active",
+    effectiveDate: "",
+    endDate: "",
+    displayOrder: 0,
+  });
+
+  const { data: positions = [], isLoading: positionsLoading } = useListEmployeePositions(
+    id,
+    { query: { enabled: !!id, queryKey: getListEmployeePositionsQueryKey(id) } }
+  );
+
+  const createPositionMutation = useCreateEmployeePosition({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeePositionsQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
+        setShowPositionDialog(false);
+      },
+    },
+  });
+
+  const updatePositionMutation = useUpdateEmployeePosition({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeePositionsQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
+        setShowPositionDialog(false);
+        setEditingPosition(null);
+      },
+    },
+  });
+
+  const deletePositionMutation = useDeleteEmployeePosition({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeePositionsQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
+      },
+    },
+  });
+
+  // Group/lane lookups for the position dialog
+  const selectedPosGroupData = (employeeGroups ?? []).find((g) => g.id === positionForm.employeeGroupId);
+  const primaryPosCompSchedule = selectedPosGroupData?.compensationSchedules?.find((s) => s.isPrimary);
+  const posGroupIsGrid = primaryPosCompSchedule?.scheduleType === "index_based_grid" || primaryPosCompSchedule?.scheduleType === "direct_import_grid";
+  const { data: posGroupLanes = [] } = useListImportGridLanes(
+    primaryPosCompSchedule?.id ?? "",
+    {
+      query: {
+        enabled: positionForm.assignType === "group" && posGroupIsGrid && !!primaryPosCompSchedule?.id,
+        queryKey: getListImportGridLanesQueryKey(primaryPosCompSchedule?.id ?? ""),
+      },
+    }
+  );
+
+  function openAddPosition() {
+    setEditingPosition(null);
+    const hasPrimary = positions.some((p) => p.isPrimary);
+    setPositionForm({
+      assignType: "group",
+      employeeGroupId: "",
+      bargainingUnitId: "",
+      compensationScheduleId: "",
+      jobTitle: "",
+      fteFraction: "1.0000",
+      currentStep: "",
+      currentLaneId: "",
+      currentAnnualSalary: "0",
+      currentHourlyRate: "",
+      annualHours: "",
+      isPrimary: !hasPrimary,
+      status: "active",
+      effectiveDate: "",
+      endDate: "",
+      displayOrder: positions.length,
+    });
+    setShowPositionDialog(true);
+  }
+
+  function openEditPosition(pos: EmployeePosition) {
+    setEditingPosition(pos);
+    setPositionForm({
+      assignType: pos.employeeGroupId ? "group" : "union",
+      employeeGroupId: pos.employeeGroupId ?? "",
+      bargainingUnitId: pos.bargainingUnitId ?? "",
+      compensationScheduleId: pos.compensationScheduleId ?? "",
+      jobTitle: pos.jobTitle ?? "",
+      fteFraction: pos.fteFraction ?? "1.0000",
+      currentStep: pos.currentStep != null ? String(pos.currentStep) : "",
+      currentLaneId: pos.currentLaneId ?? "",
+      currentAnnualSalary: pos.currentAnnualSalary ?? "0",
+      currentHourlyRate: pos.currentHourlyRate ?? "",
+      annualHours: pos.annualHours ?? "",
+      isPrimary: pos.isPrimary,
+      status: pos.status ?? "active",
+      effectiveDate: pos.effectiveDate ?? "",
+      endDate: pos.endDate ?? "",
+      displayOrder: pos.displayOrder ?? 0,
+    });
+    setShowPositionDialog(true);
+  }
+
+  function handleSavePosition() {
+    const body = {
+      employeeGroupId: positionForm.assignType === "group" ? (positionForm.employeeGroupId || null) : null,
+      bargainingUnitId: positionForm.assignType === "union" ? (positionForm.bargainingUnitId || null) : null,
+      compensationScheduleId: positionForm.compensationScheduleId || null,
+      jobTitle: positionForm.jobTitle || null,
+      fteFraction: positionForm.fteFraction || "1.0000",
+      currentStep: positionForm.currentStep ? parseInt(positionForm.currentStep, 10) : null,
+      currentLaneId: positionForm.currentLaneId || null,
+      currentAnnualSalary: positionForm.currentAnnualSalary || "0",
+      currentHourlyRate: positionForm.currentHourlyRate || null,
+      annualHours: positionForm.annualHours || null,
+      isPrimary: positionForm.isPrimary,
+      status: positionForm.status,
+      effectiveDate: positionForm.effectiveDate || null,
+      endDate: positionForm.endDate || null,
+      displayOrder: positionForm.displayOrder,
+    };
+
+    if (editingPosition) {
+      updatePositionMutation.mutate({ id: editingPosition.id, data: body });
+    } else {
+      createPositionMutation.mutate({ id, data: body });
+    }
+  }
 
   const { data: emp, isLoading } = useGetEmployee(
     id,
@@ -218,6 +369,7 @@ export default function EmployeeDetail() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-start gap-4">
+
         <Button
           variant="ghost"
           size="icon"
@@ -307,6 +459,20 @@ export default function EmployeeDetail() {
         </div>
       )}
 
+      <Tabs defaultValue="overview">
+        <TabsList className="bg-muted/40">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="positions">
+            Positions
+            {positions.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary/20 text-primary text-xs w-4 h-4 font-mono">
+                {positions.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-card border-border md:col-span-2">
           <CardHeader>
@@ -612,7 +778,129 @@ export default function EmployeeDetail() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
 
+        <TabsContent value="positions" className="mt-6">
+          <Card className="bg-card border-border">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle>Positions</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Each position can have its own group, FTE, compensation schedule, step, and lane.
+                </p>
+              </div>
+              <Button size="sm" onClick={openAddPosition} className="shrink-0 gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Add Position
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {positionsLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
+                </div>
+              ) : positions.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm space-y-2">
+                  <p>No positions defined yet.</p>
+                  <p className="text-xs">This employee uses the legacy single-position model. Add a position to enable multi-position HCM.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow className="border-border">
+                      <TableHead>Job Title / Group</TableHead>
+                      <TableHead className="text-center">FTE</TableHead>
+                      <TableHead>Schedule</TableHead>
+                      <TableHead className="text-center">Step / Lane</TableHead>
+                      <TableHead className="text-right">Salary</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {positions.map((pos) => {
+                      const group = (employeeGroups ?? []).find((g) => g.id === pos.employeeGroupId);
+                      const unit = (units ?? []).find((u) => u.id === pos.bargainingUnitId);
+                      const groupSched = group?.compensationSchedules?.find((s) => s.isPrimary);
+                      return (
+                        <TableRow key={pos.id} className="border-border">
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {pos.isPrimary && (
+                                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" aria-label="Primary position" />
+                              )}
+                              <div>
+                                <div className="font-medium text-sm">
+                                  {pos.jobTitle || (group?.name ?? unit?.name ?? "—")}
+                                </div>
+                                {pos.jobTitle && (group || unit) && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {group?.name ?? unit?.name}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-sm">
+                            {parseFloat(pos.fteFraction).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {groupSched?.scheduleType?.replace(/_/g, " ") ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-sm">
+                            {pos.currentStep != null ? `${pos.currentStep}` : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatCurrency(pos.currentAnnualSalary)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-xs capitalize",
+                                pos.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                                pos.status === "on_leave" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                                "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {pos.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditPosition(pos)}
+                                className="h-7 w-7 p-0"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (confirm(`Delete this position? This cannot be undone.`)) {
+                                    deletePositionMutation.mutate({ id: pos.id });
+                                  }
+                                }}
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                disabled={deletePositionMutation.isPending}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={showEdit} onOpenChange={setShowEdit}>
         <DialogContent className="max-w-lg bg-card border-border text-foreground">
@@ -895,6 +1183,194 @@ export default function EmployeeDetail() {
                   Saving & Recalculating…
                 </>
               ) : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Position Add/Edit Dialog */}
+      <Dialog open={showPositionDialog} onOpenChange={(open) => { setShowPositionDialog(open); if (!open) setEditingPosition(null); }}>
+        <DialogContent className="max-w-lg bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle>{editingPosition ? "Edit Position" : "Add Position"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Job Title (optional)</Label>
+              <Input
+                value={positionForm.jobTitle}
+                onChange={(e) => setPositionForm((f) => ({ ...f, jobTitle: e.target.value }))}
+                className="bg-background border-border"
+                placeholder="e.g. Math Teacher, Head Coach"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Assignment Type</Label>
+              <div className="flex gap-2">
+                <Button type="button" variant={positionForm.assignType === "group" ? "default" : "outline"} size="sm"
+                  onClick={() => setPositionForm((f) => ({ ...f, assignType: "group", bargainingUnitId: "" }))}>
+                  Non-Union (Group)
+                </Button>
+                <Button type="button" variant={positionForm.assignType === "union" ? "default" : "outline"} size="sm"
+                  onClick={() => setPositionForm((f) => ({ ...f, assignType: "union", employeeGroupId: "", currentLaneId: "" }))}>
+                  Union (BU)
+                </Button>
+              </div>
+            </div>
+
+            {positionForm.assignType === "group" ? (
+              <div className="space-y-1.5">
+                <Label>Employee Group</Label>
+                <Select
+                  value={positionForm.employeeGroupId}
+                  onValueChange={(v) => setPositionForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select group…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employeeGroups ?? []).map((g) => {
+                      const ps = g.compensationSchedules?.find((s) => s.isPrimary);
+                      return (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                          {ps && <span className="ml-1.5 text-xs text-muted-foreground">({ps.scheduleType?.replace(/_/g, " ")})</span>}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Bargaining Unit</Label>
+                <Select
+                  value={positionForm.bargainingUnitId}
+                  onValueChange={(v) => setPositionForm((f) => ({ ...f, bargainingUnitId: v }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select unit…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(units ?? []).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>FTE Fraction</Label>
+                <Input
+                  type="number"
+                  step="0.05"
+                  min="0.01"
+                  max="1"
+                  value={positionForm.fteFraction}
+                  onChange={(e) => setPositionForm((f) => ({ ...f, fteFraction: e.target.value }))}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Annual Salary</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    value={positionForm.currentAnnualSalary}
+                    onChange={(e) => setPositionForm((f) => ({ ...f, currentAnnualSalary: e.target.value }))}
+                    className="bg-background border-border pl-7"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {positionForm.assignType === "group" && posGroupIsGrid && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Step</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={positionForm.currentStep}
+                    onChange={(e) => setPositionForm((f) => ({ ...f, currentStep: e.target.value }))}
+                    className="bg-background border-border"
+                    placeholder="e.g. 7"
+                  />
+                </div>
+                {posGroupLanes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>Lane</Label>
+                    <Select
+                      value={positionForm.currentLaneId}
+                      onValueChange={(v) => setPositionForm((f) => ({ ...f, currentLaneId: v }))}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select lane…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {posGroupLanes.slice().sort((a, b) => a.displayOrder - b.displayOrder).map((lane) => (
+                          <SelectItem key={lane.id} value={lane.id}>{lane.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select
+                  value={positionForm.status}
+                  onValueChange={(v) => setPositionForm((f) => ({ ...f, status: v }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="on_leave">On Leave</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 flex flex-col justify-end">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={positionForm.isPrimary}
+                    onChange={(e) => setPositionForm((f) => ({ ...f, isPrimary: e.target.checked }))}
+                    className="rounded border-border"
+                  />
+                  <span className="text-sm">Primary position</span>
+                </label>
+                <p className="text-xs text-muted-foreground">Drives benefit rates and header display</p>
+              </div>
+            </div>
+          </div>
+
+          {(createPositionMutation.isError || updatePositionMutation.isError) && (
+            <div className="flex items-center gap-2 text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md px-3 py-2 mt-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Save failed. Please try again.</span>
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="ghost" onClick={() => { setShowPositionDialog(false); setEditingPosition(null); }}
+              disabled={createPositionMutation.isPending || updatePositionMutation.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePosition}
+              disabled={createPositionMutation.isPending || updatePositionMutation.isPending}>
+              {(createPositionMutation.isPending || updatePositionMutation.isPending) ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+              ) : editingPosition ? "Save Changes" : "Add Position"}
             </Button>
           </DialogFooter>
         </DialogContent>

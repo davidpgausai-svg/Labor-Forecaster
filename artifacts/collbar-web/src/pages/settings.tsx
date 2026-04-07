@@ -1528,6 +1528,7 @@ export default function Settings() {
     state: "",
     fiscalYearStart: "",
     studentEnrollment: 0,
+    benefitEligibleFteThreshold: 0.75,
   });
 
   useEffect(() => {
@@ -1537,6 +1538,7 @@ export default function Settings() {
         state: district.state || "",
         fiscalYearStart: district.fiscalYearStart || "",
         studentEnrollment: district.studentEnrollment || 0,
+        benefitEligibleFteThreshold: district.benefitEligibleFteThreshold ?? 0.75,
       });
     }
   }, [district]);
@@ -1631,6 +1633,27 @@ export default function Settings() {
                     }))
                   }
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Benefit-Eligible FTE Threshold</Label>
+                <Input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  value={districtData.benefitEligibleFteThreshold}
+                  onChange={(e) =>
+                    setDistrictData((p) => ({
+                      ...p,
+                      benefitEligibleFteThreshold: parseFloat(e.target.value) || 0.75,
+                    }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum combined FTE for employer-paid benefits (default 0.75)
+                </p>
               </div>
             </div>
             <div className="flex justify-end">

@@ -19,6 +19,7 @@ import hourlyCategoriesRouter from "./hourly-categories";
 import salaryRangesRouter from "./salary-ranges";
 import importGridRouter from "./import-grid";
 import indexGridConfigRouter from "./index-grid-config";
+import employeePositionsRouter from "./employee-positions";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(hourlyCategoriesRouter);
 router.use(salaryRangesRouter);
 router.use(importGridRouter);
 router.use(indexGridConfigRouter);
+router.use(employeePositionsRouter);
 
 export default router;

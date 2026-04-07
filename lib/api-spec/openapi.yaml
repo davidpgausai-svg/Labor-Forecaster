@@ -402,6 +402,88 @@ paths:
               schema:
                 $ref: "#/components/schemas/Employee"
 
+  /employees/{id}/positions:
+    get:
+      operationId: listEmployeePositions
+      tags: [employees]
+      summary: List all positions for an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeePosition"
+    post:
+      operationId: createEmployeePosition
+      tags: [employees]
+      summary: Add a position to an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeePositionRequest"
+      responses:
+        "201":
+          description: Created position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeePosition"
+
+  /employee-positions/{id}:
+    put:
+      operationId: updateEmployeePosition
+      tags: [employees]
+      summary: Update a position
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeePositionRequest"
+      responses:
+        "200":
+          description: Updated position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeePosition"
+    delete:
+      operationId: deleteEmployeePosition
+      tags: [employees]
+      summary: Delete a position
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
   /salary-schedules:
     get:
       operationId: listSalarySchedules
@@ -2097,6 +2179,8 @@ components:
         studentEnrollment:
           type: number
           nullable: true
+        benefitEligibleFteThreshold:
+          type: number
         createdAt:
           type: string
         updatedAt:
@@ -2106,6 +2190,7 @@ components:
         - name
         - state
         - fiscalYearStart
+        - benefitEligibleFteThreshold
         - createdAt
         - updatedAt
 
@@ -2121,6 +2206,8 @@ components:
         studentEnrollment:
           type: number
           nullable: true
+        benefitEligibleFteThreshold:
+          type: number
       required:
         - name
 
@@ -2136,6 +2223,158 @@ components:
         studentEnrollment:
           type: number
           nullable: true
+        benefitEligibleFteThreshold:
+          type: number
+
+    EmployeePosition:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeGroupId:
+          type: string
+          nullable: true
+        bargainingUnitId:
+          type: string
+          nullable: true
+        compensationScheduleId:
+          type: string
+          nullable: true
+        jobTitle:
+          type: string
+          nullable: true
+        fteFraction:
+          type: string
+        currentStep:
+          type: number
+          nullable: true
+        currentLaneId:
+          type: string
+          nullable: true
+        currentAnnualSalary:
+          type: string
+        currentHourlyRate:
+          type: string
+          nullable: true
+        annualHours:
+          type: string
+          nullable: true
+        isPrimary:
+          type: boolean
+        status:
+          type: string
+        effectiveDate:
+          type: string
+          nullable: true
+        endDate:
+          type: string
+          nullable: true
+        displayOrder:
+          type: number
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - employeeId
+        - fteFraction
+        - currentAnnualSalary
+        - isPrimary
+        - status
+        - displayOrder
+        - createdAt
+        - updatedAt
+
+    CreateEmployeePositionRequest:
+      type: object
+      properties:
+        employeeGroupId:
+          type: string
+          nullable: true
+        bargainingUnitId:
+          type: string
+          nullable: true
+        compensationScheduleId:
+          type: string
+          nullable: true
+        jobTitle:
+          type: string
+          nullable: true
+        fteFraction:
+          type: string
+        currentStep:
+          type: number
+          nullable: true
+        currentLaneId:
+          type: string
+          nullable: true
+        currentAnnualSalary:
+          type: string
+        currentHourlyRate:
+          type: string
+          nullable: true
+        annualHours:
+          type: string
+          nullable: true
+        isPrimary:
+          type: boolean
+        status:
+          type: string
+        effectiveDate:
+          type: string
+          nullable: true
+        endDate:
+          type: string
+          nullable: true
+        displayOrder:
+          type: number
+
+    UpdateEmployeePositionRequest:
+      type: object
+      properties:
+        employeeGroupId:
+          type: string
+          nullable: true
+        bargainingUnitId:
+          type: string
+          nullable: true
+        compensationScheduleId:
+          type: string
+          nullable: true
+        jobTitle:
+          type: string
+          nullable: true
+        fteFraction:
+          type: string
+        currentStep:
+          type: number
+          nullable: true
+        currentLaneId:
+          type: string
+          nullable: true
+        currentAnnualSalary:
+          type: string
+        currentHourlyRate:
+          type: string
+          nullable: true
+        annualHours:
+          type: string
+          nullable: true
+        isPrimary:
+          type: boolean
+        status:
+          type: string
+        effectiveDate:
+          type: string
+          nullable: true
+        endDate:
+          type: string
+          nullable: true
+        displayOrder:
+          type: number
 
     BargainingUnit:
       type: object
@@ -2407,6 +2646,10 @@ components:
         - $ref: "#/components/schemas/Employee"
         - type: object
           properties:
+            positions:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmployeePosition"
             yearProjections:
               type: array
               items:

@@ -23,6 +23,7 @@ export const ListDistrictsResponseItem = zod.object({
   state: zod.string(),
   fiscalYearStart: zod.string(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -36,6 +37,7 @@ export const CreateDistrictBody = zod.object({
   state: zod.string().optional(),
   fiscalYearStart: zod.string().optional(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number().optional(),
 });
 
 /**
@@ -51,6 +53,7 @@ export const GetDistrictResponse = zod.object({
   state: zod.string(),
   fiscalYearStart: zod.string(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -67,6 +70,7 @@ export const UpdateDistrictBody = zod.object({
   state: zod.string().optional(),
   fiscalYearStart: zod.string().optional(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number().optional(),
 });
 
 export const UpdateDistrictResponse = zod.object({
@@ -75,6 +79,7 @@ export const UpdateDistrictResponse = zod.object({
   state: zod.string(),
   fiscalYearStart: zod.string(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -471,6 +476,31 @@ export const GetEmployeeResponse = zod
   })
   .and(
     zod.object({
+      positions: zod
+        .array(
+          zod.object({
+            id: zod.string(),
+            employeeId: zod.string(),
+            employeeGroupId: zod.string().nullish(),
+            bargainingUnitId: zod.string().nullish(),
+            compensationScheduleId: zod.string().nullish(),
+            jobTitle: zod.string().nullish(),
+            fteFraction: zod.string(),
+            currentStep: zod.number().nullish(),
+            currentLaneId: zod.string().nullish(),
+            currentAnnualSalary: zod.string(),
+            currentHourlyRate: zod.string().nullish(),
+            annualHours: zod.string().nullish(),
+            isPrimary: zod.boolean(),
+            status: zod.string(),
+            effectiveDate: zod.string().nullish(),
+            endDate: zod.string().nullish(),
+            displayOrder: zod.number(),
+            createdAt: zod.string(),
+            updatedAt: zod.string(),
+          }),
+        )
+        .optional(),
       yearProjections: zod
         .array(
           zod.object({
@@ -613,6 +643,117 @@ export const DiscardPendingChangeResponse = zod.object({
   pendingAnnualSalary: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
+});
+
+/**
+ * @summary List all positions for an employee
+ */
+export const ListEmployeePositionsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const ListEmployeePositionsResponseItem = zod.object({
+  id: zod.string(),
+  employeeId: zod.string(),
+  employeeGroupId: zod.string().nullish(),
+  bargainingUnitId: zod.string().nullish(),
+  compensationScheduleId: zod.string().nullish(),
+  jobTitle: zod.string().nullish(),
+  fteFraction: zod.string(),
+  currentStep: zod.number().nullish(),
+  currentLaneId: zod.string().nullish(),
+  currentAnnualSalary: zod.string(),
+  currentHourlyRate: zod.string().nullish(),
+  annualHours: zod.string().nullish(),
+  isPrimary: zod.boolean(),
+  status: zod.string(),
+  effectiveDate: zod.string().nullish(),
+  endDate: zod.string().nullish(),
+  displayOrder: zod.number(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+export const ListEmployeePositionsResponse = zod.array(
+  ListEmployeePositionsResponseItem,
+);
+
+/**
+ * @summary Add a position to an employee
+ */
+export const CreateEmployeePositionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const CreateEmployeePositionBody = zod.object({
+  employeeGroupId: zod.string().nullish(),
+  bargainingUnitId: zod.string().nullish(),
+  compensationScheduleId: zod.string().nullish(),
+  jobTitle: zod.string().nullish(),
+  fteFraction: zod.string().optional(),
+  currentStep: zod.number().nullish(),
+  currentLaneId: zod.string().nullish(),
+  currentAnnualSalary: zod.string().optional(),
+  currentHourlyRate: zod.string().nullish(),
+  annualHours: zod.string().nullish(),
+  isPrimary: zod.boolean().optional(),
+  status: zod.string().optional(),
+  effectiveDate: zod.string().nullish(),
+  endDate: zod.string().nullish(),
+  displayOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a position
+ */
+export const UpdateEmployeePositionParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateEmployeePositionBody = zod.object({
+  employeeGroupId: zod.string().nullish(),
+  bargainingUnitId: zod.string().nullish(),
+  compensationScheduleId: zod.string().nullish(),
+  jobTitle: zod.string().nullish(),
+  fteFraction: zod.string().optional(),
+  currentStep: zod.number().nullish(),
+  currentLaneId: zod.string().nullish(),
+  currentAnnualSalary: zod.string().optional(),
+  currentHourlyRate: zod.string().nullish(),
+  annualHours: zod.string().nullish(),
+  isPrimary: zod.boolean().optional(),
+  status: zod.string().optional(),
+  effectiveDate: zod.string().nullish(),
+  endDate: zod.string().nullish(),
+  displayOrder: zod.number().optional(),
+});
+
+export const UpdateEmployeePositionResponse = zod.object({
+  id: zod.string(),
+  employeeId: zod.string(),
+  employeeGroupId: zod.string().nullish(),
+  bargainingUnitId: zod.string().nullish(),
+  compensationScheduleId: zod.string().nullish(),
+  jobTitle: zod.string().nullish(),
+  fteFraction: zod.string(),
+  currentStep: zod.number().nullish(),
+  currentLaneId: zod.string().nullish(),
+  currentAnnualSalary: zod.string(),
+  currentHourlyRate: zod.string().nullish(),
+  annualHours: zod.string().nullish(),
+  isPrimary: zod.boolean(),
+  status: zod.string(),
+  effectiveDate: zod.string().nullish(),
+  endDate: zod.string().nullish(),
+  displayOrder: zod.number(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a position
+ */
+export const DeleteEmployeePositionParams = zod.object({
+  id: zod.coerce.string(),
 });
 
 /**
@@ -1363,6 +1504,7 @@ export const GetDashboardResponse = zod.object({
       state: zod.string(),
       fiscalYearStart: zod.string(),
       studentEnrollment: zod.number().nullish(),
+      benefitEligibleFteThreshold: zod.number(),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     })
@@ -1518,6 +1660,7 @@ export const GetSettingsResponse = zod.object({
     state: zod.string(),
     fiscalYearStart: zod.string(),
     studentEnrollment: zod.number().nullish(),
+    benefitEligibleFteThreshold: zod.number(),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   }),
@@ -1565,6 +1708,7 @@ export const GetDistrictSettingsResponse = zod.object({
   state: zod.string(),
   fiscalYearStart: zod.string(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -1589,6 +1733,7 @@ export const UpdateDistrictSettingsResponse = zod.object({
   state: zod.string(),
   fiscalYearStart: zod.string(),
   studentEnrollment: zod.number().nullish(),
+  benefitEligibleFteThreshold: zod.number(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
