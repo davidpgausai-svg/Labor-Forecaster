@@ -18,6 +18,8 @@ import {
   useCreateEmployeePosition,
   useUpdateEmployeePosition,
   useDeleteEmployeePosition,
+  useGetDistrict,
+  getGetDistrictQueryKey,
   type SalaryScheduleWithGrid,
   type EmployeePosition,
   getListScenariosQueryKey,
@@ -288,6 +290,12 @@ export default function EmployeeDetail() {
     }
   );
 
+  const { data: district } = useGetDistrict(
+    districtId!,
+    { query: { enabled: !!districtId, queryKey: getGetDistrictQueryKey(districtId!) } }
+  );
+  const benefitFteThreshold = parseFloat(String(district?.benefitEligibleFteThreshold ?? "0.75"));
+
   function openEdit() {
     if (!emp) return;
     const e = emp as unknown as Record<string, unknown>;
@@ -470,6 +478,8 @@ export default function EmployeeDetail() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="benefits">Benefits</TabsTrigger>
+          <TabsTrigger value="retirement">Retirement & Taxes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -899,6 +909,285 @@ export default function EmployeeDetail() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Benefits ────────────────────────────────────────────────────── */}
+        <TabsContent value="benefits" className="mt-6 space-y-6">
+          {/* Eligibility summary card */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Benefit Eligibility</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const firstYear = projections[0] as Record<string, unknown> | undefined;
+                const hasMultiPos = firstYear && firstYear.totalFteFraction != null;
+                const totalFte = hasMultiPos ? parseFloat(String(firstYear!.totalFteFraction)) : null;
+                const eligible = hasMultiPos ? !!(firstYear!.benefitEligible) : true;
+                const insuranceLabel: Record<string, string> = {
+                  single: "Single",
+                  single_plus_spouse: "Single + Spouse",
+                  single_plus_child: "Single + Child",
+                  family: "Family",
+                  waived: "Waived",
+                };
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Insurance Election</p>
+                      <p className="text-sm font-medium">{insuranceLabel[emp.insuranceElection ?? ""] ?? emp.insuranceElection ?? "—"}</p>
+                    </div>
+                    {hasMultiPos && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Total FTE</p>
+                        <p className="text-sm font-mono font-medium">{totalFte?.toFixed(4) ?? "—"}</p>
+                      </div>
+                    )}
+                    {hasMultiPos && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Threshold</p>
+                        <p className="text-sm font-mono font-medium">{benefitFteThreshold.toFixed(4)}</p>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Employer Benefits</p>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-xs",
+                          eligible
+                            ? "bg-green-500/10 text-green-400 border-green-500/20"
+                            : "bg-red-500/10 text-red-400 border-red-500/20"
+                        )}
+                      >
+                        {eligible ? "Eligible" : "Not Eligible"}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* Year-by-year benefits table */}
+          {hasProjections && (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Projected Benefits by Year</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow className="border-border">
+                      <TableHead>Year</TableHead>
+                      <TableHead className="text-right">Health Insurance</TableHead>
+                      <TableHead className="text-right">Other Benefits</TableHead>
+                      <TableHead className="text-right">Total Benefits</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projections.map((proj, i) => {
+                      const healthCents = Number(proj.healthInsuranceCostCents ?? 0);
+                      const otherCents = Number(proj.otherBenefitsCostCents ?? 0);
+                      const totalCents = healthCents + otherCents;
+                      return (
+                        <TableRow key={i} className="border-border">
+                          <TableCell className="text-sm">{s(proj.yearLabel ?? `Year ${proj.contractYear}`)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency((healthCents / 100).toFixed(2))}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency((otherCents / 100).toFixed(2))}</TableCell>
+                          <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency((totalCents / 100).toFixed(2))}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ── Retirement & Taxes ──────────────────────────────────────────── */}
+        <TabsContent value="retirement" className="mt-6 space-y-6">
+          {/* Profile summary */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Retirement Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Retirement System</p>
+                  <p className="text-sm font-medium">{s(empAny.retirementSystem ?? empAny.bargainingUnitRetirementSystem ?? "—")}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Years in District</p>
+                  <p className="text-sm font-mono font-medium">{emp.yearsInDistrict ?? "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Total Service Years</p>
+                  <p className="text-sm font-mono font-medium">{emp.yearsTotalService ?? "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">FICA Status</p>
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-muted/40 text-muted-foreground border-border"
+                  >
+                    {emp.retirementEligible ? "FICA-Exempt (TRS)" : "FICA Liable"}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Year-by-year taxes table */}
+          {hasProjections && (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Projected Retirement &amp; Taxes by Year</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow className="border-border">
+                      <TableHead>Year</TableHead>
+                      <TableHead className="text-right">Retirement Contribution</TableHead>
+                      <TableHead className="text-right">FICA / Medicare</TableHead>
+                      <TableHead className="text-right">Combined</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projections.map((proj, i) => {
+                      const retCents = Number(proj.retirementContributionCents ?? 0);
+                      const ficaCents = Number(proj.ficaCostCents ?? 0);
+                      const combinedCents = retCents + ficaCents;
+                      return (
+                        <TableRow key={i} className="border-border">
+                          <TableCell className="text-sm">{s(proj.yearLabel ?? `Year ${proj.contractYear}`)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency((retCents / 100).toFixed(2))}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency((ficaCents / 100).toFixed(2))}</TableCell>
+                          <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency((combinedCents / 100).toFixed(2))}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Retirement incentive options */}
+          {emp.retirementEligible && Boolean(empAny.retirementOptions) && (() => {
+            const opts = empAny.retirementOptions as Record<string, Record<string, unknown>>;
+            return (
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Retirement Incentive Options</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Option 1 — 4-Year */}
+                  {opts.option1 && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Option 1</span>
+                        <span className="text-sm font-medium">4-Year Salary Escalator</span>
+                        {!Boolean(opts.option1.eligible) && (
+                          <Badge variant="outline" className="text-xs bg-muted/40 text-muted-foreground border-border">Not Eligible</Badge>
+                        )}
+                        {Boolean(opts.option1.trsCapWarning) && (
+                          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
+                            <AlertTriangle className="w-3 h-3 mr-1" />TRS Cap Risk
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        {["year1Salary", "year2Salary", "year3Salary", "year4Salary"].map((key, yi) => (
+                          <div key={key} className="space-y-0.5">
+                            <p className="text-xs text-muted-foreground">Year {yi + 1}</p>
+                            <p className="font-mono font-medium">{formatCurrency(s(opts.option1[key]))}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Total salary cost: <span className="font-mono text-foreground">{formatCurrency(s(opts.option1.totalSalaryCost))}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Option 2 — 2-Year */}
+                  {opts.option2 && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Option 2</span>
+                        <span className="text-sm font-medium">2-Year + Post-Retirement Package</span>
+                        {!Boolean(opts.option2.eligible) && (
+                          <Badge variant="outline" className="text-xs bg-muted/40 text-muted-foreground border-border">Not Eligible</Badge>
+                        )}
+                        {Boolean(opts.option2.trsCapWarning) && (
+                          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
+                            <AlertTriangle className="w-3 h-3 mr-1" />TRS Cap Risk
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Year 1</p>
+                          <p className="font-mono font-medium">{formatCurrency(s(opts.option2.year1Salary))}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Year 2</p>
+                          <p className="font-mono font-medium">{formatCurrency(s(opts.option2.year2Salary))}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Post-Ret. Service</p>
+                          <p className="font-mono font-medium">{formatCurrency(s(opts.option2.postRetirementServiceBonus))}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Post-Ret. Insurance</p>
+                          <p className="font-mono font-medium">{formatCurrency(s(opts.option2.postRetirementInsuranceBonus))}</p>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Total cost to district: <span className="font-mono text-foreground">{formatCurrency(s(opts.option2.totalCostToDistrict))}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Option 3 — Longevity */}
+                  {opts.option3 && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Option 3</span>
+                        <span className="text-sm font-medium">Longevity Bonus</span>
+                        {!Boolean(opts.option3.eligible) && (
+                          <Badge variant="outline" className="text-xs bg-muted/40 text-muted-foreground border-border">Not Eligible</Badge>
+                        )}
+                        {Boolean(opts.option3.trsCapWarning) && (
+                          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-400 border-amber-500/20">
+                            <AlertTriangle className="w-3 h-3 mr-1" />TRS Cap Risk
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Years in District</p>
+                          <p className="font-mono font-medium">{s(opts.option3.yearsInDistrict)}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Longevity Bonus</p>
+                          <p className="font-mono font-medium">{formatCurrency(s(opts.option3.longevityBonus))}</p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs text-muted-foreground">Salary with Bonus</p>
+                          <p className="font-mono font-medium">{formatCurrency(s(opts.option3.salaryWithBonus))}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 

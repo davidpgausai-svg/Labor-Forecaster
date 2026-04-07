@@ -107,13 +107,75 @@ router.post("/employees/import", async (req, res) => {
   let imported = 0;
   const errors: Array<{ row: number; message: string }> = [];
 
+  // Group rows by employeeNumber (rows without one are each their own group)
+  type RowEntry = { index: number; row: Record<string, unknown> };
+  const groups = new Map<string, RowEntry[]>();
   for (let i = 0; i < employees.length; i++) {
+    const row = employees[i] as Record<string, unknown>;
+    const empNum = typeof row.employeeNumber === "string" && row.employeeNumber.trim()
+      ? row.employeeNumber.trim()
+      : `__no_num_${i}`;
+    const existing = groups.get(empNum) ?? [];
+    existing.push({ index: i, row });
+    groups.set(empNum, existing);
+  }
+
+  for (const [, entries] of groups) {
+    const firstEntry = entries[0];
+    const firstRow = firstEntry.row;
     try {
-      const emp = { ...employees[i], districtId, bargainingUnitId: bargainingUnitId || employees[i].bargainingUnitId };
-      await db.insert(employeesTable).values(emp);
+      const empValues: typeof employeesTable.$inferInsert = {
+        districtId,
+        bargainingUnitId: (bargainingUnitId || String(firstRow.bargainingUnitId ?? "")) as string,
+        employeeGroupId: (firstRow.employeeGroupId ?? undefined) as string | undefined,
+        firstName: String(firstRow.firstName ?? ""),
+        lastName: String(firstRow.lastName ?? ""),
+        employeeNumber: typeof firstRow.employeeNumber === "string" && firstRow.employeeNumber.trim()
+          ? firstRow.employeeNumber.trim()
+          : null,
+        compensationType: (firstRow.compensationType ?? "salary") as "salary" | "hourly",
+        currentAnnualSalary: String(firstRow.currentAnnualSalary ?? "0"),
+        currentStep: firstRow.currentStep != null ? Number(firstRow.currentStep) : null,
+        currentLaneId: (firstRow.currentLaneId ?? null) as string | null | undefined,
+        currentHourlyRate: firstRow.currentHourlyRate != null ? String(firstRow.currentHourlyRate) : null,
+        annualHours: firstRow.annualHours != null ? String(firstRow.annualHours) : null,
+        insuranceElection: (firstRow.insuranceElection ?? "waived") as typeof employeesTable.$inferInsert["insuranceElection"],
+        retirementEligible: firstRow.retirementEligible === true || firstRow.retirementEligible === "true",
+        retirementPlan: (firstRow.retirementPlan ?? "none") as "none" | "option1_4year" | "option2_2year" | "option3_longevity",
+        yearsInDistrict: Number(firstRow.yearsInDistrict ?? 0),
+        yearsTotalService: Number(firstRow.yearsTotalService ?? 0),
+        effectiveDate: (firstRow.effectiveDate ?? null) as string | null | undefined,
+        status: (firstRow.status ?? "active") as typeof employeesTable.$inferInsert["status"],
+        contractYear: Number(firstRow.contractYear ?? 0),
+      };
+
+      const [insertedEmp] = await db.insert(employeesTable).values(empValues).returning({ id: employeesTable.id });
+
+      // If multiple rows share this employeeNumber, create a position for each
+      if (entries.length > 1) {
+        const positionRows: typeof employeePositionsTable.$inferInsert[] = entries.map((entry, posIdx) => ({
+          employeeId: insertedEmp.id,
+          employeeGroupId: (entry.row.employeeGroupId ?? null) as string | null | undefined,
+          bargainingUnitId: (bargainingUnitId || entry.row.bargainingUnitId || null) as string | null | undefined,
+          compensationScheduleId: (entry.row.compensationScheduleId ?? null) as string | null | undefined,
+          jobTitle: (entry.row.jobTitle ?? null) as string | null | undefined,
+          fteFraction: entry.row.fteFraction != null ? String(entry.row.fteFraction) : "1.0000",
+          currentStep: entry.row.currentStep != null ? Number(entry.row.currentStep) : null,
+          currentLaneId: (entry.row.currentLaneId ?? null) as string | null | undefined,
+          currentAnnualSalary: String(entry.row.currentAnnualSalary ?? "0"),
+          currentHourlyRate: entry.row.currentHourlyRate != null ? String(entry.row.currentHourlyRate) : null,
+          annualHours: entry.row.annualHours != null ? String(entry.row.annualHours) : null,
+          isPrimary: posIdx === 0,
+          status: (entry.row.status ?? "active") as typeof employeePositionsTable.$inferInsert["status"],
+          effectiveDate: (entry.row.effectiveDate ?? null) as string | null | undefined,
+          displayOrder: posIdx,
+        }));
+        await db.insert(employeePositionsTable).values(positionRows);
+      }
+
       imported++;
     } catch (err: unknown) {
-      errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Unknown error" });
+      errors.push({ row: firstEntry.index + 1, message: err instanceof Error ? err.message : "Unknown error" });
     }
   }
 
