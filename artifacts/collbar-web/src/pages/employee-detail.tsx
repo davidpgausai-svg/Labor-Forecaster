@@ -11,6 +11,8 @@ import {
   getListEmployeeGroupsQueryKey,
   useListSalarySchedules,
   getListSalarySchedulesQueryKey,
+  useListImportGridLanes,
+  getListImportGridLanesQueryKey,
   type SalaryScheduleWithGrid,
   getListScenariosQueryKey,
   getListEmployeesQueryKey,
@@ -86,6 +88,20 @@ export default function EmployeeDetail() {
   );
   const editLanes = ((editSchedule as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
 
+  // Group assignment: find the primary compensation schedule for the selected group
+  const selectedGroupData = (employeeGroups ?? []).find((g) => g.id === editForm.employeeGroupId);
+  const primaryCompSchedule = selectedGroupData?.compensationSchedules?.find((s) => s.isPrimary);
+  const groupScheduleIsGrid = primaryCompSchedule?.scheduleType === "index_based_grid" || primaryCompSchedule?.scheduleType === "direct_import_grid";
+  const { data: groupScheduleLanes = [] } = useListImportGridLanes(
+    primaryCompSchedule?.id ?? "",
+    {
+      query: {
+        enabled: editForm.assignType === "group" && groupScheduleIsGrid && !!primaryCompSchedule?.id,
+        queryKey: getListImportGridLanesQueryKey(primaryCompSchedule?.id ?? ""),
+      },
+    }
+  );
+
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(id, { scenarioId: scenarioId || undefined }) });
     queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey({ districtId: districtId ?? undefined }) });
@@ -158,6 +174,8 @@ export default function EmployeeDetail() {
     } else {
       body.employeeGroupId = editForm.employeeGroupId || null;
       // Do NOT include bargainingUnitId for group assignments — the live BU is preserved on the DB side
+      if (editForm.currentStep) body.currentStep = parseInt(editForm.currentStep, 10);
+      if (editForm.currentLaneId) body.currentLaneId = editForm.currentLaneId;
     }
     if (editForm.editMode === "future" && editForm.effectiveContractYear) {
       body.effectiveContractYear = parseInt(editForm.effectiveContractYear, 10);
@@ -771,24 +789,73 @@ export default function EmployeeDetail() {
                 </div>
               </>
             ) : (
-              <div className="space-y-1.5">
-                <Label>Employee Group</Label>
-                <Select
-                  value={editForm.employeeGroupId}
-                  onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v }))}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Select group…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(employeeGroups ?? []).map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label>Employee Group</Label>
+                  <Select
+                    value={editForm.employeeGroupId}
+                    onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
+                  >
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue placeholder="Select group…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(employeeGroups ?? []).map((g) => {
+                        const ps = g.compensationSchedules?.find((s) => s.isPrimary);
+                        return (
+                          <SelectItem key={g.id} value={g.id}>
+                            {g.name}
+                            {ps && (
+                              <span className="ml-1.5 text-xs text-muted-foreground">
+                                ({ps.scheduleType?.replace(/_/g, " ")})
+                              </span>
+                            )}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {groupScheduleIsGrid && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Current Step</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={editForm.currentStep}
+                        onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
+                        className="bg-background border-border"
+                        placeholder="e.g. 7"
+                      />
+                    </div>
+                    {groupScheduleLanes.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label>Lane</Label>
+                        <Select
+                          value={editForm.currentLaneId}
+                          onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
+                        >
+                          <SelectTrigger className="bg-background border-border">
+                            <SelectValue placeholder="Select lane…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groupScheduleLanes
+                              .slice()
+                              .sort((a, b) => a.displayOrder - b.displayOrder)
+                              .map((lane) => (
+                                <SelectItem key={lane.id} value={lane.id}>
+                                  {lane.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             <div className="space-y-1.5">
