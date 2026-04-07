@@ -8,11 +8,14 @@ import {
   scenarioYearConfigsTable,
   bargainingUnitsTable,
   employeeGroupsTable,
+  compensationSchedulesTable,
   lanesTable,
   stepsTable,
   salarySchedulesTable,
+  indexGridConfigsTable,
+  importGridCellsTable,
 } from "@workspace/db";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, isNull, max } from "drizzle-orm";
 import Decimal from "decimal.js";
 
 const router = Router();
@@ -40,7 +43,7 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     .where(eq(scenarioYearConfigsTable.scenarioId, scenarioId))
     .orderBy(scenarioYearConfigsTable.contractYear);
 
-  // Employee-group mode: filter employees by group, infer BU from the group's employees
+  // Employee-group mode: use the group's primary compensation schedule for lane/step structure
   if (groupQuery) {
     const targetGroupId = groupQuery as string;
     const groupData = await db.select().from(employeeGroupsTable).where(eq(employeeGroupsTable.id, targetGroupId)).then((r) => r[0]);
@@ -55,33 +58,71 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       return;
     }
 
-    const buIds = [...new Set(groupEmployees.filter((e) => e.bargainingUnitId).map((e) => e.bargainingUnitId!))];
-    let schedule: typeof salarySchedulesTable.$inferSelect | undefined;
-    let lanes: typeof lanesTable.$inferSelect[] = [];
-    let steps: typeof stepsTable.$inferSelect[] = [];
+    // Find the group's primary compensation schedule
+    const primarySchedule = await db
+      .select()
+      .from(compensationSchedulesTable)
+      .where(and(
+        eq(compensationSchedulesTable.employeeGroupId, targetGroupId),
+        eq(compensationSchedulesTable.isPrimary, true),
+      ))
+      .limit(1)
+      .then((r) => r[0]);
 
-    for (const buId of buIds) {
-      const schedules = await db.select().from(salarySchedulesTable).where(eq(salarySchedulesTable.bargainingUnitId, buId)).limit(1);
-      if (schedules[0]) {
-        schedule = schedules[0];
-        [lanes, steps] = await Promise.all([
-          db.select().from(lanesTable).where(eq(lanesTable.salaryScheduleId, schedule.id)).orderBy(lanesTable.displayOrder),
-          db.select().from(stepsTable).where(eq(stepsTable.salaryScheduleId, schedule.id)).orderBy(stepsTable.stepNumber),
-        ]);
-        break;
-      }
-    }
-
-    if (!schedule) {
+    if (!primarySchedule) {
       res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
       return;
     }
 
+    const compScheduleId = primarySchedule.id;
+    const scheduleType = primarySchedule.scheduleType;
+
+    // Fetch lanes scoped to the compensation schedule
+    const lanes = await db
+      .select()
+      .from(lanesTable)
+      .where(eq(lanesTable.compensationScheduleId, compScheduleId))
+      .orderBy(lanesTable.displayOrder);
+
+    if (lanes.length === 0) {
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+      return;
+    }
+
+    // Derive step numbers based on schedule type
+    let stepNumbers: number[] = [];
+    if (scheduleType === "index_based_grid") {
+      const config = await db
+        .select()
+        .from(indexGridConfigsTable)
+        .where(eq(indexGridConfigsTable.compensationScheduleId, compScheduleId))
+        .limit(1)
+        .then((r) => r[0]);
+      const maxSteps = config?.maxSteps ?? 20;
+      stepNumbers = Array.from({ length: maxSteps }, (_, i) => i + 1);
+    } else if (scheduleType === "direct_import_grid") {
+      const result = await db
+        .select({ maxStep: max(importGridCellsTable.stepNumber) })
+        .from(importGridCellsTable)
+        .where(eq(importGridCellsTable.compensationScheduleId, compScheduleId));
+      const maxStep = result[0]?.maxStep ?? 0;
+      stepNumbers = Array.from({ length: maxStep }, (_, i) => i + 1);
+    } else {
+      // Unsupported schedule type for heatmap
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+      return;
+    }
+
+    if (stepNumbers.length === 0) {
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+      return;
+    }
+
+    const maxStep = stepNumbers[stepNumbers.length - 1];
+
     const yearRecords = await db.select().from(employeeYearRecordsTable).where(eq(employeeYearRecordsTable.scenarioId, scenarioId));
     const groupYearConfigs = yearConfigs.filter((c) => c.employeeGroupId === targetGroupId);
     const contractYears = [...new Set(groupYearConfigs.map((c) => c.contractYear))].sort((a, b) => a - b);
-    const maxStep = steps.length > 0 ? Math.max(...steps.map((s) => s.stepNumber)) : 0;
-    const stepNumbers = steps.map((s) => s.stepNumber);
     const employeeIds = new Set(groupEmployees.map((e) => e.id));
 
     const yearsData = contractYears.map((contractYear) => {

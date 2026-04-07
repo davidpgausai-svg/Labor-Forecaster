@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetIndexGridConfig,
@@ -9,6 +9,7 @@ import {
   getListImportGridLanesQueryKey,
   useCreateImportGridLane,
   useDeleteImportGridLane,
+  useUpdateImportGridLane,
   ImportGridLane,
   ScheduleIndex,
 } from "@workspace/api-client-react";
@@ -58,13 +59,67 @@ function formatSalary(n: number): string {
 function LaneHeaderCell({
   lane,
   onDelete,
+  onRenamed,
 }: {
   lane: ImportGridLane;
   onDelete: (lane: ImportGridLane) => void;
+  onRenamed: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(lane.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const updateMutation = useUpdateImportGridLane();
+
+  const startEdit = () => {
+    setDraft(lane.name);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === lane.name) {
+      setEditing(false);
+      return;
+    }
+    updateMutation.mutate(
+      { id: lane.id, data: { name: trimmed } },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          onRenamed();
+        },
+        onError: () => setEditing(false),
+      }
+    );
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="text-xs font-semibold bg-muted border border-border rounded px-1 py-0 w-20 text-center outline-none focus:border-primary"
+        autoFocus
+      />
+    );
+  }
+
   return (
     <div className="group flex items-center justify-center gap-1">
-      <span className="text-xs font-semibold truncate">{lane.name}</span>
+      <button
+        className="text-xs font-semibold truncate hover:text-primary cursor-text"
+        onClick={startEdit}
+        title="Click to rename"
+      >
+        {lane.name}
+      </button>
       <button
         className="opacity-0 group-hover:opacity-60 hover:!opacity-100 text-red-400"
         onClick={() => onDelete(lane)}
@@ -369,7 +424,15 @@ export function IndexBasedGridEditor({
                         className="text-center px-1 py-1.5 border-b border-border"
                       >
                         <div className="flex flex-col items-center gap-0.5">
-                          <LaneHeaderCell lane={lane} onDelete={setDeleteLane} />
+                          <LaneHeaderCell
+                            lane={lane}
+                            onDelete={setDeleteLane}
+                            onRenamed={() =>
+                              queryClient.invalidateQueries({
+                                queryKey: getListImportGridLanesQueryKey(scheduleId),
+                              })
+                            }
+                          />
                           <div className="flex gap-2 text-[10px] text-muted-foreground font-normal">
                             <span className="w-20 text-center">Index</span>
                             <span className="w-24 text-right">= Salary</span>

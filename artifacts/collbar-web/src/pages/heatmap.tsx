@@ -152,7 +152,7 @@ export default function HeatmapPage() {
   );
 }
 
-const GRID_COMPATIBLE_SCHEDULE_TYPES = ["individual_salary", "range_based", "direct_import_grid", "index_based_grid"];
+const GRID_COMPATIBLE_SCHEDULE_TYPES = ["direct_import_grid", "index_based_grid"];
 
 function EmployeeGroupHeatmapSection({ groups }: { groups: EmployeeGroupWithSchedules[] }) {
   const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id ?? "");
