@@ -8,3 +8,4 @@ export * from "./employee-groups";
 export * from "./compensation-schedules";
 export * from "./index-grid-config";
 export * from "./supplemental-config";
+export * from "./employee-positions";

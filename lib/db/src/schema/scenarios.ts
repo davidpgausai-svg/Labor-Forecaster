@@ -136,6 +136,9 @@ export const employeeYearRecordsTable = pgTable("employee_year_records", {
   projectedDailyRateCents: bigint("projected_daily_rate_cents", { mode: "number" }),
   stipendTotalCents: bigint("stipend_total_cents", { mode: "number" }),
   rangePosition: text("range_position"),
+  // Multi-position aggregates (null for legacy single-position employees)
+  totalFteFraction: numeric("total_fte_fraction", { precision: 5, scale: 4 }),
+  benefitEligible: boolean("benefit_eligible"),
 });
 
 export const insertScenarioSchema = createInsertSchema(scenariosTable).omit({
