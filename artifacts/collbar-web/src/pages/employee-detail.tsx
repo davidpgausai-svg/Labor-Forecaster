@@ -228,7 +228,7 @@ export default function EmployeeDetail() {
     (posGroupIsGrid && posGroupLanes.length > 0)
   );
   const posShowSalary = posHasAssignment && (
-    positionForm.assignType === "union" ||
+    (positionForm.assignType === "union" && posUnionLanes.length === 0) ||
     posScheduleType === "individual_salary" ||
     posScheduleType === "range_based" ||
     (positionForm.assignType === "group" && posScheduleType === null)
@@ -1477,7 +1477,7 @@ export default function EmployeeDetail() {
               </>
             )}
 
-            {positions.length === 0 ? (
+            {positions.length === 0 && !(editForm.assignType === "union" && editLanes.length > 0) ? (
               <div className="space-y-1.5">
                 <Label>Annual Salary</Label>
                 <div className="relative">
