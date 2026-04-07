@@ -18,6 +18,7 @@ import type {
 
 import type {
   BargainingUnit,
+  BulkUpsertImportGridCellsRequest,
   CompareScenariosParams,
   CompensationHourlyCategory,
   CompensationSchedule,
@@ -29,6 +30,7 @@ import type {
   CreateEmployeeRequest,
   CreateFlatRateCategoryRequest,
   CreateHourlyScheduleRequest,
+  CreateImportGridLaneRequest,
   CreatePerDiemCapRequest,
   CreateSalaryRangeRequest,
   CreateSalaryScheduleRequest,
@@ -55,6 +57,8 @@ import type {
   HeatmapData,
   HourlyScheduleWithCategories,
   ImportEmployeesRequest,
+  ImportGridCell,
+  ImportGridLane,
   ImportResult,
   ListBargainingUnitsParams,
   ListCompensationSchedulesParams,
@@ -89,6 +93,7 @@ import type {
   UpdateEmployeeGroupRequest,
   UpdateEmployeeRequest,
   UpdateFlatRateCategoryRequest,
+  UpdateImportGridLaneRequest,
   UpdatePerDiemCapRequest,
   UpdateSalaryRangeRequest,
   UpdateScenarioRequest,
@@ -7551,6 +7556,539 @@ export const useDeleteSalaryRange = <
   TContext
 > => {
   return useMutation(getDeleteSalaryRangeMutationOptions(options));
+};
+
+/**
+ * @summary List lanes for a direct import grid schedule
+ */
+export const getListImportGridLanesUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/import-grid-lanes`;
+};
+
+export const listImportGridLanes = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<ImportGridLane[]> => {
+  return customFetch<ImportGridLane[]>(getListImportGridLanesUrl(scheduleId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListImportGridLanesQueryKey = (scheduleId: string) => {
+  return [
+    `/api/compensation-schedules/${scheduleId}/import-grid-lanes`,
+  ] as const;
+};
+
+export const getListImportGridLanesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listImportGridLanes>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listImportGridLanes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListImportGridLanesQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listImportGridLanes>>
+  > = ({ signal }) =>
+    listImportGridLanes(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listImportGridLanes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListImportGridLanesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listImportGridLanes>>
+>;
+export type ListImportGridLanesQueryError = ErrorType<void>;
+
+/**
+ * @summary List lanes for a direct import grid schedule
+ */
+
+export function useListImportGridLanes<
+  TData = Awaited<ReturnType<typeof listImportGridLanes>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listImportGridLanes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListImportGridLanesQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a lane for a direct import grid schedule
+ */
+export const getCreateImportGridLaneUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/import-grid-lanes`;
+};
+
+export const createImportGridLane = async (
+  scheduleId: string,
+  createImportGridLaneRequest: CreateImportGridLaneRequest,
+  options?: RequestInit,
+): Promise<ImportGridLane> => {
+  return customFetch<ImportGridLane>(getCreateImportGridLaneUrl(scheduleId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createImportGridLaneRequest),
+  });
+};
+
+export const getCreateImportGridLaneMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createImportGridLane>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateImportGridLaneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createImportGridLane>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateImportGridLaneRequest> },
+  TContext
+> => {
+  const mutationKey = ["createImportGridLane"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createImportGridLane>>,
+    { scheduleId: string; data: BodyType<CreateImportGridLaneRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return createImportGridLane(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateImportGridLaneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createImportGridLane>>
+>;
+export type CreateImportGridLaneMutationBody =
+  BodyType<CreateImportGridLaneRequest>;
+export type CreateImportGridLaneMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a lane for a direct import grid schedule
+ */
+export const useCreateImportGridLane = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createImportGridLane>>,
+    TError,
+    { scheduleId: string; data: BodyType<CreateImportGridLaneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createImportGridLane>>,
+  TError,
+  { scheduleId: string; data: BodyType<CreateImportGridLaneRequest> },
+  TContext
+> => {
+  return useMutation(getCreateImportGridLaneMutationOptions(options));
+};
+
+/**
+ * @summary Update an import grid lane
+ */
+export const getUpdateImportGridLaneUrl = (id: string) => {
+  return `/api/import-grid-lanes/${id}`;
+};
+
+export const updateImportGridLane = async (
+  id: string,
+  updateImportGridLaneRequest: UpdateImportGridLaneRequest,
+  options?: RequestInit,
+): Promise<ImportGridLane> => {
+  return customFetch<ImportGridLane>(getUpdateImportGridLaneUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateImportGridLaneRequest),
+  });
+};
+
+export const getUpdateImportGridLaneMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateImportGridLane>>,
+    TError,
+    { id: string; data: BodyType<UpdateImportGridLaneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateImportGridLane>>,
+  TError,
+  { id: string; data: BodyType<UpdateImportGridLaneRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateImportGridLane"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateImportGridLane>>,
+    { id: string; data: BodyType<UpdateImportGridLaneRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateImportGridLane(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateImportGridLaneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateImportGridLane>>
+>;
+export type UpdateImportGridLaneMutationBody =
+  BodyType<UpdateImportGridLaneRequest>;
+export type UpdateImportGridLaneMutationError = ErrorType<void>;
+
+/**
+ * @summary Update an import grid lane
+ */
+export const useUpdateImportGridLane = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateImportGridLane>>,
+    TError,
+    { id: string; data: BodyType<UpdateImportGridLaneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateImportGridLane>>,
+  TError,
+  { id: string; data: BodyType<UpdateImportGridLaneRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateImportGridLaneMutationOptions(options));
+};
+
+/**
+ * @summary Delete an import grid lane
+ */
+export const getDeleteImportGridLaneUrl = (id: string) => {
+  return `/api/import-grid-lanes/${id}`;
+};
+
+export const deleteImportGridLane = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteImportGridLaneUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteImportGridLaneMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteImportGridLane>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteImportGridLane>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteImportGridLane"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteImportGridLane>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteImportGridLane(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteImportGridLaneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteImportGridLane>>
+>;
+
+export type DeleteImportGridLaneMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete an import grid lane
+ */
+export const useDeleteImportGridLane = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteImportGridLane>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteImportGridLane>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteImportGridLaneMutationOptions(options));
+};
+
+/**
+ * @summary List all cells for an import grid schedule
+ */
+export const getListImportGridCellsUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/import-grid-cells`;
+};
+
+export const listImportGridCells = async (
+  scheduleId: string,
+  options?: RequestInit,
+): Promise<ImportGridCell[]> => {
+  return customFetch<ImportGridCell[]>(getListImportGridCellsUrl(scheduleId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListImportGridCellsQueryKey = (scheduleId: string) => {
+  return [
+    `/api/compensation-schedules/${scheduleId}/import-grid-cells`,
+  ] as const;
+};
+
+export const getListImportGridCellsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listImportGridCells>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listImportGridCells>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListImportGridCellsQueryKey(scheduleId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listImportGridCells>>
+  > = ({ signal }) =>
+    listImportGridCells(scheduleId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!scheduleId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listImportGridCells>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListImportGridCellsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listImportGridCells>>
+>;
+export type ListImportGridCellsQueryError = ErrorType<void>;
+
+/**
+ * @summary List all cells for an import grid schedule
+ */
+
+export function useListImportGridCells<
+  TData = Awaited<ReturnType<typeof listImportGridCells>>,
+  TError = ErrorType<void>,
+>(
+  scheduleId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listImportGridCells>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListImportGridCellsQueryOptions(scheduleId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Replace entire cell matrix for a schedule (bulk upsert)
+ */
+export const getBulkUpsertImportGridCellsUrl = (scheduleId: string) => {
+  return `/api/compensation-schedules/${scheduleId}/import-grid-cells/bulk`;
+};
+
+export const bulkUpsertImportGridCells = async (
+  scheduleId: string,
+  bulkUpsertImportGridCellsRequest: BulkUpsertImportGridCellsRequest,
+  options?: RequestInit,
+): Promise<ImportGridCell[]> => {
+  return customFetch<ImportGridCell[]>(
+    getBulkUpsertImportGridCellsUrl(scheduleId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(bulkUpsertImportGridCellsRequest),
+    },
+  );
+};
+
+export const getBulkUpsertImportGridCellsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpsertImportGridCells>>,
+    TError,
+    { scheduleId: string; data: BodyType<BulkUpsertImportGridCellsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkUpsertImportGridCells>>,
+  TError,
+  { scheduleId: string; data: BodyType<BulkUpsertImportGridCellsRequest> },
+  TContext
+> => {
+  const mutationKey = ["bulkUpsertImportGridCells"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkUpsertImportGridCells>>,
+    { scheduleId: string; data: BodyType<BulkUpsertImportGridCellsRequest> }
+  > = (props) => {
+    const { scheduleId, data } = props ?? {};
+
+    return bulkUpsertImportGridCells(scheduleId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkUpsertImportGridCellsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkUpsertImportGridCells>>
+>;
+export type BulkUpsertImportGridCellsMutationBody =
+  BodyType<BulkUpsertImportGridCellsRequest>;
+export type BulkUpsertImportGridCellsMutationError = ErrorType<void>;
+
+/**
+ * @summary Replace entire cell matrix for a schedule (bulk upsert)
+ */
+export const useBulkUpsertImportGridCells = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpsertImportGridCells>>,
+    TError,
+    { scheduleId: string; data: BodyType<BulkUpsertImportGridCellsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkUpsertImportGridCells>>,
+  TError,
+  { scheduleId: string; data: BodyType<BulkUpsertImportGridCellsRequest> },
+  TContext
+> => {
+  return useMutation(getBulkUpsertImportGridCellsMutationOptions(options));
 };
 
 /**

@@ -72,6 +72,8 @@ import { FlatRateCategoryEditor } from "@/components/FlatRateCategoryEditor";
 import { PerDiemEditor } from "@/components/PerDiemEditor";
 import { HourlyCategoryEditor } from "@/components/HourlyCategoryEditor";
 import { SalaryRangeEditor } from "@/components/SalaryRangeEditor";
+import { IndividualSalaryViewer } from "@/components/IndividualSalaryViewer";
+import { ImportGridEditor } from "@/components/ImportGridEditor";
 
 const GROUP_INDEX_COLORS = [
   "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -970,6 +972,8 @@ function ScheduleRow({
   const [perDiemEditorOpen, setPerDiemEditorOpen] = useState(false);
   const [hourlyEditorOpen, setHourlyEditorOpen] = useState(false);
   const [salaryRangeEditorOpen, setSalaryRangeEditorOpen] = useState(false);
+  const [individualSalaryOpen, setIndividualSalaryOpen] = useState(false);
+  const [importGridOpen, setImportGridOpen] = useState(false);
 
   const cfg = SCHEDULE_TYPE_CONFIG[schedule.scheduleType] ?? {
     label: schedule.scheduleType,
@@ -1080,6 +1084,26 @@ function ScheduleRow({
             Manage Ranges
           </Button>
         )}
+        {schedule.scheduleType === "individual_salary" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setIndividualSalaryOpen(true)}
+          >
+            View Salaries
+          </Button>
+        )}
+        {schedule.scheduleType === "direct_import_grid" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
+            onClick={() => setImportGridOpen(true)}
+          >
+            Edit Grid
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1140,6 +1164,25 @@ function ScheduleRow({
         <SalaryRangeEditor
           open={salaryRangeEditorOpen}
           onClose={() => setSalaryRangeEditorOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+        />
+      )}
+
+      {schedule.scheduleType === "individual_salary" && (
+        <IndividualSalaryViewer
+          open={individualSalaryOpen}
+          onClose={() => setIndividualSalaryOpen(false)}
+          scheduleId={schedule.id}
+          scheduleName={schedule.name}
+          employeeGroupId={employeeGroupId}
+        />
+      )}
+
+      {schedule.scheduleType === "direct_import_grid" && (
+        <ImportGridEditor
+          open={importGridOpen}
+          onClose={() => setImportGridOpen(false)}
           scheduleId={schedule.id}
           scheduleName={schedule.name}
         />

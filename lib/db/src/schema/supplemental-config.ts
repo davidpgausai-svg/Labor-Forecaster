@@ -7,6 +7,7 @@ import {
   numeric,
   bigint,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -142,6 +143,27 @@ export const insertCompensationHourlyCategorySchema = createInsertSchema(
 ).omit({ id: true });
 export type CompensationHourlyCategory =
   typeof compensationHourlyCategoriesTable.$inferSelect;
+
+export const importGridCellsTable = pgTable(
+  "import_grid_cells",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    compensationScheduleId: uuid("compensation_schedule_id")
+      .notNull()
+      .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
+    laneId: uuid("lane_id")
+      .notNull()
+      .references(() => lanesTable.id, { onDelete: "cascade" }),
+    stepNumber: integer("step_number").notNull(),
+    salaryCents: bigint("salary_cents", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [unique().on(t.compensationScheduleId, t.laneId, t.stepNumber)]
+);
+
+export const insertImportGridCellSchema = createInsertSchema(
+  importGridCellsTable
+).omit({ id: true });
+export type ImportGridCell = typeof importGridCellsTable.$inferSelect;
 
 export type PerDiemConfig = typeof perDiemConfigsTable.$inferSelect;
 export type PerDiemCap = typeof perDiemCapsTable.$inferSelect;

@@ -2640,6 +2640,111 @@ export const DeleteSalaryRangeParams = zod.object({
 });
 
 /**
+ * @summary List lanes for a direct import grid schedule
+ */
+export const ListImportGridLanesParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListImportGridLanesResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string().nullish(),
+  salaryScheduleId: zod.string().nullish(),
+  name: zod.string(),
+  displayOrder: zod.number(),
+  indexMultiplier: zod.string(),
+});
+export const ListImportGridLanesResponse = zod.array(
+  ListImportGridLanesResponseItem,
+);
+
+/**
+ * @summary Create a lane for a direct import grid schedule
+ */
+export const CreateImportGridLaneParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const CreateImportGridLaneBody = zod.object({
+  name: zod.string(),
+  displayOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update an import grid lane
+ */
+export const UpdateImportGridLaneParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateImportGridLaneBody = zod.object({
+  name: zod.string().optional(),
+  displayOrder: zod.number().optional(),
+});
+
+export const UpdateImportGridLaneResponse = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string().nullish(),
+  salaryScheduleId: zod.string().nullish(),
+  name: zod.string(),
+  displayOrder: zod.number(),
+  indexMultiplier: zod.string(),
+});
+
+/**
+ * @summary Delete an import grid lane
+ */
+export const DeleteImportGridLaneParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List all cells for an import grid schedule
+ */
+export const ListImportGridCellsParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const ListImportGridCellsResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  laneId: zod.string(),
+  stepNumber: zod.number(),
+  salaryCents: zod.number(),
+});
+export const ListImportGridCellsResponse = zod.array(
+  ListImportGridCellsResponseItem,
+);
+
+/**
+ * @summary Replace entire cell matrix for a schedule (bulk upsert)
+ */
+export const BulkUpsertImportGridCellsParams = zod.object({
+  scheduleId: zod.coerce.string(),
+});
+
+export const BulkUpsertImportGridCellsBody = zod.object({
+  cells: zod.array(
+    zod.object({
+      laneId: zod.string(),
+      stepNumber: zod.number(),
+      salaryCents: zod.number(),
+    }),
+  ),
+});
+
+export const BulkUpsertImportGridCellsResponseItem = zod.object({
+  id: zod.string(),
+  compensationScheduleId: zod.string(),
+  laneId: zod.string(),
+  stepNumber: zod.number(),
+  salaryCents: zod.number(),
+});
+export const BulkUpsertImportGridCellsResponse = zod.array(
+  BulkUpsertImportGridCellsResponseItem,
+);
+
+/**
  * @summary List all stipend assignments for an employee (with definition details)
  */
 export const ListEmployeeStipendsParams = zod.object({

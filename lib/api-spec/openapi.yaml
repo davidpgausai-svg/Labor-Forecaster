@@ -40,6 +40,8 @@ tags:
     description: Hourly rate category management
   - name: salary-ranges
     description: Range-based salary schedule management
+  - name: import-grid
+    description: Direct import grid lane and cell management
 paths:
   /healthz:
     get:
@@ -1760,6 +1762,146 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /compensation-schedules/{scheduleId}/import-grid-lanes:
+    get:
+      operationId: listImportGridLanes
+      tags: [import-grid]
+      summary: List lanes for a direct import grid schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of import grid lanes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportGridLane"
+        "404":
+          description: Compensation schedule not found
+    post:
+      operationId: createImportGridLane
+      tags: [import-grid]
+      summary: Create a lane for a direct import grid schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateImportGridLaneRequest"
+      responses:
+        "201":
+          description: Created import grid lane
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportGridLane"
+        "404":
+          description: Compensation schedule not found
+
+  /import-grid-lanes/{id}:
+    put:
+      operationId: updateImportGridLane
+      tags: [import-grid]
+      summary: Update an import grid lane
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateImportGridLaneRequest"
+      responses:
+        "200":
+          description: Updated import grid lane
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportGridLane"
+        "404":
+          description: Lane not found
+    delete:
+      operationId: deleteImportGridLane
+      tags: [import-grid]
+      summary: Delete an import grid lane
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /compensation-schedules/{scheduleId}/import-grid-cells:
+    get:
+      operationId: listImportGridCells
+      tags: [import-grid]
+      summary: List all cells for an import grid schedule
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of import grid cells
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportGridCell"
+        "404":
+          description: Compensation schedule not found
+
+  /compensation-schedules/{scheduleId}/import-grid-cells/bulk:
+    post:
+      operationId: bulkUpsertImportGridCells
+      tags: [import-grid]
+      summary: Replace entire cell matrix for a schedule (bulk upsert)
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkUpsertImportGridCellsRequest"
+      responses:
+        "200":
+          description: Updated cell list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportGridCell"
+        "404":
+          description: Compensation schedule not found
 
   /employees/{employeeId}/stipends:
     get:
@@ -3857,3 +3999,85 @@ components:
           type: number
         displayOrder:
           type: number
+
+    ImportGridLane:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+          nullable: true
+        salaryScheduleId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        displayOrder:
+          type: number
+        indexMultiplier:
+          type: string
+      required:
+        - id
+        - name
+        - displayOrder
+        - indexMultiplier
+
+    CreateImportGridLaneRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        displayOrder:
+          type: number
+      required:
+        - name
+
+    UpdateImportGridLaneRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        displayOrder:
+          type: number
+
+    ImportGridCell:
+      type: object
+      properties:
+        id:
+          type: string
+        compensationScheduleId:
+          type: string
+        laneId:
+          type: string
+        stepNumber:
+          type: number
+        salaryCents:
+          type: number
+      required:
+        - id
+        - compensationScheduleId
+        - laneId
+        - stepNumber
+        - salaryCents
+
+    BulkUpsertImportGridCellsRequest:
+      type: object
+      properties:
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              laneId:
+                type: string
+              stepNumber:
+                type: number
+              salaryCents:
+                type: number
+            required:
+              - laneId
+              - stepNumber
+              - salaryCents
+      required:
+        - cells

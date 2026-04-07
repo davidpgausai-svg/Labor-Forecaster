@@ -1046,6 +1046,43 @@ export interface UpdateSalaryRangeRequest {
   displayOrder?: number;
 }
 
+export interface ImportGridLane {
+  id: string;
+  compensationScheduleId?: string | null;
+  salaryScheduleId?: string | null;
+  name: string;
+  displayOrder: number;
+  indexMultiplier: string;
+}
+
+export interface CreateImportGridLaneRequest {
+  name: string;
+  displayOrder?: number;
+}
+
+export interface UpdateImportGridLaneRequest {
+  name?: string;
+  displayOrder?: number;
+}
+
+export interface ImportGridCell {
+  id: string;
+  compensationScheduleId: string;
+  laneId: string;
+  stepNumber: number;
+  salaryCents: number;
+}
+
+export type BulkUpsertImportGridCellsRequestCellsItem = {
+  laneId: string;
+  stepNumber: number;
+  salaryCents: number;
+};
+
+export interface BulkUpsertImportGridCellsRequest {
+  cells: BulkUpsertImportGridCellsRequestCellsItem[];
+}
+
 export type ListBargainingUnitsParams = {
   districtId?: string;
 };

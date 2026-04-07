@@ -5,6 +5,8 @@ import { calcBenefits, calcProRateFraction } from "./benefits-engine.js";
 import { calcIndexBasedEmployeeYear } from "./index-based-engine.js";
 import { calcFlatRateEmployeeYear } from "./flat-rate-engine.js";
 import { calcRangeBasedEmployeeYear } from "./range-based-engine.js";
+import { calcDirectImportEmployeeYear } from "./direct-import-engine.js";
+import type { ImportGridCell } from "./direct-import-engine.js";
 import type {
   YearConfig,
   YearConfigWithSchedule,
@@ -32,7 +34,8 @@ export function calcEmployeeProjection(
   pendingUnitConfig?: BargainingUnitConfig | null,
   pendingSchedule?: SalaryScheduleData | null,
   pendingYearConfigs?: (YearConfig | YearConfigWithSchedule)[] | null,
-  salaryRanges?: import("./range-based-engine.js").SalaryRangeData[] | null
+  salaryRanges?: import("./range-based-engine.js").SalaryRangeData[] | null,
+  importGridCells?: ImportGridCell[] | null
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -140,6 +143,26 @@ export function calcEmployeeProjection(
       projectedStep = null;
       effectiveRate = result.effectiveRate;
       rangePos = result.rangePosition;
+      currentSalary = yearIdx === 0 && proRateFraction.lt("1")
+        ? new Decimal(employee.currentAnnualSalary)
+        : result.salary;
+    } else if (scheduleType === "direct_import_grid") {
+      const tempEmployee: EmployeeInput = {
+        ...employee,
+        currentAnnualSalary: currentSalary.toString(),
+        currentStep,
+      };
+      const result = calcDirectImportEmployeeYear(
+        tempEmployee,
+        yearIdx,
+        config,
+        importGridCells ?? [],
+        proRateFraction
+      );
+      projectedBaseSalary = result.salary;
+      projectedStep = result.projectedStep;
+      effectiveRate = result.effectiveRate;
+      currentStep = result.projectedStep;
       currentSalary = yearIdx === 0 && proRateFraction.lt("1")
         ? new Decimal(employee.currentAnnualSalary)
         : result.salary;

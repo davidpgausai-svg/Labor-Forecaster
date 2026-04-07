@@ -17,6 +17,7 @@ import flatRatesRouter from "./flat-rates";
 import perDiemRouter from "./per-diem";
 import hourlyCategoriesRouter from "./hourly-categories";
 import salaryRangesRouter from "./salary-ranges";
+import importGridRouter from "./import-grid";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(flatRatesRouter);
 router.use(perDiemRouter);
 router.use(hourlyCategoriesRouter);
 router.use(salaryRangesRouter);
+router.use(importGridRouter);
 
 export default router;

@@ -9,6 +9,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { bargainingUnitsTable } from "./bargaining-units";
+import { compensationSchedulesTable } from "./compensation-schedules";
 
 export const salarySchedulesTable = pgTable("salary_schedules", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -26,8 +27,9 @@ export const salarySchedulesTable = pgTable("salary_schedules", {
 export const lanesTable = pgTable("lanes", {
   id: uuid("id").primaryKey().defaultRandom(),
   salaryScheduleId: uuid("salary_schedule_id")
-    .notNull()
     .references(() => salarySchedulesTable.id, { onDelete: "cascade" }),
+  compensationScheduleId: uuid("compensation_schedule_id")
+    .references(() => compensationSchedulesTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   displayOrder: integer("display_order").notNull().default(0),
   indexMultiplier: numeric("index_multiplier", { precision: 10, scale: 6 })

@@ -7,6 +7,7 @@ export * from "./index-based-engine.js";
 export * from "./per-diem-engine.js";
 export * from "./flat-rate-engine.js";
 export * from "./range-based-engine.js";
+export * from "./direct-import-engine.js";
 export * from "./stipend-engine.js";
 export * from "./run-calculation.js";
 export * from "./retirement-engine.js";
