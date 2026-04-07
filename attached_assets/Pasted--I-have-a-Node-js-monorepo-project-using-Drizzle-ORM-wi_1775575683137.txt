@@ -1,0 +1,24 @@
+  I have a Node.js monorepo project using Drizzle ORM with a Neon PostgreSQL database. I need you to  
+  run a database schema migration.                                                                    
+                                                            
+  What changed in the schema:                                                                         
+                                                            
+  1. The lanes table was modified — salary_schedule_id is now nullable, and a new nullable column     
+  compensation_schedule_id (UUID, FK → compensation_schedules.id ON DELETE CASCADE) was added.
+  2. A new table import_grid_cells was created with these columns:                                    
+    - id UUID PRIMARY KEY DEFAULT gen_random_uuid()                                                   
+    - compensation_schedule_id UUID NOT NULL REFERENCES compensation_schedules(id) ON DELETE CASCADE
+    - lane_id UUID NOT NULL REFERENCES lanes(id) ON DELETE CASCADE                                    
+    - step_number INTEGER NOT NULL                          
+    - salary_cents BIGINT NOT NULL DEFAULT 0                                                          
+    - UNIQUE constraint on (compensation_schedule_id, lane_id, step_number)                           
+                                                                                                      
+  What I need you to do:                                                                              
+                                                                                                      
+  1. Make sure the DATABASE_URL secret is available as an environment variable.                       
+  2. Run cd lib/db && pnpm run push to apply the schema changes to the Neon database.
+  3. If pnpm is not available, try npm run push.                                                      
+  4. Confirm the migration succeeded and both schema changes are reflected in the database.           
+                                                                                                      
+  The project uses drizzle-kit push (not migrations) so there are no migration files — just run the   
+  push command and it will diff and apply automatically.      
