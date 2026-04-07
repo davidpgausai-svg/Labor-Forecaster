@@ -19,9 +19,14 @@ import {
   lanesTable,
   stepsTable,
   scheduleCellsTable,
+  importGridCellsTable,
+  employeePositionsTable,
+  employeePositionYearRecordsTable,
+  districtsTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { calcEmployeeProjection, calcScenarioSummary } from "./scenario-engine.js";
+import { calcBenefits } from "./benefits-engine.js";
 import type {
   YearConfig,
   YearConfigWithSchedule,
@@ -30,6 +35,7 @@ import type {
   SalaryScheduleData,
   ScheduleCell,
   EmployeeYearResult,
+  PositionYearResult,
   ScenarioCalculationResult,
   IndexGridConfig,
 } from "./types.js";
@@ -129,6 +135,19 @@ async function loadSalaryRanges(compensationScheduleId: string): Promise<SalaryR
     minSalaryCents: r.minSalaryCents,
     midSalaryCents: r.midSalaryCents,
     maxSalaryCents: r.maxSalaryCents,
+  }));
+}
+
+async function loadImportGridCells(compensationScheduleId: string): Promise<import("./direct-import-engine.js").ImportGridCell[]> {
+  const rows = await db
+    .select()
+    .from(importGridCellsTable)
+    .where(eq(importGridCellsTable.compensationScheduleId, compensationScheduleId));
+  return rows.map((r) => ({
+    compensationScheduleId: r.compensationScheduleId,
+    laneId: r.laneId,
+    stepNumber: r.stepNumber,
+    salaryCents: r.salaryCents,
   }));
 }
 
@@ -280,11 +299,21 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         )
     : [];
 
-  const allYearRecords: (typeof employeeYearRecordsTable.$inferInsert)[] = [];
+  const allYearRecords: (typeof employeeYearRecordsTable.$inferInsert & {
+    _positionResults?: PositionYearResult[];
+    _totalFteFraction?: string;
+    _benefitEligible?: boolean;
+  })[] = [];
+  const allPositionYearRecords: (typeof employeePositionYearRecordsTable.$inferInsert)[] = [];
 
-  function pushResults(yearResults: EmployeeYearResult[]) {
+  function pushResults(
+    yearResults: EmployeeYearResult[],
+    positionResults?: PositionYearResult[],
+    totalFteFraction?: string,
+    benefitEligible?: boolean
+  ) {
     for (const r of yearResults) {
-      allYearRecords.push({
+      const rec: typeof allYearRecords[0] = {
         employeeId: r.employeeId,
         scenarioId: r.scenarioId,
         contractYear: r.contractYear,
@@ -304,7 +333,13 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         projectedDailyRateCents: toCents(r.projectedDailyRate),
         stipendTotalCents: toCents(r.stipendTotalAmount),
         rangePosition: r.rangePosition ?? null,
-      });
+        totalFteFraction: totalFteFraction ?? null,
+        benefitEligible: benefitEligible ?? null,
+      };
+      if (positionResults) {
+        rec._positionResults = positionResults.filter((p) => p.contractYear === r.contractYear);
+      }
+      allYearRecords.push(rec);
     }
   }
 
@@ -336,7 +371,125 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     };
   }
 
-  // Pre-load pending BU configs and schedules for employees with pending BU transitions
+  // ── Multi-position: load district threshold + active positions ─────────────
+  const districtRow = await db
+    .select({ benefitEligibleFteThreshold: districtsTable.benefitEligibleFteThreshold })
+    .from(districtsTable)
+    .where(eq(districtsTable.id, scenario.districtId))
+    .limit(1)
+    .then((r) => r[0] ?? null);
+  const benefitFteThreshold = new Decimal(districtRow?.benefitEligibleFteThreshold ?? "0.75");
+
+  const allEmpIds = [
+    ...allEmployees.map((r) => r.employee.id),
+    ...groupEmployees.map((r) => r.employee.id),
+  ];
+
+  const activePositions = allEmpIds.length > 0
+    ? await db
+        .select()
+        .from(employeePositionsTable)
+        .where(
+          and(
+            inArray(employeePositionsTable.employeeId, allEmpIds),
+            inArray(employeePositionsTable.status, ["active", "on_leave"])
+          )
+        )
+    : [];
+
+  // Group positions by employee ID, sorted primary-first then displayOrder
+  const positionsByEmployee = new Map<string, (typeof employeePositionsTable.$inferSelect)[]>();
+  for (const pos of activePositions) {
+    const list = positionsByEmployee.get(pos.employeeId) ?? [];
+    list.push(pos);
+    positionsByEmployee.set(pos.employeeId, list);
+  }
+  for (const [, list] of positionsByEmployee) {
+    list.sort((a, b) => {
+      if (a.isPrimary && !b.isPrimary) return -1;
+      if (!a.isPrimary && b.isPrimary) return 1;
+      return a.displayOrder - b.displayOrder;
+    });
+  }
+
+  // Load group configs + year configs + schedules for all groups referenced by positions
+  const posGroupIds = [...new Set(
+    activePositions.filter((p) => p.employeeGroupId).map((p) => p.employeeGroupId!)
+  )];
+  const missingGroupIds = posGroupIds.filter((id) => !employeeGroupIds.includes(id));
+  const additionalGroupRows = missingGroupIds.length > 0
+    ? await db.select().from(employeeGroupsTable).where(inArray(employeeGroupsTable.id, missingGroupIds))
+    : [];
+
+  // Also load schedule types for any additional position group schedules
+  const additionalScheduleIds = [...new Set(
+    scenario.yearConfigs
+      .filter((c) => c.employeeGroupId && posGroupIds.includes(c.employeeGroupId) && c.compensationScheduleId)
+      .map((c) => c.compensationScheduleId!)
+      .filter((id) => !scheduleTypeMap.has(id))
+  )];
+  if (additionalScheduleIds.length > 0) {
+    const rows = await db
+      .select({ id: compensationSchedulesTable.id, scheduleType: compensationSchedulesTable.scheduleType })
+      .from(compensationSchedulesTable)
+      .where(inArray(compensationSchedulesTable.id, additionalScheduleIds));
+    for (const s of rows) scheduleTypeMap.set(s.id, s.scheduleType);
+  }
+
+  // Build position group config map (id → BargainingUnitConfig-shaped object)
+  const posGroupConfigMap = new Map<string, BargainingUnitConfig>();
+  for (const g of additionalGroupRows) {
+    posGroupConfigMap.set(g.id, {
+      id: g.id,
+      compensationType: "salary",
+      retirementSystem: (g.retirementSystem as "TRS" | "IMRF" | "other") ?? "TRS",
+      retirementEmployeeRate: g.retirementEmployeeRate,
+      retirementEmployerRate: g.retirementEmployerRate,
+      retirementGrossUpRate: g.retirementGrossUpRate,
+      ficaRate: g.ficaRate,
+      ficaExempt: g.ficaExempt,
+      healthInsuranceSingleAnnual: g.healthInsuranceSingleAnnual,
+      healthInsuranceFamilyAnnual: g.healthInsuranceFamilyAnnual,
+      dentalAnnual: g.dentalAnnual,
+      lifeInsuranceAnnual: g.lifeInsuranceAnnual,
+      disabilityInsuranceAnnual: g.disabilityInsuranceAnnual,
+      hsaContributionSingle: g.hsaContributionSingle,
+      hsaContributionFamily: g.hsaContributionFamily,
+      workersCompRate: g.workersCompRate,
+      contractYears: g.contractYears,
+    });
+  }
+
+  // Build position group year config map
+  const posGroupYearConfigsMap = new Map<string, YearConfigWithSchedule[]>();
+  for (const groupId of posGroupIds) {
+    const dbCfgs = scenario.yearConfigs
+      .filter((c) => c.employeeGroupId === groupId)
+      .sort((a, b) => a.contractYear - b.contractYear);
+    if (dbCfgs.length > 0) {
+      posGroupYearConfigsMap.set(groupId, toYearConfigs(dbCfgs, scheduleTypeMap));
+    }
+  }
+
+  // Build position group schedule map (index grid + import grid + salary ranges)
+  interface PosGroupScheduleData {
+    indexGridConfig: IndexGridConfig | null;
+    importGridCells: import("./direct-import-engine.js").ImportGridCell[] | null;
+    salaryRanges: SalaryRangeData[] | null;
+  }
+  const posGroupScheduleMap = new Map<string, PosGroupScheduleData>();
+  for (const groupId of posGroupIds) {
+    const dbCfg0 = scenario.yearConfigs.find((c) => c.employeeGroupId === groupId && c.compensationScheduleId);
+    const schedId = dbCfg0?.compensationScheduleId ?? null;
+    const schedType = schedId ? scheduleTypeMap.get(schedId) ?? null : null;
+    posGroupScheduleMap.set(groupId, {
+      indexGridConfig: schedId && schedType === "index_based_grid" ? await loadIndexGridConfig(schedId) : null,
+      importGridCells: schedId && schedType === "direct_import_grid" ? await loadImportGridCells(schedId) : null,
+      salaryRanges: schedId && schedType === "range_based" ? await loadSalaryRanges(schedId) : null,
+    });
+  }
+
+  // ── Pre-load pending BU configs and schedules for employees with pending BU transitions
   const empsPendingBuChange = [...allEmployees, ...groupEmployees]
     .map((r) => r.employee)
     .filter((e) => e.pendingBargainingUnitId != null && e.pendingEffectiveContractYear != null);
@@ -435,6 +588,237 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     };
   }
 
+  // ── Multi-position: helpers ────────────────────────────────────────────────
+  function totalFteFractionFor(positions: (typeof employeePositionsTable.$inferSelect)[]): string {
+    return positions
+      .reduce((sum, p) => sum.plus(p.fteFraction), new Decimal("0"))
+      .toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
+      .toString();
+  }
+
+  function benefitEligibleFor(positions: (typeof employeePositionsTable.$inferSelect)[]): boolean {
+    return new Decimal(totalFteFractionFor(positions)).gte(benefitFteThreshold);
+  }
+
+  // ── Multi-position: per-employee aggregation function ─────────────────────
+  /**
+   * For an employee who has positions defined, run each position through the
+   * salary engine (skip benefits), then aggregate salaries and compute benefits
+   * once at the employee level from the primary position's group config.
+   *
+   * Returns aggregate EmployeeYearResults (for employee_year_records) and per-
+   * position detail PositionYearResults (for employee_position_year_records).
+   */
+  function calcMultiPositionEmployee(
+    employee: typeof employeesTable.$inferSelect,
+    positions: (typeof employeePositionsTable.$inferSelect)[],
+    empGroupConfig: BargainingUnitConfig | null, // employee's own group config (for fallback)
+  ): { aggregateResults: EmployeeYearResult[]; positionResults: PositionYearResult[] } {
+    const primaryPos = positions.find((p) => p.isPrimary) ?? positions[0];
+    const primaryGroupId = primaryPos?.employeeGroupId ?? null;
+
+    // Determine primary group config (for benefits rates)
+    const primaryGroupConfig: BargainingUnitConfig | null =
+      (primaryGroupId ? (posGroupConfigMap.get(primaryGroupId) ?? null) : null) ??
+      empGroupConfig;
+
+    // Determine total contract years from the longest position group config
+    let totalContractYears = 1;
+    for (const pos of positions) {
+      if (!pos.employeeGroupId) continue;
+      const yCfgs = posGroupYearConfigsMap.get(pos.employeeGroupId);
+      if (yCfgs && yCfgs.length > totalContractYears) totalContractYears = yCfgs.length;
+    }
+
+    // Total FTE fraction (constant across years — positions don't change FTE during calc)
+    const totalFteFraction = positions
+      .reduce((sum, p) => sum.plus(p.fteFraction), new Decimal("0"))
+      .toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+    const benefitEligible = totalFteFraction.gte(benefitFteThreshold);
+
+    const aggregateResults: EmployeeYearResult[] = [];
+    const positionResults: PositionYearResult[] = [];
+
+    for (let yearIdx = 0; yearIdx < totalContractYears; yearIdx++) {
+      let aggregateSalary = new Decimal("0");
+
+      for (const pos of positions) {
+        const posGroupId = pos.employeeGroupId;
+        const posYearConfigs = posGroupId ? (posGroupYearConfigsMap.get(posGroupId) ?? []) : [];
+        const posGroupCfg = posGroupId ? (posGroupConfigMap.get(posGroupId) ?? empGroupConfig) : empGroupConfig;
+        if (!posGroupCfg || posYearConfigs.length === 0) {
+          // No year config for this position's group — carry salary flat
+          const flatCents = Math.round(parseFloat(pos.currentAnnualSalary) * 100);
+          aggregateSalary = aggregateSalary.plus(new Decimal(pos.currentAnnualSalary));
+          positionResults.push({
+            positionId: pos.id,
+            employeeId: employee.id,
+            scenarioId,
+            contractYear: yearIdx,
+            fteFraction: pos.fteFraction,
+            projectedBaseSalaryCents: flatCents,
+            projectedStep: pos.currentStep,
+            projectedLaneId: pos.currentLaneId,
+            projectedHourlyRate: null,
+            retirementContributionCents: Math.round(
+              parseFloat(pos.currentAnnualSalary) *
+              parseFloat(posGroupCfg?.retirementGrossUpRate ?? "0") * 100
+            ),
+            ficaCostCents: 0,
+            workersCompCents: 0,
+            effectiveRate: null,
+          });
+          continue;
+        }
+
+        // Build a position-scoped EmployeeInput using position's own step/lane/salary
+        const posEmpInput: EmployeeInput = {
+          id: employee.id,
+          compensationType: "salary",
+          currentAnnualSalary: pos.currentAnnualSalary,
+          currentStep: pos.currentStep,
+          currentHourlyRate: pos.currentHourlyRate,
+          annualHours: pos.annualHours,
+          currentLaneId: pos.currentLaneId,
+          currentHourlyCategoryId: null,
+          insuranceElection: employee.insuranceElection as EmployeeInput["insuranceElection"],
+          retirementEligible: employee.retirementEligible,
+          retirementPlan: employee.retirementPlan,
+          retirementTargetYear: employee.retirementTargetYear,
+          yearsInDistrict: employee.yearsInDistrict,
+          yearsTotalService: employee.yearsTotalService,
+          contractYear: employee.contractYear,
+          effectiveDate: employee.effectiveDate,
+          terminationDate: employee.terminationDate,
+          pendingEffectiveContractYear: null, // pending handled at employee level, not position level
+          pendingBargainingUnitId: null,
+          pendingEmployeeGroupId: null,
+          pendingCurrentStep: null,
+          pendingCurrentLaneId: null,
+          pendingAnnualSalary: null,
+        };
+
+        const posSchedData = posGroupId ? (posGroupScheduleMap.get(posGroupId) ?? null) : null;
+
+        // Run salary engine only (skipBenefits=true) for this position
+        const posYearResults = calcEmployeeProjection(
+          posEmpInput,
+          posYearConfigs,
+          posGroupCfg,
+          null, // no old-style salary schedule for group positions
+          scenarioId,
+          posSchedData?.indexGridConfig ?? null,
+          null, null, null,
+          posSchedData?.salaryRanges ?? null,
+          posSchedData?.importGridCells ?? null,
+          true // skipBenefits
+        );
+
+        const posYearResult = posYearResults[yearIdx];
+        if (!posYearResult) continue;
+
+        const posSalary = new Decimal(posYearResult.projectedBaseSalary);
+        aggregateSalary = aggregateSalary.plus(posSalary);
+
+        // Per-position salary-based employer costs (all values in dollars, converted to cents at push)
+        const grossUpRate = new Decimal(posGroupCfg.retirementGrossUpRate);
+        const retDollars = posSalary.times(grossUpRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        const SS_WAGE_BASE = new Decimal("176100");
+        const FICA_RATE = new Decimal("0.0765");
+        const MEDICARE_RATE = new Decimal("0.0145");
+        let ficaDollars: Decimal;
+        if (posGroupCfg.ficaExempt) {
+          ficaDollars = posSalary.times(MEDICARE_RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        } else {
+          ficaDollars = posSalary.lte(SS_WAGE_BASE)
+            ? posSalary.times(FICA_RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+            : SS_WAGE_BASE.times("0.062").plus(posSalary.times(MEDICARE_RATE)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        }
+        const wcDollars = posSalary.times(posGroupCfg.workersCompRate).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+
+        positionResults.push({
+          positionId: pos.id,
+          employeeId: employee.id,
+          scenarioId,
+          contractYear: yearIdx,
+          fteFraction: pos.fteFraction,
+          projectedBaseSalaryCents: toCents(posYearResult.projectedBaseSalary)!,
+          projectedStep: posYearResult.projectedStep,
+          projectedLaneId: posYearResult.projectedLaneId,
+          projectedHourlyRate: posYearResult.projectedHourlyRate,
+          retirementContributionCents: toCents(retDollars.toString())!,
+          ficaCostCents: toCents(ficaDollars.toString())!,
+          workersCompCents: toCents(wcDollars.toString())!,
+          effectiveRate: posYearResult.effectiveRate,
+        });
+      }
+
+      // Aggregate benefits at employee level
+      // Use the primary position's group year config for health premium growth rates
+      const primaryYearConfig = primaryGroupId
+        ? (posGroupYearConfigsMap.get(primaryGroupId)?.[yearIdx] ?? null)
+        : null;
+
+      let aggregateBenefits: ReturnType<typeof calcBenefits> | null = null;
+      if (primaryGroupConfig && primaryYearConfig) {
+        const rawBenefits = calcBenefits(
+          aggregateSalary,
+          primaryGroupConfig,
+          primaryYearConfig,
+          yearIdx,
+          employee.insuranceElection,
+          new Decimal("1")
+        );
+
+        if (!benefitEligible) {
+          // Zero out flat-dollar benefits; keep salary-based costs
+          const ZERO = new Decimal("0");
+          aggregateBenefits = {
+            ...rawBenefits,
+            healthInsuranceCost: ZERO,
+            dentalCost: ZERO,
+            disabilityCost: ZERO,
+            hsaCost: ZERO,
+            otherBenefitsCost: rawBenefits.workersCompCost.plus(rawBenefits.lifeCost),
+            totalEmployerCost: aggregateSalary
+              .plus(rawBenefits.retirementContribution)
+              .plus(rawBenefits.ficaCost)
+              .plus(rawBenefits.workersCompCost)
+              .plus(rawBenefits.lifeCost),
+          };
+        } else {
+          aggregateBenefits = rawBenefits;
+        }
+      }
+
+      const R = Decimal.ROUND_HALF_UP;
+      aggregateResults.push({
+        employeeId: employee.id,
+        scenarioId,
+        contractYear: yearIdx,
+        projectedStep: primaryPos ? positionResults.find((p) => p.positionId === primaryPos.id && p.contractYear === yearIdx)?.projectedStep ?? null : null,
+        projectedLaneId: primaryPos ? positionResults.find((p) => p.positionId === primaryPos.id && p.contractYear === yearIdx)?.projectedLaneId ?? null : null,
+        projectedHourlyRate: null,
+        projectedBaseSalary: aggregateSalary.toDecimalPlaces(2, R).toString(),
+        projectedTotalCompensation: aggregateSalary.toDecimalPlaces(2, R).toString(),
+        retirementContribution: aggregateBenefits?.retirementContribution.toDecimalPlaces(2, R).toString() ?? "0",
+        ficaCost: aggregateBenefits?.ficaCost.toDecimalPlaces(2, R).toString() ?? "0",
+        healthInsuranceCost: aggregateBenefits?.healthInsuranceCost.toDecimalPlaces(2, R).toString() ?? "0",
+        otherBenefitsCost: aggregateBenefits?.otherBenefitsCost.toDecimalPlaces(2, R).toString() ?? "0",
+        totalEmployerCost: aggregateBenefits?.totalEmployerCost.toDecimalPlaces(2, R).toString() ?? aggregateSalary.toDecimalPlaces(2, R).toString(),
+        effectiveRate: null,
+        isRetirementYear: false,
+        retirementIncentiveAmount: null,
+        projectedDailyRate: null,
+        rangePosition: null,
+        stipendTotalAmount: null,
+        stipendBreakdown: null,
+      });
+    }
+
+    return { aggregateResults, positionResults };
+  }
+
   // Build set of employee IDs covered by group configs — these take precedence over BU configs
   // to prevent double-counting employees who belong to both a group and a BU.
   const groupCoveredEmployeeIds = new Set(groupEmployees.map((r) => r.employee.id));
@@ -478,8 +862,15 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     const scheduleData = await loadScheduleForUnit(bargainingUnitId);
 
     for (const { employee } of unitEmployees) {
+      const empPositions = positionsByEmployee.get(employee.id);
+      if (empPositions && empPositions.length > 0) {
+        // Multi-position path
+        const { aggregateResults, positionResults } = calcMultiPositionEmployee(employee, empPositions, null);
+        pushResults(aggregateResults, positionResults, totalFteFractionFor(empPositions), benefitEligibleFor(empPositions));
+        continue;
+      }
+      // Legacy single-position path
       const empInput = buildEmpInput(employee);
-      // Resolve pending BU/group config for employees with a pending position transition
       let pendingBuCfg: BargainingUnitConfig | null = null;
       let pendingScheduleData: SalaryScheduleData | null | undefined = undefined;
       let pendingYearCfgs: YearConfigWithSchedule[] | null = null;
@@ -625,8 +1016,14 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     };
 
     for (const { employee } of groupEmps) {
+      const empPositions = positionsByEmployee.get(employee.id);
+      if (empPositions && empPositions.length > 0) {
+        const { aggregateResults, positionResults } = calcMultiPositionEmployee(employee, empPositions, buConfig);
+        pushResults(aggregateResults, positionResults, totalFteFractionFor(empPositions), benefitEligibleFor(empPositions));
+        continue;
+      }
+      // Legacy single-position path
       const empInput = buildEmpInput(employee);
-      // Resolve pending BU/group config for employees with a pending position transition
       let pendingBuCfg: BargainingUnitConfig | null = null;
       let pendingScheduleData: SalaryScheduleData | null | undefined = undefined;
       let pendingYearCfgs: YearConfigWithSchedule[] | null = null;
@@ -720,18 +1117,59 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
   }
 
   await db.delete(employeeYearRecordsTable).where(eq(employeeYearRecordsTable.scenarioId, scenarioId));
+  await db.delete(employeePositionYearRecordsTable).where(eq(employeePositionYearRecordsTable.scenarioId, scenarioId));
 
+  const savedRecords: (typeof employeeYearRecordsTable.$inferSelect)[] = [];
   if (allYearRecords.length > 0) {
+    // Strip internal _* fields before inserting
     const chunkSize = 500;
     for (let i = 0; i < allYearRecords.length; i += chunkSize) {
-      await db.insert(employeeYearRecordsTable).values(allYearRecords.slice(i, i + chunkSize));
+      const chunk = allYearRecords.slice(i, i + chunkSize).map(({ _positionResults: _pr, _totalFteFraction: _tf, _benefitEligible: _be, ...rest }) => rest);
+      const inserted = await db.insert(employeeYearRecordsTable).values(chunk).returning();
+      savedRecords.push(...inserted);
     }
   }
 
-  const savedRecords = await db
-    .select()
-    .from(employeeYearRecordsTable)
-    .where(eq(employeeYearRecordsTable.scenarioId, scenarioId));
+  // Insert employee_position_year_records using the returned aggregate record IDs
+  if (savedRecords.length > 0) {
+    // Build lookup: (employeeId, contractYear) → aggregate record id
+    const aggregateLookup = new Map<string, string>();
+    for (const rec of savedRecords) {
+      aggregateLookup.set(`${rec.employeeId}:${rec.contractYear}`, rec.id);
+    }
+
+    // Collect all position year records from the _positionResults metadata
+    for (const rec of allYearRecords) {
+      if (!rec._positionResults?.length) continue;
+      const aggregateId = aggregateLookup.get(`${rec.employeeId}:${rec.contractYear}`);
+      if (!aggregateId) continue;
+      for (const pr of rec._positionResults) {
+        allPositionYearRecords.push({
+          employeeYearRecordId: aggregateId,
+          positionId: pr.positionId,
+          scenarioId: pr.scenarioId,
+          employeeId: pr.employeeId,
+          contractYear: pr.contractYear,
+          fteFraction: pr.fteFraction,
+          projectedBaseSalaryCents: pr.projectedBaseSalaryCents,
+          projectedStep: pr.projectedStep,
+          projectedLaneId: pr.projectedLaneId,
+          projectedHourlyRate: pr.projectedHourlyRate,
+          retirementContributionCents: pr.retirementContributionCents,
+          ficaCostCents: pr.ficaCostCents,
+          workersCompCents: pr.workersCompCents,
+          effectiveRate: pr.effectiveRate,
+        });
+      }
+    }
+
+    if (allPositionYearRecords.length > 0) {
+      const posChunkSize = 500;
+      for (let i = 0; i < allPositionYearRecords.length; i += posChunkSize) {
+        await db.insert(employeePositionYearRecordsTable).values(allPositionYearRecords.slice(i, i + posChunkSize));
+      }
+    }
+  }
 
   const units = bargainingUnitIds.length > 0
     ? await db.select().from(bargainingUnitsTable).where(inArray(bargainingUnitsTable.id, bargainingUnitIds))

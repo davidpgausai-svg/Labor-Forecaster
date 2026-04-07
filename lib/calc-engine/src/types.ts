@@ -216,6 +216,22 @@ export interface HeatmapCell {
   employees: Array<{ id: string; name: string; salary: string }>;
 }
 
+export interface PositionYearResult {
+  positionId: string;
+  employeeId: string;
+  scenarioId: string;
+  contractYear: number;
+  fteFraction: string;
+  projectedBaseSalaryCents: number;
+  projectedStep: number | null;
+  projectedLaneId: string | null;
+  projectedHourlyRate: string | null;
+  retirementContributionCents: number;
+  ficaCostCents: number;
+  workersCompCents: number;
+  effectiveRate: string | null;
+}
+
 export interface ScenarioCalculationResult {
   scenarioId: string;
   scenarioName: string;

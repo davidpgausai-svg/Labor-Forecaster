@@ -35,7 +35,8 @@ export function calcEmployeeProjection(
   pendingSchedule?: SalaryScheduleData | null,
   pendingYearConfigs?: (YearConfig | YearConfigWithSchedule)[] | null,
   salaryRanges?: import("./range-based-engine.js").SalaryRangeData[] | null,
-  importGridCells?: ImportGridCell[] | null
+  importGridCells?: ImportGridCell[] | null,
+  skipBenefits?: boolean
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -221,14 +222,10 @@ export function calcEmployeeProjection(
       currentSalary = result.annualSalary;
     }
 
-    const benefits = calcBenefits(
-      projectedBaseSalary,
-      activeUnitConfig,
-      config,
-      yearIdx,
-      employee.insuranceElection,
-      proRateFraction
-    );
+    const ZERO = new Decimal("0");
+    const benefits = skipBenefits
+      ? { retirementContribution: ZERO, ficaCost: ZERO, healthInsuranceCost: ZERO, otherBenefitsCost: ZERO, totalEmployerCost: projectedBaseSalary }
+      : calcBenefits(projectedBaseSalary, activeUnitConfig, config, yearIdx, employee.insuranceElection, proRateFraction);
 
     results.push({
       employeeId: employee.id,
