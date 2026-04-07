@@ -195,7 +195,8 @@ export default function EmployeeDetail() {
   // Group/lane lookups for the position dialog
   const selectedPosGroupData = (employeeGroups ?? []).find((g) => g.id === positionForm.employeeGroupId);
   const primaryPosCompSchedule = selectedPosGroupData?.compensationSchedules?.find((s) => s.isPrimary);
-  const posGroupIsGrid = primaryPosCompSchedule?.scheduleType === "index_based_grid" || primaryPosCompSchedule?.scheduleType === "direct_import_grid";
+  const posScheduleType = primaryPosCompSchedule?.scheduleType ?? null;
+  const posGroupIsGrid = posScheduleType === "index_based_grid" || posScheduleType === "direct_import_grid";
   const { data: posGroupLanes = [] } = useListImportGridLanes(
     primaryPosCompSchedule?.id ?? "",
     {
@@ -205,6 +206,43 @@ export default function EmployeeDetail() {
       },
     }
   );
+  // For union-path positions: fetch the BU's salary schedule to know if it has lanes
+  const { data: posUnionScheduleData } = useListSalarySchedules(
+    { bargainingUnitId: positionForm.bargainingUnitId || undefined },
+    {
+      query: {
+        enabled: positionForm.assignType === "union" && !!positionForm.bargainingUnitId,
+        queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: positionForm.bargainingUnitId || undefined }),
+      },
+    }
+  );
+  const posUnionLanes = ((posUnionScheduleData as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
+
+  // Derived field-visibility for the position dialog
+  const posHasAssignment = positionForm.assignType === "group"
+    ? !!positionForm.employeeGroupId
+    : !!positionForm.bargainingUnitId;
+  const posShowStep = posHasAssignment && (positionForm.assignType === "union" || posGroupIsGrid);
+  const posShowLane = posHasAssignment && (
+    (positionForm.assignType === "union" && posUnionLanes.length > 0) ||
+    (posGroupIsGrid && posGroupLanes.length > 0)
+  );
+  const posShowSalary = posHasAssignment && (
+    positionForm.assignType === "union" ||
+    posScheduleType === "individual_salary" ||
+    posScheduleType === "range_based" ||
+    (positionForm.assignType === "group" && posScheduleType === null)
+  );
+  const posShowHourly = posHasAssignment && posScheduleType === "hourly";
+  const posPlacementNote = !posHasAssignment
+    ? "Select an assignment above to configure placement fields."
+    : posScheduleType === "per_diem"
+    ? "Rate is driven by the per-diem schedule — no manual entry needed."
+    : posScheduleType === "flat_rate"
+    ? "Rate is driven by the flat-rate schedule — no manual entry needed."
+    : posScheduleType === "stipend_table"
+    ? "Stipend amounts are driven by schedule configuration."
+    : null;
 
   function openAddPosition() {
     setEditingPosition(null);
@@ -1238,7 +1276,9 @@ export default function EmployeeDetail() {
               )}
               {editForm.editMode === "future" && (
                 <p className="text-xs text-amber-400/80">
-                  Current year stays unchanged. Position fields below apply from the selected year onward.
+                  {positions.length > 0
+                    ? "Current year stays unchanged. BU/group transition takes effect from the selected year; update salary placement in the Positions tab after the change."
+                    : "Current year stays unchanged. Position fields below apply from the selected year onward."}
                 </p>
               )}
             </div>
@@ -1331,39 +1371,41 @@ export default function EmployeeDetail() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Current Step</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={editForm.currentStep}
-                      onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
-                      className="bg-background border-border"
-                      placeholder="e.g. 7"
-                    />
-                  </div>
-                  {editLanes.length > 0 && (
+                {positions.length === 0 && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label>Lane</Label>
-                      <Select
-                        value={editForm.currentLaneId}
-                        onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
-                      >
-                        <SelectTrigger className="bg-background border-border">
-                          <SelectValue placeholder="Select lane…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {editLanes.map((lane) => (
-                            <SelectItem key={lane.id} value={lane.id}>
-                              {lane.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Current Step</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={editForm.currentStep}
+                        onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
+                        className="bg-background border-border"
+                        placeholder="e.g. 7"
+                      />
                     </div>
-                  )}
-                </div>
+                    {editLanes.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label>Lane</Label>
+                        <Select
+                          value={editForm.currentLaneId}
+                          onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
+                        >
+                          <SelectTrigger className="bg-background border-border">
+                            <SelectValue placeholder="Select lane…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {editLanes.map((lane) => (
+                              <SelectItem key={lane.id} value={lane.id}>
+                                {lane.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -1394,7 +1436,7 @@ export default function EmployeeDetail() {
                   </Select>
                 </div>
 
-                {groupScheduleIsGrid && (
+                {positions.length === 0 && groupScheduleIsGrid && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Current Step</Label>
@@ -1435,19 +1477,25 @@ export default function EmployeeDetail() {
               </>
             )}
 
-            <div className="space-y-1.5">
-              <Label>Annual Salary</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                <Input
-                  type="number"
-                  value={editForm.currentAnnualSalary}
-                  onChange={(e) => setEditForm((f) => ({ ...f, currentAnnualSalary: e.target.value }))}
-                  className="bg-background border-border pl-7"
-                  placeholder="0"
-                />
+            {positions.length === 0 ? (
+              <div className="space-y-1.5">
+                <Label>Annual Salary</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    value={editForm.currentAnnualSalary}
+                    onChange={(e) => setEditForm((f) => ({ ...f, currentAnnualSalary: e.target.value }))}
+                    className="bg-background border-border pl-7"
+                    placeholder="0"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-muted-foreground border border-border rounded-md px-3 py-2 bg-muted/20">
+                Salary placement is managed via the <strong>Positions tab</strong>.
+              </p>
+            )}
           </div>
 
           {updateMutation.isError && (
@@ -1484,6 +1532,8 @@ export default function EmployeeDetail() {
             <DialogTitle>{editingPosition ? "Edit Position" : "Add Position"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+
+            {/* Job Title */}
             <div className="space-y-1.5">
               <Label>Job Title (optional)</Label>
               <Input
@@ -1494,11 +1544,12 @@ export default function EmployeeDetail() {
               />
             </div>
 
+            {/* Assignment type toggle */}
             <div className="space-y-1.5">
               <Label>Assignment Type</Label>
               <div className="flex gap-2">
                 <Button type="button" variant={positionForm.assignType === "group" ? "default" : "outline"} size="sm"
-                  onClick={() => setPositionForm((f) => ({ ...f, assignType: "group", bargainingUnitId: "" }))}>
+                  onClick={() => setPositionForm((f) => ({ ...f, assignType: "group", bargainingUnitId: "", currentStep: "", currentLaneId: "" }))}>
                   Non-Union (Group)
                 </Button>
                 <Button type="button" variant={positionForm.assignType === "union" ? "default" : "outline"} size="sm"
@@ -1508,19 +1559,20 @@ export default function EmployeeDetail() {
               </div>
             </div>
 
+            {/* Group or BU selector */}
             {positionForm.assignType === "group" ? (
               <div className="space-y-1.5">
                 <Label>Employee Group</Label>
                 <Select
                   value={positionForm.employeeGroupId}
-                  onValueChange={(v) => setPositionForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
+                  onValueChange={(v) => setPositionForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "", currentStep: "" }))}
                 >
                   <SelectTrigger className="bg-background border-border">
                     <SelectValue placeholder="Select group…" />
                   </SelectTrigger>
                   <SelectContent>
                     {(employeeGroups ?? []).map((g) => {
-                      const ps = g.compensationSchedules?.find((s) => s.isPrimary);
+                      const ps = g.compensationSchedules?.find((cs) => cs.isPrimary);
                       return (
                         <SelectItem key={g.id} value={g.id}>
                           {g.name}
@@ -1536,7 +1588,7 @@ export default function EmployeeDetail() {
                 <Label>Bargaining Unit</Label>
                 <Select
                   value={positionForm.bargainingUnitId}
-                  onValueChange={(v) => setPositionForm((f) => ({ ...f, bargainingUnitId: v }))}
+                  onValueChange={(v) => setPositionForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
                 >
                   <SelectTrigger className="bg-background border-border">
                     <SelectValue placeholder="Select unit…" />
@@ -1550,21 +1602,82 @@ export default function EmployeeDetail() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>FTE Fraction</Label>
-                <Input
-                  type="number"
-                  step="0.05"
-                  min="0.01"
-                  max="1"
-                  value={positionForm.fteFraction}
-                  onChange={(e) => setPositionForm((f) => ({ ...f, fteFraction: e.target.value }))}
-                  className="bg-background border-border"
-                />
+            {/* FTE — always shown */}
+            <div className="space-y-1.5">
+              <Label>FTE Fraction</Label>
+              <Input
+                type="number"
+                step="0.05"
+                min="0.01"
+                max="1"
+                value={positionForm.fteFraction}
+                onChange={(e) => setPositionForm((f) => ({ ...f, fteFraction: e.target.value }))}
+                className="bg-background border-border"
+              />
+            </div>
+
+            {/* Schedule-driven placement fields */}
+            {!posHasAssignment && (
+              <p className="text-xs text-muted-foreground border border-border rounded-md px-3 py-2 bg-muted/20">
+                Select an assignment above to configure salary placement fields.
+              </p>
+            )}
+
+            {posPlacementNote && posHasAssignment && (
+              <p className="text-xs text-muted-foreground border border-border rounded-md px-3 py-2 bg-muted/20">
+                {posPlacementNote}
+              </p>
+            )}
+
+            {/* Step + Lane (grid-based: index, direct-import, union with lanes) */}
+            {(posShowStep || posShowLane) && (
+              <div className="grid grid-cols-2 gap-4">
+                {posShowStep && (
+                  <div className="space-y-1.5">
+                    <Label>Step</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={positionForm.currentStep}
+                      onChange={(e) => setPositionForm((f) => ({ ...f, currentStep: e.target.value }))}
+                      className="bg-background border-border"
+                      placeholder="e.g. 7"
+                    />
+                  </div>
+                )}
+                {posShowLane && (
+                  <div className="space-y-1.5">
+                    <Label>Lane</Label>
+                    <Select
+                      value={positionForm.currentLaneId}
+                      onValueChange={(v) => setPositionForm((f) => ({ ...f, currentLaneId: v }))}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select lane…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(positionForm.assignType === "union" ? posUnionLanes : posGroupLanes)
+                          .slice()
+                          .sort((a, b) => a.displayOrder - b.displayOrder)
+                          .map((lane) => (
+                            <SelectItem key={lane.id} value={lane.id}>{lane.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* Annual Salary (individual_salary, range_based, union, no-schedule fallback) */}
+            {posShowSalary && (
               <div className="space-y-1.5">
-                <Label>Annual Salary</Label>
+                <Label>
+                  Annual Salary
+                  {posScheduleType === "range_based" && (
+                    <span className="ml-1.5 text-xs text-muted-foreground font-normal">— will be matched to the nearest salary range</span>
+                  )}
+                </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
                   <Input
@@ -1576,42 +1689,39 @@ export default function EmployeeDetail() {
                   />
                 </div>
               </div>
-            </div>
+            )}
 
-            {positionForm.assignType === "group" && posGroupIsGrid && (
+            {/* Hourly Rate + Annual Hours */}
+            {posShowHourly && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Step</Label>
+                  <Label>Hourly Rate</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={positionForm.currentHourlyRate}
+                      onChange={(e) => setPositionForm((f) => ({ ...f, currentHourlyRate: e.target.value }))}
+                      className="bg-background border-border pl-7"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Annual Hours</Label>
                   <Input
                     type="number"
-                    min={1}
-                    value={positionForm.currentStep}
-                    onChange={(e) => setPositionForm((f) => ({ ...f, currentStep: e.target.value }))}
+                    value={positionForm.annualHours}
+                    onChange={(e) => setPositionForm((f) => ({ ...f, annualHours: e.target.value }))}
                     className="bg-background border-border"
-                    placeholder="e.g. 7"
+                    placeholder="e.g. 1800"
                   />
                 </div>
-                {posGroupLanes.length > 0 && (
-                  <div className="space-y-1.5">
-                    <Label>Lane</Label>
-                    <Select
-                      value={positionForm.currentLaneId}
-                      onValueChange={(v) => setPositionForm((f) => ({ ...f, currentLaneId: v }))}
-                    >
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Select lane…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {posGroupLanes.slice().sort((a, b) => a.displayOrder - b.displayOrder).map((lane) => (
-                          <SelectItem key={lane.id} value={lane.id}>{lane.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
             )}
 
+            {/* Status + Primary */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Status</Label>
@@ -1647,7 +1757,10 @@ export default function EmployeeDetail() {
           {(createPositionMutation.isError || updatePositionMutation.isError) && (
             <div className="flex items-center gap-2 text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md px-3 py-2 mt-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>Save failed. Please try again.</span>
+              <span>
+                {((createPositionMutation.error || updatePositionMutation.error) as { message?: string } | null)?.message
+                  ?? "Save failed. Please try again."}
+              </span>
             </div>
           )}
           <DialogFooter className="pt-2">
