@@ -1,0 +1,50 @@
+Diagnose and fix blank UI — CollBar web app      
+                                                                                                      
+  The web app (dashboard, employees, schedules) is showing blank/empty data. Diagnose and fix the
+  following in order:                                                                                 
+                                                                                                    
+  Step 1 — Check if the API is responding at all                                                      
+                                                                                                      
+  Run this curl command and show me the output:                                                       
+  curl -s http://localhost:3000/api/health                                                          
+                                                                                                      
+  If you get an error or no response, the API server is down. Skip to Step 3.                         
+                                                                                                      
+  Step 2 — Check if the database has data                                                             
+                                                                                                      
+  Run a quick query to see if the districts table has rows:                                           
+  cd lib/db && node --input-type=module <<'EOF'                                                       
+  import { config } from 'dotenv';                                                                    
+  config();                                                                                         
+  import pg from 'pg';                                                                                
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  const r = await pool.query('SELECT COUNT(*) FROM districts');                                       
+  console.log('districts count:', r.rows[0].count);                                                 
+  const e = await pool.query('SELECT COUNT(*) FROM employees');                                       
+  console.log('employees count:', e.rows[0].count);            
+  await pool.end();                                                                                   
+  EOF                                                                                                 
+                                                                                                    
+  If counts are 0, the data was wiped. Skip to Step 4.                                                
+  If counts are > 0, the data exists — skip to Step 3.                                                
+                                                                                                    
+  Step 3 — Rebuild and restart the API server                                                         
+                                                                                                    
+  cd artifacts/api-server && pnpm run build && pnpm run start                                       
+                                                                                                      
+  Show me any error output. Then re-check Step 1.                                                     
+                                                                                                      
+  Step 4 — Re-seed the database (only if data was confirmed empty in Step 2)                          
+                                                                                                    
+  cd scripts && pnpm run seed                                                                         
+                                                                                                    
+  Then restart the API server:                                                                      
+  cd artifacts/api-server && pnpm run build && pnpm run start
+
+  Step 5 — Apply the pending schema changes if not already done                                       
+   
+  cd lib/db && pnpm run push                                                                          
+                                                                                                      
+  Confirm all prompts. Do NOT use --force.                                                            
+                                                                                                      
+  Important: Do not modify any source code files. Only run the commands above.  
