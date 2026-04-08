@@ -124,6 +124,27 @@ router.get("/employees/:id/positions", async (req, res) => {
     .where(eq(employeePositionsTable.employeeId, req.params.id))
     .orderBy(employeePositionsTable.displayOrder, employeePositionsTable.createdAt);
 
+  // Backfill: for any grid position that still has $0 stored, resolve and persist the correct salary
+  const needsBackfill = positions.filter(
+    p => (p.currentAnnualSalary === "0" || p.currentAnnualSalary === "0.00") &&
+      p.compensationScheduleId && p.currentStep != null && p.currentLaneId
+  );
+
+  if (needsBackfill.length > 0) {
+    await Promise.all(
+      needsBackfill.map(async (pos) => {
+        const gridSalary = await resolveGridSalary(pos.compensationScheduleId, pos.currentStep, pos.currentLaneId);
+        if (gridSalary !== null) {
+          await db
+            .update(employeePositionsTable)
+            .set({ currentAnnualSalary: gridSalary, updatedAt: new Date() })
+            .where(eq(employeePositionsTable.id, pos.id));
+          pos.currentAnnualSalary = gridSalary;
+        }
+      })
+    );
+  }
+
   res.json(positions);
 });
 
