@@ -4,6 +4,7 @@ import {
   useGetEmployee,
   getGetEmployeeQueryKey,
   useUpdateEmployee,
+  useDeleteEmployee,
   useDiscardPendingChange,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
@@ -43,6 +44,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -108,6 +119,16 @@ export default function EmployeeDetail() {
       onSuccess: () => {
         invalidateAll();
         setShowEdit(false);
+      },
+    },
+  });
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const deleteMutation = useDeleteEmployee({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey({ districtId: districtId ?? undefined }) });
+        setLocation("/employees");
       },
     },
   });
@@ -453,15 +474,26 @@ export default function EmployeeDetail() {
             )}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={openEdit}
-          className="shrink-0 gap-1.5"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-          Edit Profile
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openEdit}
+            className="gap-1.5"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit Profile
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="gap-1.5 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
+          </Button>
+        </div>
       </div>
 
       {/* Pending position change banner */}
@@ -1681,6 +1713,28 @@ export default function EmployeeDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete employee confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {emp.firstName} {emp.lastName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the employee and all their position history. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate({ id })}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting…</> : "Delete Employee"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

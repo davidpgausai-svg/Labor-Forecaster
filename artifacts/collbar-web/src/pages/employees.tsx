@@ -6,6 +6,7 @@ import {
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
   useCreateEmployee,
+  useDeleteEmployee,
   type Employee,
 } from "@workspace/api-client-react";
 import {
@@ -15,6 +16,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
@@ -46,6 +57,8 @@ import {
   ArrowUpDown,
   Filter,
   Clock,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -127,6 +140,25 @@ export default function Employees() {
     },
   });
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const deleteSingleMutation = useDeleteEmployee();
+
+  async function handleBulkDelete() {
+    setIsBulkDeleting(true);
+    try {
+      for (const empId of selectedIds) {
+        await deleteSingleMutation.mutateAsync({ id: empId });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      setSelectedIds(new Set());
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteConfirm(false);
+    }
+  }
+
   const { data, isLoading } = useListEmployees(params, {
     query: {
       enabled: !!districtId,
@@ -168,8 +200,47 @@ export default function Employees() {
     });
   }, [data, laneFilter, insuranceFilter, retirementFilter, stepMin, stepMax, salaryMin, salaryMax]);
 
+  const allFilteredIds = filtered.map((e) => e.id);
+  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every((id) => selectedIds.has(id));
+  const someSelected = allFilteredIds.some((id) => selectedIds.has(id));
+
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: "select",
+        header: () => (
+          <input
+            type="checkbox"
+            className="cursor-pointer accent-primary"
+            checked={allSelected}
+            ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+            onChange={(e) => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (e.target.checked) allFilteredIds.forEach((id) => next.add(id));
+                else allFilteredIds.forEach((id) => next.delete(id));
+                return next;
+              });
+            }}
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            className="cursor-pointer accent-primary"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(row.original.id)) next.delete(row.original.id);
+                else next.add(row.original.id);
+                return next;
+              });
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ),
+      }),
       columnHelper.accessor((row) => `${row.lastName}, ${row.firstName}`, {
         id: "name",
         header: ({ column }) => (
@@ -269,7 +340,8 @@ export default function Employees() {
         ),
       }),
     ],
-    []
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedIds, allSelected, someSelected, allFilteredIds.join(",")]
   );
 
   const table = useReactTable({
@@ -335,6 +407,17 @@ export default function Employees() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setShowBulkDeleteConfirm(true)}
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Selected ({selectedIds.size})
+            </Button>
+          )}
           <Button variant="default" size="sm" onClick={() => setShowAddDialog(true)} className="h-9 gap-2">
             + Add Employee
           </Button>
@@ -553,6 +636,9 @@ export default function Employees() {
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i} className="border-border">
                     <TableCell>
+                      <Skeleton className="h-4 w-4" />
+                    </TableCell>
+                    <TableCell>
                       <Skeleton className="h-4 w-32" />
                     </TableCell>
                     <TableCell>
@@ -578,7 +664,7 @@ export default function Employees() {
               ) : table.getRowModel().rows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-10 text-muted-foreground"
                   >
                     {hasFilters
@@ -704,6 +790,32 @@ export default function Employees() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={(o) => !isBulkDeleting && setShowBulkDeleteConfirm(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} employee{selectedIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {selectedIds.size === 1 ? "this employee" : `all ${selectedIds.size} selected employees`} and their position history. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkDeleting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting…</>
+              ) : (
+                `Delete ${selectedIds.size} Employee${selectedIds.size !== 1 ? "s" : ""}`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
