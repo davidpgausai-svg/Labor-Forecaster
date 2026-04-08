@@ -257,10 +257,12 @@ export default function EmployeeDetail() {
   }
 
   function handleSavePosition() {
+    // If the user never explicitly chose a schedule, use the group's primary (same fallback the dialog uses)
+    const resolvedScheduleId = positionForm.compensationScheduleId || selectedPosSchedule?.id || null;
     const body = {
       employeeGroupId: positionForm.employeeGroupId || null,
       bargainingUnitId: null,
-      compensationScheduleId: positionForm.compensationScheduleId || null,
+      compensationScheduleId: resolvedScheduleId,
       jobTitle: positionForm.jobTitle || null,
       fteFraction: positionForm.fteFraction || "1.0000",
       currentStep: positionForm.currentStep ? parseInt(positionForm.currentStep, 10) : null,

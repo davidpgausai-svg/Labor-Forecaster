@@ -9,6 +9,7 @@ import {
   indexGridConfigsTable,
   scheduleIndicesTable,
   importGridCellsTable,
+  employeePositionYearRecordsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import Decimal from "decimal.js";
@@ -124,22 +125,78 @@ router.get("/employees/:id/positions", async (req, res) => {
     .where(eq(employeePositionsTable.employeeId, req.params.id))
     .orderBy(employeePositionsTable.displayOrder, employeePositionsTable.createdAt);
 
-  // Backfill: for any grid position that still has $0 stored, resolve and persist the correct salary
+  // Backfill: for any grid position that still has $0 stored, resolve and persist the correct salary.
+  // Tries three paths in order:
+  //   1. Grid cell lookup using position's compensationScheduleId
+  //   2. Grid cell lookup using the group's primary schedule (handles positions saved with null scheduleId)
+  //   3. employee_position_year_records year 0 — available once any scenario has been calculated
   const needsBackfill = positions.filter(
-    p => (p.currentAnnualSalary === "0" || p.currentAnnualSalary === "0.00") &&
-      p.compensationScheduleId && p.currentStep != null && p.currentLaneId
+    p => parseFloat(p.currentAnnualSalary ?? "0") === 0 &&
+      p.currentStep != null && p.currentLaneId
   );
 
   if (needsBackfill.length > 0) {
     await Promise.all(
       needsBackfill.map(async (pos) => {
-        const gridSalary = await resolveGridSalary(pos.compensationScheduleId, pos.currentStep, pos.currentLaneId);
-        if (gridSalary !== null) {
+        // Path 1: use the stored compensationScheduleId
+        let resolved: string | null = await resolveGridSalary(
+          pos.compensationScheduleId, pos.currentStep, pos.currentLaneId
+        );
+
+        // Path 2: compensationScheduleId was never saved — look up the group's primary schedule
+        if (resolved === null && pos.employeeGroupId) {
+          const primarySched = await db
+            .select({ id: compensationSchedulesTable.id })
+            .from(compensationSchedulesTable)
+            .where(
+              and(
+                eq(compensationSchedulesTable.employeeGroupId, pos.employeeGroupId),
+                eq(compensationSchedulesTable.isPrimary, true)
+              )
+            )
+            .limit(1)
+            .then(r => r[0]);
+
+          if (primarySched) {
+            resolved = await resolveGridSalary(primarySched.id, pos.currentStep, pos.currentLaneId);
+            // Also persist the correct compensationScheduleId so this only runs once
+            if (resolved !== null) {
+              await db
+                .update(employeePositionsTable)
+                .set({ compensationScheduleId: primarySched.id })
+                .where(eq(employeePositionsTable.id, pos.id));
+              pos.compensationScheduleId = primarySched.id;
+            }
+          }
+        }
+
+        // Path 3: fall back to year-0 position projection
+        if (resolved === null) {
+          const yearRec = await db
+            .select({ projectedBaseSalaryCents: employeePositionYearRecordsTable.projectedBaseSalaryCents })
+            .from(employeePositionYearRecordsTable)
+            .where(
+              and(
+                eq(employeePositionYearRecordsTable.positionId, pos.id),
+                eq(employeePositionYearRecordsTable.contractYear, 0)
+              )
+            )
+            .limit(1)
+            .then(r => r[0]);
+
+          if (yearRec && yearRec.projectedBaseSalaryCents > 0) {
+            resolved = (yearRec.projectedBaseSalaryCents / 100).toFixed(2);
+          }
+        }
+
+        if (resolved !== null) {
           await db
             .update(employeePositionsTable)
-            .set({ currentAnnualSalary: gridSalary, updatedAt: new Date() })
+            .set({ currentAnnualSalary: resolved, updatedAt: new Date() })
             .where(eq(employeePositionsTable.id, pos.id));
-          pos.currentAnnualSalary = gridSalary;
+          pos.currentAnnualSalary = resolved;
+        } else {
+          console.warn(`[positions backfill] Could not resolve salary for position ${pos.id}`);
         }
       })
     );
