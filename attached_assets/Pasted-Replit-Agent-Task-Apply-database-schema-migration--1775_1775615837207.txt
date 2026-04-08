@@ -1,0 +1,36 @@
+Replit Agent Task: Apply database schema migration                                                
+                                                                                                    
+  The codebase already has the correct schema change committed. Your job is to apply it to the live 
+  Postgres database and restart the server.                                                         
+                                                                                                    
+  Step 1 — Apply the DB migration                                                                   
+                                                                                                    
+  In the Replit shell, run:                                                                         
+  cd /home/user/Labor-Forecaster/lib/db && pnpm run push                                            
+                                                                                                    
+  This will drop the NOT NULL constraint from bargaining_unit_id on the employees table. If pnpm run 
+  push asks you to confirm destructive changes, answer yes.                                         
+                                                                                                    
+  Step 2 — Restart the API server                                                                   
+                                                                                                    
+  After the push completes, restart the API server so it picks up the updated schema types. Use     
+  whatever method Replit uses to restart the "api-server" run target (click Run, or restart the     
+  process).                                                                                         
+                                                                                                    
+  Step 3 — Clean up duplicate test employees                                                        
+                                                                                                    
+  There are duplicate employees named "A Test" in the database. Delete them by running this SQL     
+  against the Postgres database:                                                                    
+  DELETE FROM employees WHERE first_name = 'A' AND last_name = 'Test';                              
+                                                                                                    
+  Step 4 — Verify                                                                                   
+                                                                                                    
+  1. Go to the Employees page in the frontend                                                       
+  2. Click "Add Employee" and create a new employee without selecting a Bargaining Unit             
+  3. Confirm the employee appears in the list after saving                                          
+                                                                                                    
+  Why this is needed: The bargaining_unit_id column had a NOT NULL database constraint that wasn't  
+  enforced in the app UI — employees without a BU assignment were silently rejected by Postgres. The
+  schema change removes that constraint. The TypeScript schema file was already updated; only the live
+   DB needs the constraint dropped.                                                                 
+                                                                          
