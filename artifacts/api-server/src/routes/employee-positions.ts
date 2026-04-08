@@ -5,8 +5,13 @@ import {
   employeePositionsTable,
   employeesTable,
   scenariosTable,
+  compensationSchedulesTable,
+  indexGridConfigsTable,
+  scheduleIndicesTable,
+  importGridCellsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import Decimal from "decimal.js";
 import { runScenarioCalculation } from "@workspace/calc-engine";
 
 const positionBodySchema = z.object({
@@ -26,6 +31,66 @@ const positionBodySchema = z.object({
   endDate: z.string().nullable().optional(),
   displayOrder: z.number().int().optional(),
 });
+
+/**
+ * For grid-based schedules (index_based_grid, direct_import_grid), derive the
+ * year-0 salary from the grid cell so currentAnnualSalary is never left at $0.
+ */
+async function resolveGridSalary(
+  compensationScheduleId: string | null | undefined,
+  currentStep: number | null | undefined,
+  currentLaneId: string | null | undefined,
+): Promise<string | null> {
+  if (!compensationScheduleId || currentStep == null || !currentLaneId) return null;
+
+  const schedule = await db
+    .select({ scheduleType: compensationSchedulesTable.scheduleType })
+    .from(compensationSchedulesTable)
+    .where(eq(compensationSchedulesTable.id, compensationScheduleId))
+    .limit(1)
+    .then((r) => r[0]);
+
+  if (!schedule) return null;
+
+  if (schedule.scheduleType === "index_based_grid") {
+    const [config, indexRow] = await Promise.all([
+      db.select().from(indexGridConfigsTable)
+        .where(eq(indexGridConfigsTable.compensationScheduleId, compensationScheduleId))
+        .limit(1)
+        .then((r) => r[0]),
+      db.select().from(scheduleIndicesTable)
+        .where(
+          and(
+            eq(scheduleIndicesTable.compensationScheduleId, compensationScheduleId),
+            eq(scheduleIndicesTable.laneId, currentLaneId),
+            eq(scheduleIndicesTable.stepNumber, currentStep),
+          )
+        )
+        .limit(1)
+        .then((r) => r[0]),
+    ]);
+    if (!config || !indexRow) return null;
+    const salary = new Decimal(config.baseAnchorSalary).times(new Decimal(indexRow.indexValue)).ceil();
+    return salary.toFixed(2);
+  }
+
+  if (schedule.scheduleType === "direct_import_grid") {
+    const cell = await db.select().from(importGridCellsTable)
+      .where(
+        and(
+          eq(importGridCellsTable.compensationScheduleId, compensationScheduleId),
+          eq(importGridCellsTable.laneId, currentLaneId),
+          eq(importGridCellsTable.stepNumber, currentStep),
+        )
+      )
+      .limit(1)
+      .then((r) => r[0]);
+    if (!cell) return null;
+    return (cell.salaryCents / 100).toFixed(2);
+  }
+
+  return null;
+}
 
 const router = Router();
 
@@ -71,6 +136,12 @@ router.post("/employees/:id/positions", async (req, res) => {
 
   const data = parsed.data;
 
+  // For grid schedules, derive currentAnnualSalary from the grid cell
+  const gridSalary = await resolveGridSalary(data.compensationScheduleId, data.currentStep, data.currentLaneId);
+  if (gridSalary !== null) {
+    data.currentAnnualSalary = gridSalary;
+  }
+
   // If this position is being set as primary, demote all other positions first
   if (data.isPrimary) {
     await db
@@ -97,6 +168,12 @@ router.put("/employee-positions/:id", async (req, res) => {
   }
 
   const data = parsed.data;
+
+  // For grid schedules, derive currentAnnualSalary from the grid cell
+  const gridSalary = await resolveGridSalary(data.compensationScheduleId, data.currentStep, data.currentLaneId);
+  if (gridSalary !== null) {
+    data.currentAnnualSalary = gridSalary;
+  }
 
   // If this position is being promoted to primary, demote others first
   if (data.isPrimary) {

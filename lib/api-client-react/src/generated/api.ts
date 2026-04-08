@@ -65,6 +65,7 @@ import type {
   ImportResult,
   IndexGridConfigRow,
   IndexGridConfigWithIndices,
+  InitScenarioGroupConfigs200,
   ListBargainingUnitsParams,
   ListCompensationSchedulesParams,
   ListEmployeeGroupsParams,
@@ -3403,6 +3404,93 @@ export const useUpsertScenarioYearConfigs = <
   TContext
 > => {
   return useMutation(getUpsertScenarioYearConfigsMutationOptions(options));
+};
+
+/**
+ * @summary Generate missing year configs for employee groups in an existing scenario
+ */
+export const getInitScenarioGroupConfigsUrl = (id: string) => {
+  return `/api/scenarios/${id}/init-group-configs`;
+};
+
+export const initScenarioGroupConfigs = async (
+  id: string,
+  options?: RequestInit,
+): Promise<InitScenarioGroupConfigs200> => {
+  return customFetch<InitScenarioGroupConfigs200>(
+    getInitScenarioGroupConfigsUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getInitScenarioGroupConfigsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initScenarioGroupConfigs>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof initScenarioGroupConfigs>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["initScenarioGroupConfigs"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof initScenarioGroupConfigs>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return initScenarioGroupConfigs(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InitScenarioGroupConfigsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof initScenarioGroupConfigs>>
+>;
+
+export type InitScenarioGroupConfigsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate missing year configs for employee groups in an existing scenario
+ */
+export const useInitScenarioGroupConfigs = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof initScenarioGroupConfigs>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof initScenarioGroupConfigs>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getInitScenarioGroupConfigsMutationOptions(options));
 };
 
 /**

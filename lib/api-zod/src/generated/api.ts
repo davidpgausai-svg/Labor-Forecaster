@@ -1384,6 +1384,68 @@ export const UpsertScenarioYearConfigsResponse = zod.array(
 );
 
 /**
+ * @summary Generate missing year configs for employee groups in an existing scenario
+ */
+export const InitScenarioGroupConfigsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const InitScenarioGroupConfigsResponse = zod.object({
+  inserted: zod.number().optional(),
+  message: zod.string().optional(),
+  scenario: zod
+    .object({
+      id: zod.string(),
+      districtId: zod.string(),
+      name: zod.string(),
+      description: zod.string().nullish(),
+      isFinal: zod.boolean(),
+      status: zod.enum(["draft", "active", "final", "archived"]),
+      yearConfigs: zod.array(
+        zod.object({
+          id: zod.string().optional(),
+          scenarioId: zod.string().optional(),
+          bargainingUnitId: zod.string().nullish(),
+          contractYear: zod.number(),
+          yearLabel: zod.string(),
+          increaseType: zod.enum([
+            "fixed_percentage",
+            "cpi_formula",
+            "flat_dollar",
+            "step_only",
+            "custom",
+          ]),
+          fixedPercentage: zod.string().nullish(),
+          cpiValue: zod.string().nullish(),
+          cpiAdder: zod.string().nullish(),
+          cpiCap: zod.string().nullish(),
+          cpiFloor: zod.string().nullish(),
+          cpiIndexName: zod.string().nullish(),
+          highEarnerThreshold: zod.string().nullish(),
+          highEarnerFlatIncrease: zod.string().nullish(),
+          effectiveRate: zod.string().nullish(),
+          educationalAdvancementBa15: zod.string().nullish(),
+          educationalAdvancementMa: zod.string().nullish(),
+          educationalAdvancementMa15: zod.string().nullish(),
+          stepAdvancement: zod.boolean(),
+          healthPremiumIncreaseRate: zod.string().nullish(),
+          healthEmployerCapRate: zod.string().nullish(),
+          notes: zod.string().nullish(),
+          employeeGroupId: zod.string().nullish(),
+          compensationScheduleId: zod.string().nullish(),
+          baseAdjustmentType: zod
+            .enum(["percentage", "dollar", "set_directly"])
+            .nullish(),
+          baseAdjustmentValue: zod.string().nullish(),
+        }),
+      ),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    })
+    .optional(),
+});
+
+/**
  * @summary Get year-by-year summary for a scenario
  */
 export const GetScenarioSummaryParams = zod.object({

@@ -9,6 +9,7 @@ import {
   getListEmployeeGroupsQueryKey,
   useUpdateScenario,
   useCalculateScenario,
+  useInitScenarioGroupConfigs,
   ScenarioYearConfig,
   ScenarioYearConfigIncreaseType,
   BargainingUnit,
@@ -63,6 +64,7 @@ export default function ScenarioDetail() {
 
   const updateMutation = useUpdateScenario();
   const calculateMutation = useCalculateScenario();
+  const initGroupConfigsMutation = useInitScenarioGroupConfigs();
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -233,12 +235,28 @@ export default function ScenarioDetail() {
       </Card>
 
       <UnifiedGroupSelector
+        scenarioId={id!}
         units={units ?? []}
         employeeGroups={employeeGroups ?? []}
         formData={formData}
         lastCalcResult={lastCalcResult}
         updateYearConfig={updateYearConfig}
         updateYearConfigById={updateYearConfigById}
+        onInitGroupConfigs={() => {
+          initGroupConfigsMutation.mutate(
+            { id: id! },
+            {
+              onSuccess: (result) => {
+                if (result.scenario?.yearConfigs) {
+                  setFormData(prev => ({ ...prev, yearConfigs: result.scenario!.yearConfigs! }));
+                }
+                toast({ title: "Year configs initialized", description: `Added configs for ${result.inserted} year(s).` });
+              },
+              onError: () => toast({ title: "Error", description: "Failed to initialize year configs.", variant: "destructive" }),
+            }
+          );
+        }}
+        initPending={initGroupConfigsMutation.isPending}
       />
     </div>
   );
@@ -249,19 +267,25 @@ type UnifiedGroup =
   | { kind: "group"; id: string; name: string; group: EmployeeGroupWithSchedules };
 
 function UnifiedGroupSelector({
+  scenarioId: _scenarioId,
   units,
   employeeGroups,
   formData,
   lastCalcResult,
   updateYearConfig,
   updateYearConfigById,
+  onInitGroupConfigs,
+  initPending,
 }: {
+  scenarioId: string;
   units: BargainingUnit[];
   employeeGroups: EmployeeGroupWithSchedules[];
   formData: FormData;
   lastCalcResult: ScenarioCalculationResult | null;
   updateYearConfig: (bargainingUnitId: string, contractYear: number, patch: Partial<ScenarioYearConfig>) => void;
   updateYearConfigById: (id: string, patch: Partial<ScenarioYearConfig>) => void;
+  onInitGroupConfigs: () => void;
+  initPending: boolean;
 }) {
   const allGroups: UnifiedGroup[] = [
     ...units.map(u => ({ kind: "unit" as const, id: `unit:${u.id}`, name: u.name, unit: u })),
@@ -361,8 +385,18 @@ function UnifiedGroupSelector({
                 </div>
                 {groupConfigs.length === 0 ? (
                   <Card className="bg-card border-border">
-                    <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                      No year configurations for this group. Create a scenario to auto-generate them.
+                    <CardContent className="py-8 text-center space-y-3">
+                      <p className="text-muted-foreground text-sm">
+                        No year configurations for this group. This group was likely added after the scenario was created.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={onInitGroupConfigs}
+                        disabled={initPending}
+                      >
+                        {initPending ? "Initializing…" : "Initialize Year Configs"}
+                      </Button>
                     </CardContent>
                   </Card>
                 ) : (

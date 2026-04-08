@@ -535,6 +535,84 @@ router.post("/scenarios/:id/year-configs", async (req, res) => {
   res.json(inserted);
 });
 
+/**
+ * POST /scenarios/:id/init-group-configs
+ *
+ * Generates year configs for any employee groups that don't yet have them in
+ * this scenario (e.g. groups added after the scenario was originally created).
+ * Existing configs are left untouched. After inserting, triggers a recalculation.
+ */
+router.post("/scenarios/:id/init-group-configs", async (req, res) => {
+  const scenario = await getScenarioWithConfigs(req.params.id);
+  if (!scenario) {
+    res.status(404).json({ error: "Scenario not found" });
+    return;
+  }
+
+  const [district, employeeGroups] = await Promise.all([
+    db.select().from(districtsTable).where(eq(districtsTable.id, scenario.districtId)).then((r) => r[0]),
+    db.select().from(employeeGroupsTable).where(eq(employeeGroupsTable.districtId, scenario.districtId)),
+  ]);
+
+  const baseYear = extractFiscalYear(district?.fiscalYearStart);
+
+  // Find groups that have zero year configs in this scenario
+  const existingGroupIds = new Set(
+    scenario.yearConfigs.filter((c) => c.employeeGroupId).map((c) => c.employeeGroupId!)
+  );
+  const missingGroups = employeeGroups.filter((g) => !existingGroupIds.has(g.id));
+
+  if (missingGroups.length === 0) {
+    res.json({ inserted: 0, message: "All groups already have year configs" });
+    return;
+  }
+
+  const primarySchedules = await db
+    .select()
+    .from(compensationSchedulesTable)
+    .where(
+      and(
+        inArray(compensationSchedulesTable.employeeGroupId, missingGroups.map((g) => g.id)),
+        eq(compensationSchedulesTable.isPrimary, true)
+      )
+    );
+
+  const newConfigs: ScenarioYearConfigInsert[] = missingGroups.flatMap((group) => {
+    const primarySchedule = primarySchedules.find((s) => s.employeeGroupId === group.id);
+    const numYears = group.contractYears && group.contractYears > 0 ? group.contractYears : 5;
+    const scheduleType = primarySchedule?.scheduleType ?? null;
+
+    return Array.from({ length: numYears }, (_, i) => ({
+      scenarioId: scenario.id,
+      employeeGroupId: group.id,
+      compensationScheduleId: primarySchedule?.id ?? null,
+      contractYear: i,
+      yearLabel: buildYearLabel(baseYear, i),
+      increaseType: "fixed_percentage" as const,
+      fixedPercentage: "0",
+      stepAdvancement: true,
+      baseAdjustmentType: scheduleType === "index_based_grid" ? ("percentage" as const) : null,
+      baseAdjustmentValue: scheduleType === "index_based_grid" ? "0" : null,
+      cpiValue: null, cpiAdder: null, cpiCap: null, cpiFloor: null, cpiIndexName: null,
+      highEarnerThreshold: null, highEarnerFlatIncrease: null,
+      educationalAdvancementBa15: null, educationalAdvancementMa: null, educationalAdvancementMa15: null,
+      healthPremiumIncreaseRate: null, healthEmployerCapRate: null, notes: null,
+    }));
+  });
+
+  await db.insert(scenarioYearConfigsTable).values(newConfigs);
+
+  // Trigger recalculation so the new configs take effect immediately
+  try {
+    await runScenarioCalculation(scenario.id);
+  } catch (err) {
+    console.error("[init-group-configs] Recalculation error:", err);
+  }
+
+  const updated = await getScenarioWithConfigs(scenario.id);
+  res.json({ inserted: newConfigs.length, scenario: updated });
+});
+
 router.get("/scenarios/:id/summary", async (req, res) => {
   const result = await runScenarioCalculation(req.params.id);
   if (!result) {

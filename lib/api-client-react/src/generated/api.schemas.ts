@@ -1267,6 +1267,12 @@ export type CompareScenariosParams = {
   districtId?: string;
 };
 
+export type InitScenarioGroupConfigs200 = {
+  inserted?: number;
+  message?: string;
+  scenario?: Scenario;
+};
+
 export type GetHeatmapDataParams = {
   bargainingUnitId?: string;
   employeeGroupId?: string;

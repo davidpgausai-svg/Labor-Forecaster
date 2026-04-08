@@ -81,6 +81,7 @@ export * from "./importResult";
 export * from "./importResultErrorsItem";
 export * from "./indexGridConfigRow";
 export * from "./indexGridConfigWithIndices";
+export * from "./initScenarioGroupConfigs200";
 export * from "./lane";
 export * from "./listBargainingUnitsParams";
 export * from "./listCompensationSchedulesParams";

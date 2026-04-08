@@ -773,6 +773,32 @@ paths:
                 items:
                   $ref: "#/components/schemas/ScenarioYearConfig"
 
+  /scenarios/{id}/init-group-configs:
+    post:
+      operationId: initScenarioGroupConfigs
+      tags: [scenarios]
+      summary: Generate missing year configs for employee groups in an existing scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Result with count of inserted configs and updated scenario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inserted:
+                    type: integer
+                  message:
+                    type: string
+                  scenario:
+                    $ref: "#/components/schemas/Scenario"
+
   /scenarios/{id}/summary:
     get:
       operationId: getScenarioSummary
