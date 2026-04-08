@@ -277,6 +277,9 @@ router.get("/employees/:id/positions", async (req, res) => {
         }
       })
     );
+
+    // Positions were updated — recalc so employee_year_records reflects the corrected salaries
+    await recalcForEmployee(req.params.id, "GET /employees/:id/positions backfill");
   }
 
   res.json(positions);

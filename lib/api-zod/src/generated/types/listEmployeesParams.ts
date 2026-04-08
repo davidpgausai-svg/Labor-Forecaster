@@ -12,6 +12,7 @@ export type ListEmployeesParams = {
   employeeGroupId?: string;
   status?: string;
   contractYear?: number;
+  search?: string;
   page?: number;
   pageSize?: number;
 };

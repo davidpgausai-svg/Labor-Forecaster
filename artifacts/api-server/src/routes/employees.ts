@@ -12,7 +12,7 @@ import {
   scenariosTable,
   employeePositionsTable,
 } from "@workspace/db";
-import { eq, and, sql, or, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, or, inArray, isNull, ilike } from "drizzle-orm";
 import {
   calcRetirementOption1,
   calcRetirementOption2,
@@ -183,7 +183,7 @@ router.post("/employees/import", async (req, res) => {
 });
 
 router.get("/employees", async (req, res) => {
-  const { districtId, bargainingUnitId, employeeGroupId, status, contractYear, page = 1, pageSize = 50 } = req.query;
+  const { districtId, bargainingUnitId, employeeGroupId, status, contractYear, search, page = 1, pageSize = 50 } = req.query;
 
   const conditions = [];
   if (districtId) conditions.push(eq(employeesTable.districtId, districtId as string));
@@ -195,6 +195,17 @@ router.get("/employees", async (req, res) => {
   if (employeeGroupId) conditions.push(eq(employeesTable.employeeGroupId, employeeGroupId as string));
   if (status) conditions.push(eq(employeesTable.status, status as "active" | "new_hire" | "terminated" | "retired" | "on_leave"));
   if (contractYear) conditions.push(eq(employeesTable.contractYear, Number(contractYear)));
+  if (search) {
+    const q = `%${search}%`;
+    conditions.push(
+      or(
+        ilike(employeesTable.firstName, q),
+        ilike(employeesTable.lastName, q),
+        sql`concat(${employeesTable.firstName}, ' ', ${employeesTable.lastName}) ilike ${q}`,
+        sql`concat(${employeesTable.lastName}, ', ', ${employeesTable.firstName}) ilike ${q}`,
+      )!
+    );
+  }
 
   const offset = (Number(page) - 1) * Number(pageSize);
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -408,17 +419,27 @@ router.get("/employees/:id", async (req, res) => {
     });
   }
 
+  // For employees whose base salary lives on a position (grid schedules), derive the
+  // effective display salary from the primary position when employees.currentAnnualSalary is $0.
+  const primaryPosition = positions.find((p) => p.isPrimary) ?? positions[0] ?? null;
+  const effectiveSalary =
+    parseFloat(emp.currentAnnualSalary) > 0
+      ? emp.currentAnnualSalary
+      : (primaryPosition && parseFloat(primaryPosition.currentAnnualSalary ?? "0") > 0
+          ? primaryPosition.currentAnnualSalary!
+          : emp.currentAnnualSalary);
+
   const age = emp.birthDate ? new Date().getFullYear() - new Date(emp.birthDate).getFullYear() : 55;
   let retirementOptions = null;
   if (emp.retirementEligible) {
     retirementOptions = {
-      option1: calcRetirementOption1(emp.currentAnnualSalary, emp.yearsInDistrict, emp.yearsTotalService, age),
-      option2: calcRetirementOption2(emp.currentAnnualSalary, emp.yearsInDistrict, emp.yearsTotalService, age),
-      option3: calcRetirementOption3(emp.currentAnnualSalary, emp.yearsInDistrict, age),
+      option1: calcRetirementOption1(effectiveSalary, emp.yearsInDistrict, emp.yearsTotalService, age),
+      option2: calcRetirementOption2(effectiveSalary, emp.yearsInDistrict, emp.yearsTotalService, age),
+      option3: calcRetirementOption3(effectiveSalary, emp.yearsInDistrict, age),
     };
   }
 
-  res.json({ ...emp, bargainingUnitName: row.unitName, employeeGroupName, compensationScheduleType, laneName: row.laneName, positions, yearProjections, retirementOptions });
+  res.json({ ...emp, currentAnnualSalary: effectiveSalary, bargainingUnitName: row.unitName, employeeGroupName, compensationScheduleType, laneName: row.laneName, positions, yearProjections, retirementOptions });
 });
 
 async function recalcDistrictScenarios(districtId: string, context: string): Promise<{ count: number; errors: string[] }> {

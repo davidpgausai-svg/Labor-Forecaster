@@ -104,10 +104,11 @@ export default function Employees() {
       districtId: districtId!,
       employeeGroupId: filteredGroupId,
       status: statusFilter !== ALL ? statusFilter : undefined,
+      search: search.trim() || undefined,
       page,
       pageSize,
     }),
-    [districtId, filteredGroupId, statusFilter, page, pageSize]
+    [districtId, filteredGroupId, statusFilter, search, page, pageSize]
   );
 
   const queryClient = useQueryClient();
@@ -144,13 +145,11 @@ export default function Employees() {
 
   const filtered = useMemo(() => {
     if (!data?.employees) return [];
-    const q = search.toLowerCase();
     const stepMinNum = stepMin !== "" ? parseInt(stepMin, 10) : null;
     const stepMaxNum = stepMax !== "" ? parseInt(stepMax, 10) : null;
     const salaryMinNum = salaryMin !== "" ? parseFloat(salaryMin.replace(/,/g, "")) : null;
     const salaryMaxNum = salaryMax !== "" ? parseFloat(salaryMax.replace(/,/g, "")) : null;
     return data.employees.filter((e) => {
-      if (q && !e.firstName.toLowerCase().includes(q) && !e.lastName.toLowerCase().includes(q) && !(e.bargainingUnitName || "").toLowerCase().includes(q)) return false;
       if (laneFilter !== ALL && e.laneName !== laneFilter) return false;
       if (insuranceFilter !== ALL && e.insuranceElection !== insuranceFilter) return false;
       if (retirementFilter !== ALL) {
@@ -164,7 +163,7 @@ export default function Employees() {
       if (salaryMaxNum !== null && salary > salaryMaxNum) return false;
       return true;
     });
-  }, [data, search, laneFilter, insuranceFilter, retirementFilter, stepMin, stepMax, salaryMin, salaryMax]);
+  }, [data, laneFilter, insuranceFilter, retirementFilter, stepMin, stepMax, salaryMin, salaryMax]);
 
   const columns = useMemo(
     () => [

@@ -252,6 +252,7 @@ export const ListEmployeesQueryParams = zod.object({
   employeeGroupId: zod.coerce.string().optional(),
   status: zod.coerce.string().optional(),
   contractYear: zod.coerce.number().optional(),
+  search: zod.coerce.string().optional(),
   page: zod.coerce.number().default(listEmployeesQueryPageDefault),
   pageSize: zod.coerce.number().default(listEmployeesQueryPageSizeDefault),
 });
