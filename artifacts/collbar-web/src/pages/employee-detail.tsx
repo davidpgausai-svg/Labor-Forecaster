@@ -1611,22 +1611,66 @@ export default function EmployeeDetail() {
                 )}
               </>
             ) : (
-              <div className="space-y-1.5">
-                <Label>Bargaining Unit</Label>
-                <Select
-                  value={positionForm.bargainingUnitId}
-                  onValueChange={(v) => setPositionForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Select unit…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(units ?? []).map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label>Bargaining Unit</Label>
+                  <Select
+                    value={positionForm.bargainingUnitId}
+                    onValueChange={(v) => setPositionForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
+                  >
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue placeholder="Select unit…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(units ?? []).map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {positionForm.bargainingUnitId && (
+                  <div className="space-y-1.5">
+                    <Label>Salary Schedule</Label>
+                    {(() => {
+                      const schedules = (posUnionScheduleData as unknown as SalaryScheduleWithGrid[]) ?? [];
+                      if (schedules.length === 0) {
+                        return (
+                          <p className="text-xs text-amber-400 border border-amber-500/30 rounded-md px-3 py-2 bg-amber-500/10">
+                            No salary schedule configured for this bargaining unit.
+                          </p>
+                        );
+                      }
+                      if (schedules.length === 1) {
+                        return (
+                          <div className="text-sm px-3 py-2 rounded-md border border-border bg-muted/20 text-muted-foreground">
+                            {schedules[0].name}
+                            <span className="ml-2 text-xs">
+                              {posUnionLanes.length > 0 ? `${posUnionLanes.length} lanes · step/lane grid` : "step-only"}
+                            </span>
+                          </div>
+                        );
+                      }
+                      // Multiple schedules — let the user pick
+                      return (
+                        <Select
+                          value={positionForm.compensationScheduleId}
+                          onValueChange={(v) => setPositionForm((f) => ({ ...f, compensationScheduleId: v, currentLaneId: "" }))}
+                        >
+                          <SelectTrigger className="bg-background border-border">
+                            <SelectValue placeholder="Select salary schedule…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {schedules.map((sc) => (
+                              <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                  </div>
+                )}
+              </>
             )}
 
             {/* FTE — always shown */}
