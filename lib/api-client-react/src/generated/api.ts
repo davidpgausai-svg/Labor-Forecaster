@@ -18,6 +18,14 @@ import type {
 
 import type {
   BargainingUnit,
+  BenefitEligibilityRule,
+  BenefitPlanInput,
+  BenefitPlanRate,
+  BenefitPlanTier,
+  BenefitPlanType,
+  BenefitPlanWithDetails,
+  BenefitRateInput,
+  BenefitTierInput,
   BulkUpsertImportGridCellsRequest,
   BulkUpsertIndexGridIndicesRequest,
   CompareScenariosParams,
@@ -49,6 +57,11 @@ import type {
   EmployeeStipendAssignment,
   EmployeeStipendWithDefinition,
   EmployeeWithProjections,
+  EmployerAccountContribution,
+  EmployerFlatCost,
+  EmployerFlatCostInput,
+  EmployerTaxConfig,
+  EmployerTaxConfigInput,
   ExportEmployeesParams,
   FlatRateCategory,
   GenerateReportBody,
@@ -56,6 +69,9 @@ import type {
   GetEmployeeParams,
   GetHeatmapDataParams,
   GetSettingsParams,
+  GetTaxConfigParams,
+  GroupBenefitAssignment,
+  GroupRetirementAssignment,
   HealthStatus,
   HeatmapData,
   HourlyScheduleWithCategories,
@@ -67,12 +83,19 @@ import type {
   IndexGridConfigWithIndices,
   InitScenarioGroupConfigs200,
   ListBargainingUnitsParams,
+  ListBenefitEligibilityRulesParams,
+  ListBenefitPlansParams,
   ListCompensationSchedulesParams,
   ListEmployeeGroupsParams,
   ListEmployeesParams,
+  ListEmployerFlatCostsParams,
+  ListGroupBenefitAssignmentsParams,
+  ListGroupRetirementAssignmentsParams,
   ListHourlySchedulesParams,
+  ListHsaHraContributionsParams,
   ListReportsParams,
   ListRetirementEligibleEmployeesParams,
+  ListRetirementPlansParams,
   ListSalarySchedulesParams,
   ListScenariosParams,
   PerDiemCap,
@@ -80,6 +103,8 @@ import type {
   ReportData,
   ReportSummary,
   RetirementEligibleEmployee,
+  RetirementPlan,
+  RetirementPlanInput,
   SalaryRangeRow,
   SalarySchedule,
   SalaryScheduleWithGrid,
@@ -89,6 +114,8 @@ import type {
   ScenarioSummary,
   ScenarioYearConfig,
   ScheduleIndex,
+  SetGroupBenefitAssignmentsBody,
+  SetGroupRetirementAssignmentsBody,
   StipendDefinition,
   StipendDefinitionWithAssignments,
   UpdateBargainingUnitRequest,
@@ -107,6 +134,8 @@ import type {
   UpdateScenarioRequest,
   UpdateStipendAssignmentRequest,
   UpdateStipendDefinitionRequest,
+  UpsertBenefitEligibilityRulesBody,
+  UpsertHsaHraContributionsBody,
   UpsertIndexGridConfigRequest,
   UpsertPerDiemConfigRequest,
 } from "./api.schemas";
@@ -3880,6 +3909,2217 @@ export function useExportEmployees<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List benefit plan types with tiers and rates
+ */
+export const getListBenefitPlansUrl = (params: ListBenefitPlansParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/benefits/plans?${stringifiedParams}`
+    : `/api/benefits/plans`;
+};
+
+export const listBenefitPlans = async (
+  params: ListBenefitPlansParams,
+  options?: RequestInit,
+): Promise<BenefitPlanWithDetails[]> => {
+  return customFetch<BenefitPlanWithDetails[]>(getListBenefitPlansUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBenefitPlansQueryKey = (
+  params?: ListBenefitPlansParams,
+) => {
+  return [`/api/benefits/plans`, ...(params ? [params] : [])] as const;
+};
+
+export const getListBenefitPlansQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBenefitPlans>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListBenefitPlansParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBenefitPlans>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBenefitPlansQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBenefitPlans>>
+  > = ({ signal }) => listBenefitPlans(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBenefitPlans>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBenefitPlansQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBenefitPlans>>
+>;
+export type ListBenefitPlansQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List benefit plan types with tiers and rates
+ */
+
+export function useListBenefitPlans<
+  TData = Awaited<ReturnType<typeof listBenefitPlans>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListBenefitPlansParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBenefitPlans>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBenefitPlansQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a benefit plan type
+ */
+export const getCreateBenefitPlanUrl = () => {
+  return `/api/benefits/plans`;
+};
+
+export const createBenefitPlan = async (
+  benefitPlanInput: BenefitPlanInput,
+  options?: RequestInit,
+): Promise<BenefitPlanType> => {
+  return customFetch<BenefitPlanType>(getCreateBenefitPlanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(benefitPlanInput),
+  });
+};
+
+export const getCreateBenefitPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBenefitPlan>>,
+    TError,
+    { data: BodyType<BenefitPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBenefitPlan>>,
+  TError,
+  { data: BodyType<BenefitPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["createBenefitPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBenefitPlan>>,
+    { data: BodyType<BenefitPlanInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBenefitPlan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBenefitPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBenefitPlan>>
+>;
+export type CreateBenefitPlanMutationBody = BodyType<BenefitPlanInput>;
+export type CreateBenefitPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a benefit plan type
+ */
+export const useCreateBenefitPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBenefitPlan>>,
+    TError,
+    { data: BodyType<BenefitPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBenefitPlan>>,
+  TError,
+  { data: BodyType<BenefitPlanInput> },
+  TContext
+> => {
+  return useMutation(getCreateBenefitPlanMutationOptions(options));
+};
+
+/**
+ * @summary Update a benefit plan type
+ */
+export const getUpdateBenefitPlanUrl = (id: string) => {
+  return `/api/benefits/plans/${id}`;
+};
+
+export const updateBenefitPlan = async (
+  id: string,
+  benefitPlanInput: BenefitPlanInput,
+  options?: RequestInit,
+): Promise<BenefitPlanType> => {
+  return customFetch<BenefitPlanType>(getUpdateBenefitPlanUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(benefitPlanInput),
+  });
+};
+
+export const getUpdateBenefitPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBenefitPlan>>,
+    TError,
+    { id: string; data: BodyType<BenefitPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBenefitPlan>>,
+  TError,
+  { id: string; data: BodyType<BenefitPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["updateBenefitPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBenefitPlan>>,
+    { id: string; data: BodyType<BenefitPlanInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBenefitPlan(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBenefitPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBenefitPlan>>
+>;
+export type UpdateBenefitPlanMutationBody = BodyType<BenefitPlanInput>;
+export type UpdateBenefitPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a benefit plan type
+ */
+export const useUpdateBenefitPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBenefitPlan>>,
+    TError,
+    { id: string; data: BodyType<BenefitPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBenefitPlan>>,
+  TError,
+  { id: string; data: BodyType<BenefitPlanInput> },
+  TContext
+> => {
+  return useMutation(getUpdateBenefitPlanMutationOptions(options));
+};
+
+/**
+ * @summary Delete a benefit plan type
+ */
+export const getDeleteBenefitPlanUrl = (id: string) => {
+  return `/api/benefits/plans/${id}`;
+};
+
+export const deleteBenefitPlan = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBenefitPlanUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBenefitPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBenefitPlan>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBenefitPlan>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteBenefitPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBenefitPlan>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBenefitPlan(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBenefitPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBenefitPlan>>
+>;
+
+export type DeleteBenefitPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a benefit plan type
+ */
+export const useDeleteBenefitPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBenefitPlan>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBenefitPlan>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteBenefitPlanMutationOptions(options));
+};
+
+/**
+ * @summary Batch upsert all tiers for a plan
+ */
+export const getUpsertBenefitPlanTiersUrl = (id: string) => {
+  return `/api/benefits/plans/${id}/tiers`;
+};
+
+export const upsertBenefitPlanTiers = async (
+  id: string,
+  benefitTierInput: BenefitTierInput[],
+  options?: RequestInit,
+): Promise<BenefitPlanTier[]> => {
+  return customFetch<BenefitPlanTier[]>(getUpsertBenefitPlanTiersUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(benefitTierInput),
+  });
+};
+
+export const getUpsertBenefitPlanTiersMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertBenefitPlanTiers>>,
+    TError,
+    { id: string; data: BodyType<BenefitTierInput[]> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertBenefitPlanTiers>>,
+  TError,
+  { id: string; data: BodyType<BenefitTierInput[]> },
+  TContext
+> => {
+  const mutationKey = ["upsertBenefitPlanTiers"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertBenefitPlanTiers>>,
+    { id: string; data: BodyType<BenefitTierInput[]> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return upsertBenefitPlanTiers(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertBenefitPlanTiersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertBenefitPlanTiers>>
+>;
+export type UpsertBenefitPlanTiersMutationBody = BodyType<BenefitTierInput[]>;
+export type UpsertBenefitPlanTiersMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Batch upsert all tiers for a plan
+ */
+export const useUpsertBenefitPlanTiers = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertBenefitPlanTiers>>,
+    TError,
+    { id: string; data: BodyType<BenefitTierInput[]> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertBenefitPlanTiers>>,
+  TError,
+  { id: string; data: BodyType<BenefitTierInput[]> },
+  TContext
+> => {
+  return useMutation(getUpsertBenefitPlanTiersMutationOptions(options));
+};
+
+/**
+ * @summary Upsert rate config for a plan
+ */
+export const getUpsertBenefitPlanRateUrl = (id: string) => {
+  return `/api/benefits/plans/${id}/rate`;
+};
+
+export const upsertBenefitPlanRate = async (
+  id: string,
+  benefitRateInput: BenefitRateInput,
+  options?: RequestInit,
+): Promise<BenefitPlanRate> => {
+  return customFetch<BenefitPlanRate>(getUpsertBenefitPlanRateUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(benefitRateInput),
+  });
+};
+
+export const getUpsertBenefitPlanRateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertBenefitPlanRate>>,
+    TError,
+    { id: string; data: BodyType<BenefitRateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertBenefitPlanRate>>,
+  TError,
+  { id: string; data: BodyType<BenefitRateInput> },
+  TContext
+> => {
+  const mutationKey = ["upsertBenefitPlanRate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertBenefitPlanRate>>,
+    { id: string; data: BodyType<BenefitRateInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return upsertBenefitPlanRate(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertBenefitPlanRateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertBenefitPlanRate>>
+>;
+export type UpsertBenefitPlanRateMutationBody = BodyType<BenefitRateInput>;
+export type UpsertBenefitPlanRateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upsert rate config for a plan
+ */
+export const useUpsertBenefitPlanRate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertBenefitPlanRate>>,
+    TError,
+    { id: string; data: BodyType<BenefitRateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertBenefitPlanRate>>,
+  TError,
+  { id: string; data: BodyType<BenefitRateInput> },
+  TContext
+> => {
+  return useMutation(getUpsertBenefitPlanRateMutationOptions(options));
+};
+
+/**
+ * @summary List eligibility rules for a district
+ */
+export const getListBenefitEligibilityRulesUrl = (
+  params: ListBenefitEligibilityRulesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/benefits/eligibility?${stringifiedParams}`
+    : `/api/benefits/eligibility`;
+};
+
+export const listBenefitEligibilityRules = async (
+  params: ListBenefitEligibilityRulesParams,
+  options?: RequestInit,
+): Promise<BenefitEligibilityRule[]> => {
+  return customFetch<BenefitEligibilityRule[]>(
+    getListBenefitEligibilityRulesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListBenefitEligibilityRulesQueryKey = (
+  params?: ListBenefitEligibilityRulesParams,
+) => {
+  return [`/api/benefits/eligibility`, ...(params ? [params] : [])] as const;
+};
+
+export const getListBenefitEligibilityRulesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBenefitEligibilityRules>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListBenefitEligibilityRulesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBenefitEligibilityRules>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBenefitEligibilityRulesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBenefitEligibilityRules>>
+  > = ({ signal }) =>
+    listBenefitEligibilityRules(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBenefitEligibilityRules>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBenefitEligibilityRulesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBenefitEligibilityRules>>
+>;
+export type ListBenefitEligibilityRulesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List eligibility rules for a district
+ */
+
+export function useListBenefitEligibilityRules<
+  TData = Awaited<ReturnType<typeof listBenefitEligibilityRules>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListBenefitEligibilityRulesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBenefitEligibilityRules>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBenefitEligibilityRulesQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Batch upsert eligibility rules
+ */
+export const getUpsertBenefitEligibilityRulesUrl = () => {
+  return `/api/benefits/eligibility`;
+};
+
+export const upsertBenefitEligibilityRules = async (
+  upsertBenefitEligibilityRulesBody: UpsertBenefitEligibilityRulesBody,
+  options?: RequestInit,
+): Promise<BenefitEligibilityRule[]> => {
+  return customFetch<BenefitEligibilityRule[]>(
+    getUpsertBenefitEligibilityRulesUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(upsertBenefitEligibilityRulesBody),
+    },
+  );
+};
+
+export const getUpsertBenefitEligibilityRulesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertBenefitEligibilityRules>>,
+    TError,
+    { data: BodyType<UpsertBenefitEligibilityRulesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertBenefitEligibilityRules>>,
+  TError,
+  { data: BodyType<UpsertBenefitEligibilityRulesBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertBenefitEligibilityRules"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertBenefitEligibilityRules>>,
+    { data: BodyType<UpsertBenefitEligibilityRulesBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertBenefitEligibilityRules(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertBenefitEligibilityRulesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertBenefitEligibilityRules>>
+>;
+export type UpsertBenefitEligibilityRulesMutationBody =
+  BodyType<UpsertBenefitEligibilityRulesBody>;
+export type UpsertBenefitEligibilityRulesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Batch upsert eligibility rules
+ */
+export const useUpsertBenefitEligibilityRules = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertBenefitEligibilityRules>>,
+    TError,
+    { data: BodyType<UpsertBenefitEligibilityRulesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertBenefitEligibilityRules>>,
+  TError,
+  { data: BodyType<UpsertBenefitEligibilityRulesBody> },
+  TContext
+> => {
+  return useMutation(getUpsertBenefitEligibilityRulesMutationOptions(options));
+};
+
+/**
+ * @summary List HSA/HRA employer contributions
+ */
+export const getListHsaHraContributionsUrl = (
+  params: ListHsaHraContributionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/benefits/hsa-hra?${stringifiedParams}`
+    : `/api/benefits/hsa-hra`;
+};
+
+export const listHsaHraContributions = async (
+  params: ListHsaHraContributionsParams,
+  options?: RequestInit,
+): Promise<EmployerAccountContribution[]> => {
+  return customFetch<EmployerAccountContribution[]>(
+    getListHsaHraContributionsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListHsaHraContributionsQueryKey = (
+  params?: ListHsaHraContributionsParams,
+) => {
+  return [`/api/benefits/hsa-hra`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHsaHraContributionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHsaHraContributions>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListHsaHraContributionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHsaHraContributions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHsaHraContributionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHsaHraContributions>>
+  > = ({ signal }) =>
+    listHsaHraContributions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHsaHraContributions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHsaHraContributionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHsaHraContributions>>
+>;
+export type ListHsaHraContributionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List HSA/HRA employer contributions
+ */
+
+export function useListHsaHraContributions<
+  TData = Awaited<ReturnType<typeof listHsaHraContributions>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListHsaHraContributionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHsaHraContributions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHsaHraContributionsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Batch upsert HSA/HRA contributions
+ */
+export const getUpsertHsaHraContributionsUrl = () => {
+  return `/api/benefits/hsa-hra`;
+};
+
+export const upsertHsaHraContributions = async (
+  upsertHsaHraContributionsBody: UpsertHsaHraContributionsBody,
+  options?: RequestInit,
+): Promise<EmployerAccountContribution[]> => {
+  return customFetch<EmployerAccountContribution[]>(
+    getUpsertHsaHraContributionsUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(upsertHsaHraContributionsBody),
+    },
+  );
+};
+
+export const getUpsertHsaHraContributionsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertHsaHraContributions>>,
+    TError,
+    { data: BodyType<UpsertHsaHraContributionsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertHsaHraContributions>>,
+  TError,
+  { data: BodyType<UpsertHsaHraContributionsBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertHsaHraContributions"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertHsaHraContributions>>,
+    { data: BodyType<UpsertHsaHraContributionsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertHsaHraContributions(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertHsaHraContributionsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertHsaHraContributions>>
+>;
+export type UpsertHsaHraContributionsMutationBody =
+  BodyType<UpsertHsaHraContributionsBody>;
+export type UpsertHsaHraContributionsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Batch upsert HSA/HRA contributions
+ */
+export const useUpsertHsaHraContributions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertHsaHraContributions>>,
+    TError,
+    { data: BodyType<UpsertHsaHraContributionsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertHsaHraContributions>>,
+  TError,
+  { data: BodyType<UpsertHsaHraContributionsBody> },
+  TContext
+> => {
+  return useMutation(getUpsertHsaHraContributionsMutationOptions(options));
+};
+
+/**
+ * @summary List employer flat costs
+ */
+export const getListEmployerFlatCostsUrl = (
+  params: ListEmployerFlatCostsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/benefits/flat-costs?${stringifiedParams}`
+    : `/api/benefits/flat-costs`;
+};
+
+export const listEmployerFlatCosts = async (
+  params: ListEmployerFlatCostsParams,
+  options?: RequestInit,
+): Promise<EmployerFlatCost[]> => {
+  return customFetch<EmployerFlatCost[]>(getListEmployerFlatCostsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListEmployerFlatCostsQueryKey = (
+  params?: ListEmployerFlatCostsParams,
+) => {
+  return [`/api/benefits/flat-costs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListEmployerFlatCostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEmployerFlatCosts>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListEmployerFlatCostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmployerFlatCosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListEmployerFlatCostsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEmployerFlatCosts>>
+  > = ({ signal }) =>
+    listEmployerFlatCosts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEmployerFlatCosts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEmployerFlatCostsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEmployerFlatCosts>>
+>;
+export type ListEmployerFlatCostsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List employer flat costs
+ */
+
+export function useListEmployerFlatCosts<
+  TData = Awaited<ReturnType<typeof listEmployerFlatCosts>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListEmployerFlatCostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEmployerFlatCosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEmployerFlatCostsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create employer flat cost
+ */
+export const getCreateEmployerFlatCostUrl = () => {
+  return `/api/benefits/flat-costs`;
+};
+
+export const createEmployerFlatCost = async (
+  employerFlatCostInput: EmployerFlatCostInput,
+  options?: RequestInit,
+): Promise<EmployerFlatCost> => {
+  return customFetch<EmployerFlatCost>(getCreateEmployerFlatCostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(employerFlatCostInput),
+  });
+};
+
+export const getCreateEmployerFlatCostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmployerFlatCost>>,
+    TError,
+    { data: BodyType<EmployerFlatCostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEmployerFlatCost>>,
+  TError,
+  { data: BodyType<EmployerFlatCostInput> },
+  TContext
+> => {
+  const mutationKey = ["createEmployerFlatCost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEmployerFlatCost>>,
+    { data: BodyType<EmployerFlatCostInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createEmployerFlatCost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEmployerFlatCostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEmployerFlatCost>>
+>;
+export type CreateEmployerFlatCostMutationBody =
+  BodyType<EmployerFlatCostInput>;
+export type CreateEmployerFlatCostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create employer flat cost
+ */
+export const useCreateEmployerFlatCost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmployerFlatCost>>,
+    TError,
+    { data: BodyType<EmployerFlatCostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEmployerFlatCost>>,
+  TError,
+  { data: BodyType<EmployerFlatCostInput> },
+  TContext
+> => {
+  return useMutation(getCreateEmployerFlatCostMutationOptions(options));
+};
+
+/**
+ * @summary Update employer flat cost
+ */
+export const getUpdateEmployerFlatCostUrl = (id: string) => {
+  return `/api/benefits/flat-costs/${id}`;
+};
+
+export const updateEmployerFlatCost = async (
+  id: string,
+  employerFlatCostInput: EmployerFlatCostInput,
+  options?: RequestInit,
+): Promise<EmployerFlatCost> => {
+  return customFetch<EmployerFlatCost>(getUpdateEmployerFlatCostUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(employerFlatCostInput),
+  });
+};
+
+export const getUpdateEmployerFlatCostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEmployerFlatCost>>,
+    TError,
+    { id: string; data: BodyType<EmployerFlatCostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEmployerFlatCost>>,
+  TError,
+  { id: string; data: BodyType<EmployerFlatCostInput> },
+  TContext
+> => {
+  const mutationKey = ["updateEmployerFlatCost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEmployerFlatCost>>,
+    { id: string; data: BodyType<EmployerFlatCostInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateEmployerFlatCost(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEmployerFlatCostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEmployerFlatCost>>
+>;
+export type UpdateEmployerFlatCostMutationBody =
+  BodyType<EmployerFlatCostInput>;
+export type UpdateEmployerFlatCostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update employer flat cost
+ */
+export const useUpdateEmployerFlatCost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEmployerFlatCost>>,
+    TError,
+    { id: string; data: BodyType<EmployerFlatCostInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEmployerFlatCost>>,
+  TError,
+  { id: string; data: BodyType<EmployerFlatCostInput> },
+  TContext
+> => {
+  return useMutation(getUpdateEmployerFlatCostMutationOptions(options));
+};
+
+/**
+ * @summary Delete employer flat cost
+ */
+export const getDeleteEmployerFlatCostUrl = (id: string) => {
+  return `/api/benefits/flat-costs/${id}`;
+};
+
+export const deleteEmployerFlatCost = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteEmployerFlatCostUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteEmployerFlatCostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEmployerFlatCost>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteEmployerFlatCost>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteEmployerFlatCost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteEmployerFlatCost>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteEmployerFlatCost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteEmployerFlatCostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteEmployerFlatCost>>
+>;
+
+export type DeleteEmployerFlatCostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete employer flat cost
+ */
+export const useDeleteEmployerFlatCost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEmployerFlatCost>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteEmployerFlatCost>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteEmployerFlatCostMutationOptions(options));
+};
+
+/**
+ * @summary List benefit plans assigned to a group
+ */
+export const getListGroupBenefitAssignmentsUrl = (
+  params: ListGroupBenefitAssignmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/benefits/group-assignments?${stringifiedParams}`
+    : `/api/benefits/group-assignments`;
+};
+
+export const listGroupBenefitAssignments = async (
+  params: ListGroupBenefitAssignmentsParams,
+  options?: RequestInit,
+): Promise<GroupBenefitAssignment[]> => {
+  return customFetch<GroupBenefitAssignment[]>(
+    getListGroupBenefitAssignmentsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListGroupBenefitAssignmentsQueryKey = (
+  params?: ListGroupBenefitAssignmentsParams,
+) => {
+  return [
+    `/api/benefits/group-assignments`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListGroupBenefitAssignmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGroupBenefitAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListGroupBenefitAssignmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGroupBenefitAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListGroupBenefitAssignmentsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGroupBenefitAssignments>>
+  > = ({ signal }) =>
+    listGroupBenefitAssignments(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGroupBenefitAssignments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListGroupBenefitAssignmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGroupBenefitAssignments>>
+>;
+export type ListGroupBenefitAssignmentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List benefit plans assigned to a group
+ */
+
+export function useListGroupBenefitAssignments<
+  TData = Awaited<ReturnType<typeof listGroupBenefitAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListGroupBenefitAssignmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGroupBenefitAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListGroupBenefitAssignmentsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set benefit plan assignments for a group
+ */
+export const getSetGroupBenefitAssignmentsUrl = () => {
+  return `/api/benefits/group-assignments`;
+};
+
+export const setGroupBenefitAssignments = async (
+  setGroupBenefitAssignmentsBody: SetGroupBenefitAssignmentsBody,
+  options?: RequestInit,
+): Promise<GroupBenefitAssignment[]> => {
+  return customFetch<GroupBenefitAssignment[]>(
+    getSetGroupBenefitAssignmentsUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(setGroupBenefitAssignmentsBody),
+    },
+  );
+};
+
+export const getSetGroupBenefitAssignmentsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGroupBenefitAssignments>>,
+    TError,
+    { data: BodyType<SetGroupBenefitAssignmentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGroupBenefitAssignments>>,
+  TError,
+  { data: BodyType<SetGroupBenefitAssignmentsBody> },
+  TContext
+> => {
+  const mutationKey = ["setGroupBenefitAssignments"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGroupBenefitAssignments>>,
+    { data: BodyType<SetGroupBenefitAssignmentsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setGroupBenefitAssignments(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGroupBenefitAssignmentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGroupBenefitAssignments>>
+>;
+export type SetGroupBenefitAssignmentsMutationBody =
+  BodyType<SetGroupBenefitAssignmentsBody>;
+export type SetGroupBenefitAssignmentsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set benefit plan assignments for a group
+ */
+export const useSetGroupBenefitAssignments = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGroupBenefitAssignments>>,
+    TError,
+    { data: BodyType<SetGroupBenefitAssignmentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setGroupBenefitAssignments>>,
+  TError,
+  { data: BodyType<SetGroupBenefitAssignmentsBody> },
+  TContext
+> => {
+  return useMutation(getSetGroupBenefitAssignmentsMutationOptions(options));
+};
+
+/**
+ * @summary List retirement plans for a district
+ */
+export const getListRetirementPlansUrl = (
+  params: ListRetirementPlansParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/retirement/plans?${stringifiedParams}`
+    : `/api/retirement/plans`;
+};
+
+export const listRetirementPlans = async (
+  params: ListRetirementPlansParams,
+  options?: RequestInit,
+): Promise<RetirementPlan[]> => {
+  return customFetch<RetirementPlan[]>(getListRetirementPlansUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRetirementPlansQueryKey = (
+  params?: ListRetirementPlansParams,
+) => {
+  return [`/api/retirement/plans`, ...(params ? [params] : [])] as const;
+};
+
+export const getListRetirementPlansQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRetirementPlans>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListRetirementPlansParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRetirementPlans>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListRetirementPlansQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listRetirementPlans>>
+  > = ({ signal }) =>
+    listRetirementPlans(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRetirementPlans>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRetirementPlansQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRetirementPlans>>
+>;
+export type ListRetirementPlansQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List retirement plans for a district
+ */
+
+export function useListRetirementPlans<
+  TData = Awaited<ReturnType<typeof listRetirementPlans>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListRetirementPlansParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRetirementPlans>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRetirementPlansQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a retirement plan
+ */
+export const getCreateRetirementPlanUrl = () => {
+  return `/api/retirement/plans`;
+};
+
+export const createRetirementPlan = async (
+  retirementPlanInput: RetirementPlanInput,
+  options?: RequestInit,
+): Promise<RetirementPlan> => {
+  return customFetch<RetirementPlan>(getCreateRetirementPlanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(retirementPlanInput),
+  });
+};
+
+export const getCreateRetirementPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRetirementPlan>>,
+    TError,
+    { data: BodyType<RetirementPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRetirementPlan>>,
+  TError,
+  { data: BodyType<RetirementPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["createRetirementPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRetirementPlan>>,
+    { data: BodyType<RetirementPlanInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRetirementPlan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRetirementPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRetirementPlan>>
+>;
+export type CreateRetirementPlanMutationBody = BodyType<RetirementPlanInput>;
+export type CreateRetirementPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a retirement plan
+ */
+export const useCreateRetirementPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRetirementPlan>>,
+    TError,
+    { data: BodyType<RetirementPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRetirementPlan>>,
+  TError,
+  { data: BodyType<RetirementPlanInput> },
+  TContext
+> => {
+  return useMutation(getCreateRetirementPlanMutationOptions(options));
+};
+
+/**
+ * @summary Update a retirement plan
+ */
+export const getUpdateRetirementPlanUrl = (id: string) => {
+  return `/api/retirement/plans/${id}`;
+};
+
+export const updateRetirementPlan = async (
+  id: string,
+  retirementPlanInput: RetirementPlanInput,
+  options?: RequestInit,
+): Promise<RetirementPlan> => {
+  return customFetch<RetirementPlan>(getUpdateRetirementPlanUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(retirementPlanInput),
+  });
+};
+
+export const getUpdateRetirementPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRetirementPlan>>,
+    TError,
+    { id: string; data: BodyType<RetirementPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRetirementPlan>>,
+  TError,
+  { id: string; data: BodyType<RetirementPlanInput> },
+  TContext
+> => {
+  const mutationKey = ["updateRetirementPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRetirementPlan>>,
+    { id: string; data: BodyType<RetirementPlanInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRetirementPlan(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRetirementPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRetirementPlan>>
+>;
+export type UpdateRetirementPlanMutationBody = BodyType<RetirementPlanInput>;
+export type UpdateRetirementPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a retirement plan
+ */
+export const useUpdateRetirementPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRetirementPlan>>,
+    TError,
+    { id: string; data: BodyType<RetirementPlanInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRetirementPlan>>,
+  TError,
+  { id: string; data: BodyType<RetirementPlanInput> },
+  TContext
+> => {
+  return useMutation(getUpdateRetirementPlanMutationOptions(options));
+};
+
+/**
+ * @summary Delete a retirement plan
+ */
+export const getDeleteRetirementPlanUrl = (id: string) => {
+  return `/api/retirement/plans/${id}`;
+};
+
+export const deleteRetirementPlan = async (
+  id: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRetirementPlanUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRetirementPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRetirementPlan>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRetirementPlan>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteRetirementPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRetirementPlan>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteRetirementPlan(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRetirementPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRetirementPlan>>
+>;
+
+export type DeleteRetirementPlanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a retirement plan
+ */
+export const useDeleteRetirementPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRetirementPlan>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRetirementPlan>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteRetirementPlanMutationOptions(options));
+};
+
+/**
+ * @summary List retirement plans assigned to a group
+ */
+export const getListGroupRetirementAssignmentsUrl = (
+  params: ListGroupRetirementAssignmentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/retirement/group-assignments?${stringifiedParams}`
+    : `/api/retirement/group-assignments`;
+};
+
+export const listGroupRetirementAssignments = async (
+  params: ListGroupRetirementAssignmentsParams,
+  options?: RequestInit,
+): Promise<GroupRetirementAssignment[]> => {
+  return customFetch<GroupRetirementAssignment[]>(
+    getListGroupRetirementAssignmentsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListGroupRetirementAssignmentsQueryKey = (
+  params?: ListGroupRetirementAssignmentsParams,
+) => {
+  return [
+    `/api/retirement/group-assignments`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListGroupRetirementAssignmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGroupRetirementAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListGroupRetirementAssignmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGroupRetirementAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListGroupRetirementAssignmentsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGroupRetirementAssignments>>
+  > = ({ signal }) =>
+    listGroupRetirementAssignments(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGroupRetirementAssignments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListGroupRetirementAssignmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGroupRetirementAssignments>>
+>;
+export type ListGroupRetirementAssignmentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List retirement plans assigned to a group
+ */
+
+export function useListGroupRetirementAssignments<
+  TData = Awaited<ReturnType<typeof listGroupRetirementAssignments>>,
+  TError = ErrorType<unknown>,
+>(
+  params: ListGroupRetirementAssignmentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGroupRetirementAssignments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListGroupRetirementAssignmentsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set retirement plan assignments for a group
+ */
+export const getSetGroupRetirementAssignmentsUrl = () => {
+  return `/api/retirement/group-assignments`;
+};
+
+export const setGroupRetirementAssignments = async (
+  setGroupRetirementAssignmentsBody: SetGroupRetirementAssignmentsBody,
+  options?: RequestInit,
+): Promise<GroupRetirementAssignment[]> => {
+  return customFetch<GroupRetirementAssignment[]>(
+    getSetGroupRetirementAssignmentsUrl(),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(setGroupRetirementAssignmentsBody),
+    },
+  );
+};
+
+export const getSetGroupRetirementAssignmentsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGroupRetirementAssignments>>,
+    TError,
+    { data: BodyType<SetGroupRetirementAssignmentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGroupRetirementAssignments>>,
+  TError,
+  { data: BodyType<SetGroupRetirementAssignmentsBody> },
+  TContext
+> => {
+  const mutationKey = ["setGroupRetirementAssignments"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGroupRetirementAssignments>>,
+    { data: BodyType<SetGroupRetirementAssignmentsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setGroupRetirementAssignments(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGroupRetirementAssignmentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGroupRetirementAssignments>>
+>;
+export type SetGroupRetirementAssignmentsMutationBody =
+  BodyType<SetGroupRetirementAssignmentsBody>;
+export type SetGroupRetirementAssignmentsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set retirement plan assignments for a group
+ */
+export const useSetGroupRetirementAssignments = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGroupRetirementAssignments>>,
+    TError,
+    { data: BodyType<SetGroupRetirementAssignmentsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setGroupRetirementAssignments>>,
+  TError,
+  { data: BodyType<SetGroupRetirementAssignmentsBody> },
+  TContext
+> => {
+  return useMutation(getSetGroupRetirementAssignmentsMutationOptions(options));
+};
+
+/**
+ * @summary Get employer tax config for a district
+ */
+export const getGetTaxConfigUrl = (params: GetTaxConfigParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/taxes/config?${stringifiedParams}`
+    : `/api/taxes/config`;
+};
+
+export const getTaxConfig = async (
+  params: GetTaxConfigParams,
+  options?: RequestInit,
+): Promise<EmployerTaxConfig> => {
+  return customFetch<EmployerTaxConfig>(getGetTaxConfigUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTaxConfigQueryKey = (params?: GetTaxConfigParams) => {
+  return [`/api/taxes/config`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTaxConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTaxConfig>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetTaxConfigParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTaxConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTaxConfigQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaxConfig>>> = ({
+    signal,
+  }) => getTaxConfig(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTaxConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTaxConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTaxConfig>>
+>;
+export type GetTaxConfigQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get employer tax config for a district
+ */
+
+export function useGetTaxConfig<
+  TData = Awaited<ReturnType<typeof getTaxConfig>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetTaxConfigParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTaxConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTaxConfigQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Upsert employer tax config for a district
+ */
+export const getUpsertTaxConfigUrl = () => {
+  return `/api/taxes/config`;
+};
+
+export const upsertTaxConfig = async (
+  employerTaxConfigInput: EmployerTaxConfigInput,
+  options?: RequestInit,
+): Promise<EmployerTaxConfig> => {
+  return customFetch<EmployerTaxConfig>(getUpsertTaxConfigUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(employerTaxConfigInput),
+  });
+};
+
+export const getUpsertTaxConfigMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertTaxConfig>>,
+    TError,
+    { data: BodyType<EmployerTaxConfigInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertTaxConfig>>,
+  TError,
+  { data: BodyType<EmployerTaxConfigInput> },
+  TContext
+> => {
+  const mutationKey = ["upsertTaxConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertTaxConfig>>,
+    { data: BodyType<EmployerTaxConfigInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertTaxConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertTaxConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertTaxConfig>>
+>;
+export type UpsertTaxConfigMutationBody = BodyType<EmployerTaxConfigInput>;
+export type UpsertTaxConfigMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upsert employer tax config for a district
+ */
+export const useUpsertTaxConfig = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertTaxConfig>>,
+    TError,
+    { data: BodyType<EmployerTaxConfigInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertTaxConfig>>,
+  TError,
+  { data: BodyType<EmployerTaxConfigInput> },
+  TContext
+> => {
+  return useMutation(getUpsertTaxConfigMutationOptions(options));
+};
 
 /**
  * @summary List available scenario reports for a district

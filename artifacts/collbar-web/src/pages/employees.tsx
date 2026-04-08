@@ -76,7 +76,7 @@ export default function Employees() {
 
   const [search, setSearch] = useState("");
   const [inputValue, setInputValue] = useState("");
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(searchTimeout.current), []);
   const [rosterFilter, setRosterFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);

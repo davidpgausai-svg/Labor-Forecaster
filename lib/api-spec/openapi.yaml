@@ -894,6 +894,526 @@ paths:
               schema:
                 type: string
 
+  # ── Employer Cost Center ────────────────────────────────────────────────────
+
+  /benefits/plans:
+    get:
+      operationId: listBenefitPlans
+      tags: [benefits]
+      summary: List benefit plan types with tiers and rates
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of benefit plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BenefitPlanWithDetails"
+    post:
+      operationId: createBenefitPlan
+      tags: [benefits]
+      summary: Create a benefit plan type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BenefitPlanInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BenefitPlanType"
+
+  /benefits/plans/{id}:
+    put:
+      operationId: updateBenefitPlan
+      tags: [benefits]
+      summary: Update a benefit plan type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BenefitPlanInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BenefitPlanType"
+    delete:
+      operationId: deleteBenefitPlan
+      tags: [benefits]
+      summary: Delete a benefit plan type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /benefits/plans/{id}/tiers:
+    put:
+      operationId: upsertBenefitPlanTiers
+      tags: [benefits]
+      summary: Batch upsert all tiers for a plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/BenefitTierInput"
+      responses:
+        "200":
+          description: Updated tiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BenefitPlanTier"
+
+  /benefits/plans/{id}/rate:
+    put:
+      operationId: upsertBenefitPlanRate
+      tags: [benefits]
+      summary: Upsert rate config for a plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BenefitRateInput"
+      responses:
+        "200":
+          description: Updated rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BenefitPlanRate"
+
+  /benefits/eligibility:
+    get:
+      operationId: listBenefitEligibilityRules
+      tags: [benefits]
+      summary: List eligibility rules for a district
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of eligibility rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BenefitEligibilityRule"
+    put:
+      operationId: upsertBenefitEligibilityRules
+      tags: [benefits]
+      summary: Batch upsert eligibility rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                districtId:
+                  type: string
+                rules:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/BenefitEligibilityRuleInput"
+              required:
+                - districtId
+                - rules
+      responses:
+        "200":
+          description: Updated rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BenefitEligibilityRule"
+
+  /benefits/hsa-hra:
+    get:
+      operationId: listHsaHraContributions
+      tags: [benefits]
+      summary: List HSA/HRA employer contributions
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of contributions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployerAccountContribution"
+    put:
+      operationId: upsertHsaHraContributions
+      tags: [benefits]
+      summary: Batch upsert HSA/HRA contributions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                districtId:
+                  type: string
+                contributions:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EmployerAccountContributionInput"
+              required:
+                - districtId
+                - contributions
+      responses:
+        "200":
+          description: Updated contributions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployerAccountContribution"
+
+  /benefits/flat-costs:
+    get:
+      operationId: listEmployerFlatCosts
+      tags: [benefits]
+      summary: List employer flat costs
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of flat costs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployerFlatCost"
+    post:
+      operationId: createEmployerFlatCost
+      tags: [benefits]
+      summary: Create employer flat cost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployerFlatCostInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerFlatCost"
+
+  /benefits/flat-costs/{id}:
+    put:
+      operationId: updateEmployerFlatCost
+      tags: [benefits]
+      summary: Update employer flat cost
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployerFlatCostInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerFlatCost"
+    delete:
+      operationId: deleteEmployerFlatCost
+      tags: [benefits]
+      summary: Delete employer flat cost
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /benefits/group-assignments:
+    get:
+      operationId: listGroupBenefitAssignments
+      tags: [benefits]
+      summary: List benefit plans assigned to a group
+      parameters:
+        - name: employeeGroupId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupBenefitAssignment"
+    put:
+      operationId: setGroupBenefitAssignments
+      tags: [benefits]
+      summary: Set benefit plan assignments for a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employeeGroupId:
+                  type: string
+                benefitPlanTypeIds:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - employeeGroupId
+                - benefitPlanTypeIds
+      responses:
+        "200":
+          description: Updated assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupBenefitAssignment"
+
+  /retirement/plans:
+    get:
+      operationId: listRetirementPlans
+      tags: [retirement]
+      summary: List retirement plans for a district
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of retirement plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RetirementPlan"
+    post:
+      operationId: createRetirementPlan
+      tags: [retirement]
+      summary: Create a retirement plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetirementPlanInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetirementPlan"
+
+  /retirement/plans/{id}:
+    put:
+      operationId: updateRetirementPlan
+      tags: [retirement]
+      summary: Update a retirement plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetirementPlanInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetirementPlan"
+    delete:
+      operationId: deleteRetirementPlan
+      tags: [retirement]
+      summary: Delete a retirement plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /retirement/group-assignments:
+    get:
+      operationId: listGroupRetirementAssignments
+      tags: [retirement]
+      summary: List retirement plans assigned to a group
+      parameters:
+        - name: employeeGroupId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupRetirementAssignment"
+    put:
+      operationId: setGroupRetirementAssignments
+      tags: [retirement]
+      summary: Set retirement plan assignments for a group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employeeGroupId:
+                  type: string
+                retirementPlanIds:
+                  type: array
+                  items:
+                    type: string
+              required:
+                - employeeGroupId
+                - retirementPlanIds
+      responses:
+        "200":
+          description: Updated assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupRetirementAssignment"
+
+  /taxes/config:
+    get:
+      operationId: getTaxConfig
+      tags: [taxes]
+      summary: Get employer tax config for a district
+      parameters:
+        - name: districtId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tax config (null if not yet configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerTaxConfig"
+    put:
+      operationId: upsertTaxConfig
+      tags: [taxes]
+      summary: Upsert employer tax config for a district
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployerTaxConfigInput"
+      responses:
+        "200":
+          description: Updated tax config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerTaxConfig"
+
   /reports:
     get:
       operationId: listReports
@@ -4579,3 +5099,474 @@ components:
               - indexValue
       required:
         - indices
+
+    BenefitPlanType:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        category:
+          type: string
+        planName:
+          type: string
+        calculationMethod:
+          type: string
+        displayOrder:
+          type: number
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - category
+        - planName
+        - calculationMethod
+        - displayOrder
+        - isActive
+
+    BenefitPlanInput:
+      type: object
+      properties:
+        districtId:
+          type: string
+        category:
+          type: string
+        planName:
+          type: string
+        calculationMethod:
+          type: string
+          enum: [flat_dollar, rate_per_100, rate_per_1000, percent_of_salary]
+        displayOrder:
+          type: number
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+      required:
+        - districtId
+        - category
+        - planName
+        - calculationMethod
+
+    BenefitPlanTier:
+      type: object
+      properties:
+        id:
+          type: string
+        benefitPlanTypeId:
+          type: string
+        tier:
+          type: string
+        employerContributionAnnual:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - benefitPlanTypeId
+        - tier
+        - employerContributionAnnual
+
+    BenefitTierInput:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum: [ee_only, ee_spouse, ee_child, family]
+        employerContributionAnnual:
+          type: string
+      required:
+        - tier
+        - employerContributionAnnual
+
+    BenefitPlanRate:
+      type: object
+      properties:
+        id:
+          type: string
+        benefitPlanTypeId:
+          type: string
+        rate:
+          type: string
+        coveredEarningsCap:
+          type: string
+          nullable: true
+        benefitMultiplier:
+          type: string
+          nullable: true
+        flatBenefitAmount:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - benefitPlanTypeId
+        - rate
+
+    BenefitRateInput:
+      type: object
+      properties:
+        rate:
+          type: string
+        coveredEarningsCap:
+          type: string
+          nullable: true
+        benefitMultiplier:
+          type: string
+          nullable: true
+        flatBenefitAmount:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - rate
+
+    BenefitPlanWithDetails:
+      allOf:
+        - $ref: "#/components/schemas/BenefitPlanType"
+        - type: object
+          properties:
+            tiers:
+              type: array
+              items:
+                $ref: "#/components/schemas/BenefitPlanTier"
+            rate:
+              $ref: "#/components/schemas/BenefitPlanRate"
+              nullable: true
+          required:
+            - tiers
+
+    BenefitEligibilityRule:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        category:
+          type: string
+        minFteThreshold:
+          type: string
+        includePartTime:
+          type: boolean
+        includeSeasonal:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - category
+        - minFteThreshold
+        - includePartTime
+        - includeSeasonal
+
+    BenefitEligibilityRuleInput:
+      type: object
+      properties:
+        category:
+          type: string
+        minFteThreshold:
+          type: string
+        includePartTime:
+          type: boolean
+        includeSeasonal:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+      required:
+        - category
+        - minFteThreshold
+        - includePartTime
+        - includeSeasonal
+
+    EmployerAccountContribution:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        accountType:
+          type: string
+        tier:
+          type: string
+        employerContributionAnnual:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - accountType
+        - tier
+        - employerContributionAnnual
+
+    EmployerAccountContributionInput:
+      type: object
+      properties:
+        accountType:
+          type: string
+          enum: [hsa, hra]
+        tier:
+          type: string
+          enum: [ee_only, ee_spouse, ee_child, family]
+        employerContributionAnnual:
+          type: string
+      required:
+        - accountType
+        - tier
+        - employerContributionAnnual
+
+    EmployerFlatCost:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        costName:
+          type: string
+        annualCostPerEmployee:
+          type: string
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - costName
+        - annualCostPerEmployee
+        - isActive
+
+    EmployerFlatCostInput:
+      type: object
+      properties:
+        districtId:
+          type: string
+        costName:
+          type: string
+        annualCostPerEmployee:
+          type: string
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+      required:
+        - districtId
+        - costName
+        - annualCostPerEmployee
+
+    GroupBenefitAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeGroupId:
+          type: string
+        benefitPlanTypeId:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - employeeGroupId
+        - benefitPlanTypeId
+
+    RetirementPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        planName:
+          type: string
+        planType:
+          type: string
+        employerRate:
+          type: string
+        employerMatchCapPercent:
+          type: string
+          nullable: true
+        grossUpRate:
+          type: string
+        employeeRate:
+          type: string
+        isFicaExempt:
+          type: boolean
+        displayOrder:
+          type: number
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - planName
+        - planType
+        - employerRate
+        - grossUpRate
+        - employeeRate
+        - isFicaExempt
+        - displayOrder
+        - isActive
+
+    RetirementPlanInput:
+      type: object
+      properties:
+        districtId:
+          type: string
+        planName:
+          type: string
+        planType:
+          type: string
+          enum: [defined_benefit, defined_contribution]
+        employerRate:
+          type: string
+        employerMatchCapPercent:
+          type: string
+          nullable: true
+        grossUpRate:
+          type: string
+        employeeRate:
+          type: string
+        isFicaExempt:
+          type: boolean
+        displayOrder:
+          type: number
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+      required:
+        - districtId
+        - planName
+        - planType
+
+    GroupRetirementAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeGroupId:
+          type: string
+        retirementPlanId:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - employeeGroupId
+        - retirementPlanId
+
+    EmployerTaxConfig:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        ssRate:
+          type: string
+        ssWageBase:
+          type: string
+        medicareRate:
+          type: string
+        futaRate:
+          type: string
+        futaWageBase:
+          type: string
+        sutaRate:
+          type: string
+        sutaWageBase:
+          type: string
+        workersCompRatePer100:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - districtId
+        - ssRate
+        - ssWageBase
+        - medicareRate
+        - futaRate
+        - futaWageBase
+        - sutaRate
+        - sutaWageBase
+        - workersCompRatePer100
+
+    EmployerTaxConfigInput:
+      type: object
+      properties:
+        districtId:
+          type: string
+        ssRate:
+          type: string
+        ssWageBase:
+          type: string
+        medicareRate:
+          type: string
+        futaRate:
+          type: string
+        futaWageBase:
+          type: string
+        sutaRate:
+          type: string
+        sutaWageBase:
+          type: string
+        workersCompRatePer100:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required:
+        - districtId

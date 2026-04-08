@@ -1225,6 +1225,243 @@ export interface BulkUpsertIndexGridIndicesRequest {
   indices: BulkUpsertIndexGridIndicesRequestIndicesItem[];
 }
 
+export interface BenefitPlanType {
+  id: string;
+  districtId: string;
+  category: string;
+  planName: string;
+  calculationMethod: string;
+  displayOrder: number;
+  isActive: boolean;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BenefitPlanInputCalculationMethod =
+  (typeof BenefitPlanInputCalculationMethod)[keyof typeof BenefitPlanInputCalculationMethod];
+
+export const BenefitPlanInputCalculationMethod = {
+  flat_dollar: "flat_dollar",
+  rate_per_100: "rate_per_100",
+  rate_per_1000: "rate_per_1000",
+  percent_of_salary: "percent_of_salary",
+} as const;
+
+export interface BenefitPlanInput {
+  districtId: string;
+  category: string;
+  planName: string;
+  calculationMethod: BenefitPlanInputCalculationMethod;
+  displayOrder?: number;
+  isActive?: boolean;
+  notes?: string | null;
+}
+
+export interface BenefitPlanTier {
+  id: string;
+  benefitPlanTypeId: string;
+  tier: string;
+  employerContributionAnnual: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BenefitTierInputTier =
+  (typeof BenefitTierInputTier)[keyof typeof BenefitTierInputTier];
+
+export const BenefitTierInputTier = {
+  ee_only: "ee_only",
+  ee_spouse: "ee_spouse",
+  ee_child: "ee_child",
+  family: "family",
+} as const;
+
+export interface BenefitTierInput {
+  tier: BenefitTierInputTier;
+  employerContributionAnnual: string;
+}
+
+export interface BenefitPlanRate {
+  id: string;
+  benefitPlanTypeId: string;
+  rate: string;
+  coveredEarningsCap?: string | null;
+  benefitMultiplier?: string | null;
+  flatBenefitAmount?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BenefitRateInput {
+  rate: string;
+  coveredEarningsCap?: string | null;
+  benefitMultiplier?: string | null;
+  flatBenefitAmount?: string | null;
+  notes?: string | null;
+}
+
+export type BenefitPlanWithDetails = BenefitPlanType & {
+  tiers: BenefitPlanTier[];
+  rate?: BenefitPlanRate | null;
+};
+
+export interface BenefitEligibilityRule {
+  id: string;
+  districtId: string;
+  category: string;
+  minFteThreshold: string;
+  includePartTime: boolean;
+  includeSeasonal: boolean;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BenefitEligibilityRuleInput {
+  category: string;
+  minFteThreshold: string;
+  includePartTime: boolean;
+  includeSeasonal: boolean;
+  notes?: string | null;
+}
+
+export interface EmployerAccountContribution {
+  id: string;
+  districtId: string;
+  accountType: string;
+  tier: string;
+  employerContributionAnnual: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type EmployerAccountContributionInputAccountType =
+  (typeof EmployerAccountContributionInputAccountType)[keyof typeof EmployerAccountContributionInputAccountType];
+
+export const EmployerAccountContributionInputAccountType = {
+  hsa: "hsa",
+  hra: "hra",
+} as const;
+
+export type EmployerAccountContributionInputTier =
+  (typeof EmployerAccountContributionInputTier)[keyof typeof EmployerAccountContributionInputTier];
+
+export const EmployerAccountContributionInputTier = {
+  ee_only: "ee_only",
+  ee_spouse: "ee_spouse",
+  ee_child: "ee_child",
+  family: "family",
+} as const;
+
+export interface EmployerAccountContributionInput {
+  accountType: EmployerAccountContributionInputAccountType;
+  tier: EmployerAccountContributionInputTier;
+  employerContributionAnnual: string;
+}
+
+export interface EmployerFlatCost {
+  id: string;
+  districtId: string;
+  costName: string;
+  annualCostPerEmployee: string;
+  isActive: boolean;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EmployerFlatCostInput {
+  districtId: string;
+  costName: string;
+  annualCostPerEmployee: string;
+  isActive?: boolean;
+  notes?: string | null;
+}
+
+export interface GroupBenefitAssignment {
+  id: string;
+  employeeGroupId: string;
+  benefitPlanTypeId: string;
+  createdAt?: string;
+}
+
+export interface RetirementPlan {
+  id: string;
+  districtId: string;
+  planName: string;
+  planType: string;
+  employerRate: string;
+  employerMatchCapPercent?: string | null;
+  grossUpRate: string;
+  employeeRate: string;
+  isFicaExempt: boolean;
+  displayOrder: number;
+  isActive: boolean;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type RetirementPlanInputPlanType =
+  (typeof RetirementPlanInputPlanType)[keyof typeof RetirementPlanInputPlanType];
+
+export const RetirementPlanInputPlanType = {
+  defined_benefit: "defined_benefit",
+  defined_contribution: "defined_contribution",
+} as const;
+
+export interface RetirementPlanInput {
+  districtId: string;
+  planName: string;
+  planType: RetirementPlanInputPlanType;
+  employerRate?: string;
+  employerMatchCapPercent?: string | null;
+  grossUpRate?: string;
+  employeeRate?: string;
+  isFicaExempt?: boolean;
+  displayOrder?: number;
+  isActive?: boolean;
+  notes?: string | null;
+}
+
+export interface GroupRetirementAssignment {
+  id: string;
+  employeeGroupId: string;
+  retirementPlanId: string;
+  createdAt?: string;
+}
+
+export interface EmployerTaxConfig {
+  id: string;
+  districtId: string;
+  ssRate: string;
+  ssWageBase: string;
+  medicareRate: string;
+  futaRate: string;
+  futaWageBase: string;
+  sutaRate: string;
+  sutaWageBase: string;
+  workersCompRatePer100: string;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EmployerTaxConfigInput {
+  districtId: string;
+  ssRate?: string;
+  ssWageBase?: string;
+  medicareRate?: string;
+  futaRate?: string;
+  futaWageBase?: string;
+  sutaRate?: string;
+  sutaWageBase?: string;
+  workersCompRatePer100?: string;
+  notes?: string | null;
+}
+
 export type ListBargainingUnitsParams = {
   districtId?: string;
 };
@@ -1286,6 +1523,58 @@ export type GetDashboardParams = {
 };
 
 export type ExportEmployeesParams = {
+  districtId: string;
+};
+
+export type ListBenefitPlansParams = {
+  districtId: string;
+};
+
+export type ListBenefitEligibilityRulesParams = {
+  districtId: string;
+};
+
+export type UpsertBenefitEligibilityRulesBody = {
+  districtId: string;
+  rules: BenefitEligibilityRuleInput[];
+};
+
+export type ListHsaHraContributionsParams = {
+  districtId: string;
+};
+
+export type UpsertHsaHraContributionsBody = {
+  districtId: string;
+  contributions: EmployerAccountContributionInput[];
+};
+
+export type ListEmployerFlatCostsParams = {
+  districtId: string;
+};
+
+export type ListGroupBenefitAssignmentsParams = {
+  employeeGroupId: string;
+};
+
+export type SetGroupBenefitAssignmentsBody = {
+  employeeGroupId: string;
+  benefitPlanTypeIds: string[];
+};
+
+export type ListRetirementPlansParams = {
+  districtId: string;
+};
+
+export type ListGroupRetirementAssignmentsParams = {
+  employeeGroupId: string;
+};
+
+export type SetGroupRetirementAssignmentsBody = {
+  employeeGroupId: string;
+  retirementPlanIds: string[];
+};
+
+export type GetTaxConfigParams = {
   districtId: string;
 };
 

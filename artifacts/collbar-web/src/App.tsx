@@ -18,6 +18,9 @@ import ScenarioApply from "@/pages/scenario-apply";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import BenefitsPage from "@/pages/employer-costs/benefits";
+import RetirementPage from "@/pages/employer-costs/retirement";
+import TaxesPage from "@/pages/employer-costs/taxes";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +40,9 @@ function Router() {
         <Route path="/scenarios/:id" component={ScenarioDetail} />
         <Route path="/scenarios/:id/apply" component={ScenarioApply} />
         <Route path="/reports" component={Reports} />
+        <Route path="/employer-costs/benefits" component={BenefitsPage} />
+        <Route path="/employer-costs/retirement" component={RetirementPage} />
+        <Route path="/employer-costs/taxes" component={TaxesPage} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

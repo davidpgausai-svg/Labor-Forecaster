@@ -1651,6 +1651,548 @@ export const ExportEmployeesQueryParams = zod.object({
 });
 
 /**
+ * @summary List benefit plan types with tiers and rates
+ */
+export const ListBenefitPlansQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const ListBenefitPlansResponseItem = zod
+  .object({
+    id: zod.string(),
+    districtId: zod.string(),
+    category: zod.string(),
+    planName: zod.string(),
+    calculationMethod: zod.string(),
+    displayOrder: zod.number(),
+    isActive: zod.boolean(),
+    notes: zod.string().nullish(),
+    createdAt: zod.string().optional(),
+    updatedAt: zod.string().optional(),
+  })
+  .and(
+    zod.object({
+      tiers: zod.array(
+        zod.object({
+          id: zod.string(),
+          benefitPlanTypeId: zod.string(),
+          tier: zod.string(),
+          employerContributionAnnual: zod.string(),
+          createdAt: zod.string().optional(),
+          updatedAt: zod.string().optional(),
+        }),
+      ),
+      rate: zod
+        .object({
+          id: zod.string(),
+          benefitPlanTypeId: zod.string(),
+          rate: zod.string(),
+          coveredEarningsCap: zod.string().nullish(),
+          benefitMultiplier: zod.string().nullish(),
+          flatBenefitAmount: zod.string().nullish(),
+          notes: zod.string().nullish(),
+          createdAt: zod.string().optional(),
+          updatedAt: zod.string().optional(),
+        })
+        .nullish(),
+    }),
+  );
+export const ListBenefitPlansResponse = zod.array(ListBenefitPlansResponseItem);
+
+/**
+ * @summary Create a benefit plan type
+ */
+export const CreateBenefitPlanBody = zod.object({
+  districtId: zod.string(),
+  category: zod.string(),
+  planName: zod.string(),
+  calculationMethod: zod.enum([
+    "flat_dollar",
+    "rate_per_100",
+    "rate_per_1000",
+    "percent_of_salary",
+  ]),
+  displayOrder: zod.number().optional(),
+  isActive: zod.boolean().optional(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a benefit plan type
+ */
+export const UpdateBenefitPlanParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateBenefitPlanBody = zod.object({
+  districtId: zod.string(),
+  category: zod.string(),
+  planName: zod.string(),
+  calculationMethod: zod.enum([
+    "flat_dollar",
+    "rate_per_100",
+    "rate_per_1000",
+    "percent_of_salary",
+  ]),
+  displayOrder: zod.number().optional(),
+  isActive: zod.boolean().optional(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateBenefitPlanResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  category: zod.string(),
+  planName: zod.string(),
+  calculationMethod: zod.string(),
+  displayOrder: zod.number(),
+  isActive: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Delete a benefit plan type
+ */
+export const DeleteBenefitPlanParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary Batch upsert all tiers for a plan
+ */
+export const UpsertBenefitPlanTiersParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpsertBenefitPlanTiersBodyItem = zod.object({
+  tier: zod.enum(["ee_only", "ee_spouse", "ee_child", "family"]),
+  employerContributionAnnual: zod.string(),
+});
+export const UpsertBenefitPlanTiersBody = zod.array(
+  UpsertBenefitPlanTiersBodyItem,
+);
+
+export const UpsertBenefitPlanTiersResponseItem = zod.object({
+  id: zod.string(),
+  benefitPlanTypeId: zod.string(),
+  tier: zod.string(),
+  employerContributionAnnual: zod.string(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const UpsertBenefitPlanTiersResponse = zod.array(
+  UpsertBenefitPlanTiersResponseItem,
+);
+
+/**
+ * @summary Upsert rate config for a plan
+ */
+export const UpsertBenefitPlanRateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpsertBenefitPlanRateBody = zod.object({
+  rate: zod.string(),
+  coveredEarningsCap: zod.string().nullish(),
+  benefitMultiplier: zod.string().nullish(),
+  flatBenefitAmount: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+export const UpsertBenefitPlanRateResponse = zod.object({
+  id: zod.string(),
+  benefitPlanTypeId: zod.string(),
+  rate: zod.string(),
+  coveredEarningsCap: zod.string().nullish(),
+  benefitMultiplier: zod.string().nullish(),
+  flatBenefitAmount: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary List eligibility rules for a district
+ */
+export const ListBenefitEligibilityRulesQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const ListBenefitEligibilityRulesResponseItem = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  category: zod.string(),
+  minFteThreshold: zod.string(),
+  includePartTime: zod.boolean(),
+  includeSeasonal: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const ListBenefitEligibilityRulesResponse = zod.array(
+  ListBenefitEligibilityRulesResponseItem,
+);
+
+/**
+ * @summary Batch upsert eligibility rules
+ */
+export const UpsertBenefitEligibilityRulesBody = zod.object({
+  districtId: zod.string(),
+  rules: zod.array(
+    zod.object({
+      category: zod.string(),
+      minFteThreshold: zod.string(),
+      includePartTime: zod.boolean(),
+      includeSeasonal: zod.boolean(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+});
+
+export const UpsertBenefitEligibilityRulesResponseItem = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  category: zod.string(),
+  minFteThreshold: zod.string(),
+  includePartTime: zod.boolean(),
+  includeSeasonal: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const UpsertBenefitEligibilityRulesResponse = zod.array(
+  UpsertBenefitEligibilityRulesResponseItem,
+);
+
+/**
+ * @summary List HSA/HRA employer contributions
+ */
+export const ListHsaHraContributionsQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const ListHsaHraContributionsResponseItem = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  accountType: zod.string(),
+  tier: zod.string(),
+  employerContributionAnnual: zod.string(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const ListHsaHraContributionsResponse = zod.array(
+  ListHsaHraContributionsResponseItem,
+);
+
+/**
+ * @summary Batch upsert HSA/HRA contributions
+ */
+export const UpsertHsaHraContributionsBody = zod.object({
+  districtId: zod.string(),
+  contributions: zod.array(
+    zod.object({
+      accountType: zod.enum(["hsa", "hra"]),
+      tier: zod.enum(["ee_only", "ee_spouse", "ee_child", "family"]),
+      employerContributionAnnual: zod.string(),
+    }),
+  ),
+});
+
+export const UpsertHsaHraContributionsResponseItem = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  accountType: zod.string(),
+  tier: zod.string(),
+  employerContributionAnnual: zod.string(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const UpsertHsaHraContributionsResponse = zod.array(
+  UpsertHsaHraContributionsResponseItem,
+);
+
+/**
+ * @summary List employer flat costs
+ */
+export const ListEmployerFlatCostsQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const ListEmployerFlatCostsResponseItem = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  costName: zod.string(),
+  annualCostPerEmployee: zod.string(),
+  isActive: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const ListEmployerFlatCostsResponse = zod.array(
+  ListEmployerFlatCostsResponseItem,
+);
+
+/**
+ * @summary Create employer flat cost
+ */
+export const CreateEmployerFlatCostBody = zod.object({
+  districtId: zod.string(),
+  costName: zod.string(),
+  annualCostPerEmployee: zod.string(),
+  isActive: zod.boolean().optional(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Update employer flat cost
+ */
+export const UpdateEmployerFlatCostParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateEmployerFlatCostBody = zod.object({
+  districtId: zod.string(),
+  costName: zod.string(),
+  annualCostPerEmployee: zod.string(),
+  isActive: zod.boolean().optional(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateEmployerFlatCostResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  costName: zod.string(),
+  annualCostPerEmployee: zod.string(),
+  isActive: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Delete employer flat cost
+ */
+export const DeleteEmployerFlatCostParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List benefit plans assigned to a group
+ */
+export const ListGroupBenefitAssignmentsQueryParams = zod.object({
+  employeeGroupId: zod.coerce.string(),
+});
+
+export const ListGroupBenefitAssignmentsResponseItem = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  benefitPlanTypeId: zod.string(),
+  createdAt: zod.string().optional(),
+});
+export const ListGroupBenefitAssignmentsResponse = zod.array(
+  ListGroupBenefitAssignmentsResponseItem,
+);
+
+/**
+ * @summary Set benefit plan assignments for a group
+ */
+export const SetGroupBenefitAssignmentsBody = zod.object({
+  employeeGroupId: zod.string(),
+  benefitPlanTypeIds: zod.array(zod.string()),
+});
+
+export const SetGroupBenefitAssignmentsResponseItem = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  benefitPlanTypeId: zod.string(),
+  createdAt: zod.string().optional(),
+});
+export const SetGroupBenefitAssignmentsResponse = zod.array(
+  SetGroupBenefitAssignmentsResponseItem,
+);
+
+/**
+ * @summary List retirement plans for a district
+ */
+export const ListRetirementPlansQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const ListRetirementPlansResponseItem = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  planName: zod.string(),
+  planType: zod.string(),
+  employerRate: zod.string(),
+  employerMatchCapPercent: zod.string().nullish(),
+  grossUpRate: zod.string(),
+  employeeRate: zod.string(),
+  isFicaExempt: zod.boolean(),
+  displayOrder: zod.number(),
+  isActive: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+export const ListRetirementPlansResponse = zod.array(
+  ListRetirementPlansResponseItem,
+);
+
+/**
+ * @summary Create a retirement plan
+ */
+export const CreateRetirementPlanBody = zod.object({
+  districtId: zod.string(),
+  planName: zod.string(),
+  planType: zod.enum(["defined_benefit", "defined_contribution"]),
+  employerRate: zod.string().optional(),
+  employerMatchCapPercent: zod.string().nullish(),
+  grossUpRate: zod.string().optional(),
+  employeeRate: zod.string().optional(),
+  isFicaExempt: zod.boolean().optional(),
+  displayOrder: zod.number().optional(),
+  isActive: zod.boolean().optional(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a retirement plan
+ */
+export const UpdateRetirementPlanParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateRetirementPlanBody = zod.object({
+  districtId: zod.string(),
+  planName: zod.string(),
+  planType: zod.enum(["defined_benefit", "defined_contribution"]),
+  employerRate: zod.string().optional(),
+  employerMatchCapPercent: zod.string().nullish(),
+  grossUpRate: zod.string().optional(),
+  employeeRate: zod.string().optional(),
+  isFicaExempt: zod.boolean().optional(),
+  displayOrder: zod.number().optional(),
+  isActive: zod.boolean().optional(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateRetirementPlanResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  planName: zod.string(),
+  planType: zod.string(),
+  employerRate: zod.string(),
+  employerMatchCapPercent: zod.string().nullish(),
+  grossUpRate: zod.string(),
+  employeeRate: zod.string(),
+  isFicaExempt: zod.boolean(),
+  displayOrder: zod.number(),
+  isActive: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Delete a retirement plan
+ */
+export const DeleteRetirementPlanParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+/**
+ * @summary List retirement plans assigned to a group
+ */
+export const ListGroupRetirementAssignmentsQueryParams = zod.object({
+  employeeGroupId: zod.coerce.string(),
+});
+
+export const ListGroupRetirementAssignmentsResponseItem = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  retirementPlanId: zod.string(),
+  createdAt: zod.string().optional(),
+});
+export const ListGroupRetirementAssignmentsResponse = zod.array(
+  ListGroupRetirementAssignmentsResponseItem,
+);
+
+/**
+ * @summary Set retirement plan assignments for a group
+ */
+export const SetGroupRetirementAssignmentsBody = zod.object({
+  employeeGroupId: zod.string(),
+  retirementPlanIds: zod.array(zod.string()),
+});
+
+export const SetGroupRetirementAssignmentsResponseItem = zod.object({
+  id: zod.string(),
+  employeeGroupId: zod.string(),
+  retirementPlanId: zod.string(),
+  createdAt: zod.string().optional(),
+});
+export const SetGroupRetirementAssignmentsResponse = zod.array(
+  SetGroupRetirementAssignmentsResponseItem,
+);
+
+/**
+ * @summary Get employer tax config for a district
+ */
+export const GetTaxConfigQueryParams = zod.object({
+  districtId: zod.coerce.string(),
+});
+
+export const GetTaxConfigResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  ssRate: zod.string(),
+  ssWageBase: zod.string(),
+  medicareRate: zod.string(),
+  futaRate: zod.string(),
+  futaWageBase: zod.string(),
+  sutaRate: zod.string(),
+  sutaWageBase: zod.string(),
+  workersCompRatePer100: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Upsert employer tax config for a district
+ */
+export const UpsertTaxConfigBody = zod.object({
+  districtId: zod.string(),
+  ssRate: zod.string().optional(),
+  ssWageBase: zod.string().optional(),
+  medicareRate: zod.string().optional(),
+  futaRate: zod.string().optional(),
+  futaWageBase: zod.string().optional(),
+  sutaRate: zod.string().optional(),
+  sutaWageBase: zod.string().optional(),
+  workersCompRatePer100: zod.string().optional(),
+  notes: zod.string().nullish(),
+});
+
+export const UpsertTaxConfigResponse = zod.object({
+  id: zod.string(),
+  districtId: zod.string(),
+  ssRate: zod.string(),
+  ssWageBase: zod.string(),
+  medicareRate: zod.string(),
+  futaRate: zod.string(),
+  futaWageBase: zod.string(),
+  sutaRate: zod.string(),
+  sutaWageBase: zod.string(),
+  workersCompRatePer100: zod.string(),
+  notes: zod.string().nullish(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
  * @summary List available scenario reports for a district
  */
 export const ListReportsQueryParams = zod.object({

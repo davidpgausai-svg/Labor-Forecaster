@@ -1,6 +1,6 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, Calendar, Grid, FileText, Settings, Layers, Building2 } from "lucide-react";
+import { LayoutDashboard, Users, Calendar, Grid, FileText, Settings, Layers, Building2, DollarSign, HeartPulse, PiggyBank, Receipt, ChevronDown, ChevronRight } from "lucide-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { useListScenarios, getListScenariosQueryKey } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,11 +13,18 @@ const NAV_ITEMS = [
   { href: "/heatmap", label: "Heatmap", icon: Grid },
   { href: "/scenarios", label: "Scenarios", icon: Layers },
   { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/settings", label: "Settings", icon: Settings },
+];
+
+const EMPLOYER_COSTS_ITEMS = [
+  { href: "/employer-costs/benefits", label: "Benefits", icon: HeartPulse },
+  { href: "/employer-costs/retirement", label: "Retirement", icon: PiggyBank },
+  { href: "/employer-costs/taxes", label: "Taxes", icon: Receipt },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const isEmployerCostsActive = location.startsWith("/employer-costs");
+  const [employerCostsOpen, setEmployerCostsOpen] = useState(isEmployerCostsActive);
   const {
     districtId,
     districtName,
@@ -77,6 +84,55 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+
+          {/* Employer Costs collapsible group */}
+          <button
+            onClick={() => setEmployerCostsOpen((o) => !o)}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+              isEmployerCostsActive
+                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span className="flex-1 text-left">Employer Costs</span>
+            {employerCostsOpen
+              ? <ChevronDown className="w-3.5 h-3.5" />
+              : <ChevronRight className="w-3.5 h-3.5" />}
+          </button>
+          {employerCostsOpen && (
+            <div className="ml-3 pl-3 border-l border-sidebar-border/50 space-y-0.5">
+              {EMPLOYER_COSTS_ITEMS.map((item) => {
+                const isActive = location.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    }`}
+                  >
+                    <item.icon className="w-3.5 h-3.5" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          <Link
+            href="/settings"
+            className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+              location.startsWith("/settings")
+                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </Link>
         </nav>
         <div className="p-4 border-t border-sidebar-border mt-auto">
           {districtLoading ? (

@@ -20,6 +20,9 @@ import salaryRangesRouter from "./salary-ranges";
 import importGridRouter from "./import-grid";
 import indexGridConfigRouter from "./index-grid-config";
 import employeePositionsRouter from "./employee-positions";
+import benefitsRouter from "./benefits";
+import retirementPlansRouter from "./retirement-plans";
+import taxesRouter from "./taxes";
 
 const router: IRouter = Router();
 
@@ -44,5 +47,8 @@ router.use(salaryRangesRouter);
 router.use(importGridRouter);
 router.use(indexGridConfigRouter);
 router.use(employeePositionsRouter);
+router.use(benefitsRouter);
+router.use(retirementPlansRouter);
+router.use(taxesRouter);
 
 export default router;

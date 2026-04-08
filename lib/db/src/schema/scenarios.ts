@@ -94,6 +94,12 @@ export const scenarioYearConfigsTable = pgTable("scenario_year_configs", {
     precision: 10,
     scale: 4,
   }),
+  // Unified benefit cost trend rate — applies to all flat-dollar benefits.
+  // If set, takes precedence over healthPremiumIncreaseRate / healthEmployerCapRate.
+  benefitCostTrendRate: numeric("benefit_cost_trend_rate", {
+    precision: 10,
+    scale: 4,
+  }),
   notes: text("notes"),
   employeeGroupId: uuid("employee_group_id").references(
     () => employeeGroupsTable.id
