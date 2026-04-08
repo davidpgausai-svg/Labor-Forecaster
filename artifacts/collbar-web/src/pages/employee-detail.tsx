@@ -194,15 +194,19 @@ export default function EmployeeDetail() {
 
   // Group/lane lookups for the position dialog
   const selectedPosGroupData = (employeeGroups ?? []).find((g) => g.id === positionForm.employeeGroupId);
-  const primaryPosCompSchedule = selectedPosGroupData?.compensationSchedules?.find((s) => s.isPrimary);
-  const posScheduleType = primaryPosCompSchedule?.scheduleType ?? null;
+  const posGroupSchedules = selectedPosGroupData?.compensationSchedules ?? [];
+  // Use the explicitly-selected schedule; fall back to the primary when none selected yet
+  const selectedPosSchedule = positionForm.compensationScheduleId
+    ? posGroupSchedules.find((cs) => cs.id === positionForm.compensationScheduleId)
+    : posGroupSchedules.find((cs) => cs.isPrimary);
+  const posScheduleType = selectedPosSchedule?.scheduleType ?? null;
   const posGroupIsGrid = posScheduleType === "index_based_grid" || posScheduleType === "direct_import_grid";
   const { data: posGroupLanes = [] } = useListImportGridLanes(
-    primaryPosCompSchedule?.id ?? "",
+    selectedPosSchedule?.id ?? "",
     {
       query: {
-        enabled: positionForm.assignType === "group" && posGroupIsGrid && !!primaryPosCompSchedule?.id,
-        queryKey: getListImportGridLanesQueryKey(primaryPosCompSchedule?.id ?? ""),
+        enabled: positionForm.assignType === "group" && posGroupIsGrid && !!selectedPosSchedule?.id,
+        queryKey: getListImportGridLanesQueryKey(selectedPosSchedule?.id ?? ""),
       },
     }
   );
@@ -1561,28 +1565,51 @@ export default function EmployeeDetail() {
 
             {/* Group or BU selector */}
             {positionForm.assignType === "group" ? (
-              <div className="space-y-1.5">
-                <Label>Employee Group</Label>
-                <Select
-                  value={positionForm.employeeGroupId}
-                  onValueChange={(v) => setPositionForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "", currentStep: "" }))}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Select group…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(employeeGroups ?? []).map((g) => {
-                      const ps = g.compensationSchedules?.find((cs) => cs.isPrimary);
-                      return (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.name}
-                          {ps && <span className="ml-1.5 text-xs text-muted-foreground">({ps.scheduleType?.replace(/_/g, " ")})</span>}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label>Employee Group</Label>
+                  <Select
+                    value={positionForm.employeeGroupId}
+                    onValueChange={(v) => {
+                      const grp = (employeeGroups ?? []).find((g) => g.id === v);
+                      const primary = grp?.compensationSchedules?.find((cs) => cs.isPrimary);
+                      setPositionForm((f) => ({ ...f, employeeGroupId: v, compensationScheduleId: primary?.id ?? "", currentLaneId: "", currentStep: "" }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-background border-border">
+                      <SelectValue placeholder="Select group…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(employeeGroups ?? []).map((g) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {posGroupSchedules.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>Compensation Schedule</Label>
+                    <Select
+                      value={positionForm.compensationScheduleId}
+                      onValueChange={(v) => setPositionForm((f) => ({ ...f, compensationScheduleId: v, currentLaneId: "", currentStep: "" }))}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select schedule…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {posGroupSchedules.map((cs) => (
+                          <SelectItem key={cs.id} value={cs.id}>
+                            {cs.name}
+                            <span className="ml-1.5 text-xs text-muted-foreground">({cs.scheduleType.replace(/_/g, " ")})</span>
+                            {cs.isPrimary && <span className="ml-1 text-xs text-primary"> · primary</span>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="space-y-1.5">
                 <Label>Bargaining Unit</Label>
