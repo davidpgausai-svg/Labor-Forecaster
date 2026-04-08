@@ -313,6 +313,19 @@ router.post("/employees/:id/positions", async (req, res) => {
     .values({ ...data, employeeId: req.params.id })
     .returning();
 
+  // Keep employee-level denormalized fields in sync with the primary position
+  if (data.isPrimary) {
+    await db
+      .update(employeesTable)
+      .set({
+        currentStep: position.currentStep ?? null,
+        currentLaneId: position.currentLaneId ?? null,
+        currentAnnualSalary: position.currentAnnualSalary ?? "0",
+        updatedAt: new Date(),
+      })
+      .where(eq(employeesTable.id, req.params.id));
+  }
+
   await recalcForEmployee(req.params.id, "POST /employees/:id/positions");
 
   res.status(201).json(position);
@@ -362,6 +375,19 @@ router.put("/employee-positions/:id", async (req, res) => {
   if (!position) {
     res.status(404).json({ error: "Position not found" });
     return;
+  }
+
+  // Keep employee-level denormalized fields in sync with the primary position
+  if (position.isPrimary) {
+    await db
+      .update(employeesTable)
+      .set({
+        currentStep: position.currentStep ?? null,
+        currentLaneId: position.currentLaneId ?? null,
+        currentAnnualSalary: position.currentAnnualSalary ?? "0",
+        updatedAt: new Date(),
+      })
+      .where(eq(employeesTable.id, position.employeeId));
   }
 
   await recalcForEmployee(position.employeeId, "PUT /employee-positions/:id");
