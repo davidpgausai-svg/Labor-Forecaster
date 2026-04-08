@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployees,
@@ -75,6 +75,8 @@ export default function Employees() {
   });
 
   const [search, setSearch] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
   const [rosterFilter, setRosterFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [laneFilter, setLaneFilter] = useState(ALL);
@@ -291,6 +293,7 @@ export default function Employees() {
     !!search;
 
   const clearFilters = () => {
+    setInputValue("");
     setSearch("");
     setRosterFilter(ALL);
     setStatusFilter(ALL);
@@ -348,11 +351,16 @@ export default function Employees() {
           <div className="flex flex-wrap gap-3 items-center">
             <div className="relative w-56">
               <Input
-                placeholder="Search by name..."
-                value={search}
+                placeholder="Search by name or group..."
+                value={inputValue}
                 onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
+                  const value = e.target.value;
+                  setInputValue(value);
+                  clearTimeout(searchTimeout.current);
+                  searchTimeout.current = setTimeout(() => {
+                    setSearch(value);
+                    setPage(1);
+                  }, 300);
                 }}
                 className="bg-background/50 border-border h-9 text-sm pr-3"
               />

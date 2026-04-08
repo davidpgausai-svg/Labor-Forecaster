@@ -203,6 +203,7 @@ router.get("/employees", async (req, res) => {
         ilike(employeesTable.lastName, q),
         sql`concat(${employeesTable.firstName}, ' ', ${employeesTable.lastName}) ilike ${q}`,
         sql`concat(${employeesTable.lastName}, ', ', ${employeesTable.firstName}) ilike ${q}`,
+        sql`${employeeGroupsTable.name} ilike ${q}`,
       )!
     );
   }
@@ -229,6 +230,7 @@ router.get("/employees", async (req, res) => {
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(employeesTable)
+      .leftJoin(employeeGroupsTable, eq(employeesTable.employeeGroupId, employeeGroupsTable.id))
       .where(whereClause),
   ]);
 
