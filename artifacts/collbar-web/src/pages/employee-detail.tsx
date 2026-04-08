@@ -1342,7 +1342,7 @@ export default function EmployeeDetail() {
                   size="sm"
                   onClick={() => setEditForm((f) => ({ ...f, assignType: "union", employeeGroupId: "" }))}
                 >
-                  Union (BU)
+                  Bargaining Unit
                 </Button>
                 <Button
                   type="button"
@@ -1350,7 +1350,7 @@ export default function EmployeeDetail() {
                   size="sm"
                   onClick={() => setEditForm((f) => ({ ...f, assignType: "group", currentStep: "", currentLaneId: "" }))}
                 >
-                  Non-Union (Group)
+                  Employee Group
                 </Button>
               </div>
             </div>
@@ -1554,11 +1554,11 @@ export default function EmployeeDetail() {
               <div className="flex gap-2">
                 <Button type="button" variant={positionForm.assignType === "group" ? "default" : "outline"} size="sm"
                   onClick={() => setPositionForm((f) => ({ ...f, assignType: "group", bargainingUnitId: "", currentStep: "", currentLaneId: "" }))}>
-                  Non-Union (Group)
+                  Employee Group
                 </Button>
                 <Button type="button" variant={positionForm.assignType === "union" ? "default" : "outline"} size="sm"
                   onClick={() => setPositionForm((f) => ({ ...f, assignType: "union", employeeGroupId: "", currentLaneId: "" }))}>
-                  Union (BU)
+                  Bargaining Unit
                 </Button>
               </div>
             </div>
@@ -1581,7 +1581,12 @@ export default function EmployeeDetail() {
                     </SelectTrigger>
                     <SelectContent>
                       {(employeeGroups ?? []).map((g) => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                          {Boolean((g as unknown as Record<string, unknown>).isUnionized) && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">· unionized</span>
+                          )}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
