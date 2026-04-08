@@ -10,6 +10,7 @@ import {
   scheduleIndicesTable,
   importGridCellsTable,
   employeePositionYearRecordsTable,
+  lanesTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import Decimal from "decimal.js";
@@ -36,6 +37,9 @@ const positionBodySchema = z.object({
 /**
  * For grid-based schedules (index_based_grid, direct_import_grid), derive the
  * year-0 salary from the grid cell so currentAnnualSalary is never left at $0.
+ *
+ * When the exact laneId doesn't match (e.g. position was created under a
+ * different version of the schedule), falls back to matching by lane name.
  */
 async function resolveGridSalary(
   compensationScheduleId: string | null | undefined,
@@ -54,29 +58,66 @@ async function resolveGridSalary(
   if (!schedule) return null;
 
   if (schedule.scheduleType === "index_based_grid") {
-    const [config, indexRow] = await Promise.all([
-      db.select().from(indexGridConfigsTable)
-        .where(eq(indexGridConfigsTable.compensationScheduleId, compensationScheduleId))
-        .limit(1)
-        .then((r) => r[0]),
-      db.select().from(scheduleIndicesTable)
-        .where(
-          and(
-            eq(scheduleIndicesTable.compensationScheduleId, compensationScheduleId),
-            eq(scheduleIndicesTable.laneId, currentLaneId),
-            eq(scheduleIndicesTable.stepNumber, currentStep),
-          )
+    const config = await db.select().from(indexGridConfigsTable)
+      .where(eq(indexGridConfigsTable.compensationScheduleId, compensationScheduleId))
+      .limit(1)
+      .then((r) => r[0]);
+    if (!config) return null;
+
+    // Try exact laneId match first
+    let indexRow = await db.select().from(scheduleIndicesTable)
+      .where(
+        and(
+          eq(scheduleIndicesTable.compensationScheduleId, compensationScheduleId),
+          eq(scheduleIndicesTable.laneId, currentLaneId),
+          eq(scheduleIndicesTable.stepNumber, currentStep),
         )
+      )
+      .limit(1)
+      .then((r) => r[0]);
+
+    // Fallback: match by lane name (handles stale laneId from a prior schedule version)
+    if (!indexRow) {
+      const posLane = await db.select({ name: lanesTable.name })
+        .from(lanesTable)
+        .where(eq(lanesTable.id, currentLaneId))
         .limit(1)
-        .then((r) => r[0]),
-    ]);
-    if (!config || !indexRow) return null;
+        .then((r) => r[0]);
+
+      if (posLane) {
+        const schedLane = await db.select({ id: lanesTable.id })
+          .from(lanesTable)
+          .where(
+            and(
+              eq(lanesTable.compensationScheduleId, compensationScheduleId),
+              eq(lanesTable.name, posLane.name),
+            )
+          )
+          .limit(1)
+          .then((r) => r[0]);
+
+        if (schedLane) {
+          indexRow = await db.select().from(scheduleIndicesTable)
+            .where(
+              and(
+                eq(scheduleIndicesTable.compensationScheduleId, compensationScheduleId),
+                eq(scheduleIndicesTable.laneId, schedLane.id),
+                eq(scheduleIndicesTable.stepNumber, currentStep),
+              )
+            )
+            .limit(1)
+            .then((r) => r[0]);
+        }
+      }
+    }
+
+    if (!indexRow) return null;
     const salary = new Decimal(config.baseAnchorSalary).times(new Decimal(indexRow.indexValue)).ceil();
     return salary.toFixed(2);
   }
 
   if (schedule.scheduleType === "direct_import_grid") {
-    const cell = await db.select().from(importGridCellsTable)
+    let cell = await db.select().from(importGridCellsTable)
       .where(
         and(
           eq(importGridCellsTable.compensationScheduleId, compensationScheduleId),
@@ -86,6 +127,42 @@ async function resolveGridSalary(
       )
       .limit(1)
       .then((r) => r[0]);
+
+    // Fallback: lane name match
+    if (!cell) {
+      const posLane = await db.select({ name: lanesTable.name })
+        .from(lanesTable)
+        .where(eq(lanesTable.id, currentLaneId))
+        .limit(1)
+        .then((r) => r[0]);
+
+      if (posLane) {
+        const schedLane = await db.select({ id: lanesTable.id })
+          .from(lanesTable)
+          .where(
+            and(
+              eq(lanesTable.compensationScheduleId, compensationScheduleId),
+              eq(lanesTable.name, posLane.name),
+            )
+          )
+          .limit(1)
+          .then((r) => r[0]);
+
+        if (schedLane) {
+          cell = await db.select().from(importGridCellsTable)
+            .where(
+              and(
+                eq(importGridCellsTable.compensationScheduleId, compensationScheduleId),
+                eq(importGridCellsTable.laneId, schedLane.id),
+                eq(importGridCellsTable.stepNumber, currentStep),
+              )
+            )
+            .limit(1)
+            .then((r) => r[0]);
+        }
+      }
+    }
+
     if (!cell) return null;
     return (cell.salaryCents / 100).toFixed(2);
   }
