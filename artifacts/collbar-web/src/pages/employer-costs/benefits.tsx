@@ -127,6 +127,9 @@ export default function BenefitsPage() {
     Record<string, { minFteThreshold: string; includePartTime: boolean; includeSeasonal: boolean }>
   >({});
 
+  const eligibilityRulesKey = eligibilityRules
+    .map((r) => `${r.category}:${r.minFteThreshold}:${r.includePartTime}:${r.includeSeasonal}`)
+    .join("|");
   useEffect(() => {
     const m: typeof eligibilityForm = {};
     for (const cat of ELIGIBILITY_CATEGORIES) {
@@ -138,13 +141,17 @@ export default function BenefitsPage() {
       };
     }
     setEligibilityForm(m);
-  }, [eligibilityRules]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eligibilityRulesKey]);
 
   // ── HSA/HRA state ────────────────────────────────────────────────────────
   const [hsaHraTab, setHsaHraTab] = useState<"hsa" | "hra">("hsa");
   const [hsaForm, setHsaForm] = useState<Record<string, string>>({});
   const [hraForm, setHraForm] = useState<Record<string, string>>({});
 
+  const hsaHraKey = hsaHraContribs
+    .map((c) => `${c.accountType}:${c.tier}:${c.employerContributionAnnual}`)
+    .join("|");
   useEffect(() => {
     const hsa: Record<string, string> = {};
     const hra: Record<string, string> = {};
@@ -156,7 +163,8 @@ export default function BenefitsPage() {
     }
     setHsaForm(hsa);
     setHraForm(hra);
-  }, [hsaHraContribs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hsaHraKey]);
 
   // ── Flat cost state ──────────────────────────────────────────────────────
   const [showFlatCostDialog, setShowFlatCostDialog] = useState(false);
@@ -171,9 +179,11 @@ export default function BenefitsPage() {
     { query: { enabled: !!selectedGroupId, queryKey: getListGroupBenefitAssignmentsQueryKey({ employeeGroupId: selectedGroupId }) } }
   );
   const [localAssigned, setLocalAssigned] = useState<Set<string>>(new Set());
+  const assignedIdsKey = groupAssignments.map((a) => a.benefitPlanTypeId).join(",");
   useEffect(() => {
     setLocalAssigned(new Set(groupAssignments.map((a) => a.benefitPlanTypeId)));
-  }, [groupAssignments, selectedGroupId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedIdsKey, selectedGroupId]);
 
   // ── Mutations ────────────────────────────────────────────────────────────
   function invalidatePlans() {
