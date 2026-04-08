@@ -440,6 +440,21 @@ router.put("/scenarios/:id", async (req, res) => {
 });
 
 router.delete("/scenarios/:id", async (req, res) => {
+  const [scenario] = await db
+    .select({ isFinal: scenariosTable.isFinal })
+    .from(scenariosTable)
+    .where(eq(scenariosTable.id, req.params.id));
+
+  if (!scenario) {
+    res.status(404).json({ error: "Scenario not found" });
+    return;
+  }
+
+  if (scenario.isFinal) {
+    res.status(409).json({ error: "Cannot delete the final scenario. Mark a different scenario as final first." });
+    return;
+  }
+
   await db.delete(scenariosTable).where(eq(scenariosTable.id, req.params.id));
   res.status(204).send();
 });
