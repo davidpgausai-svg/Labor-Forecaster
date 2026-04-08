@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
-import { employeesTable, employeePositionsTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { employeesTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 
 /**
  * One-time data patch: sync employee-level denormalized fields
