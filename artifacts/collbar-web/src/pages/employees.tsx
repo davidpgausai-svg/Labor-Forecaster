@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployees,
@@ -77,6 +77,7 @@ export default function Employees() {
   const [search, setSearch] = useState("");
   const [inputValue, setInputValue] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(searchTimeout.current), []);
   const [rosterFilter, setRosterFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const [laneFilter, setLaneFilter] = useState(ALL);
