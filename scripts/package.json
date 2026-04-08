@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "seed": "tsx ./src/seed.ts",
     "migrate-benefits": "tsx ./src/migrate-benefits.ts",
+    "patch-employee-position-sync": "tsx ./src/patch-employee-position-sync.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
