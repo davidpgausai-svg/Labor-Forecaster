@@ -1333,152 +1333,111 @@ export default function EmployeeDetail() {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Assignment Type</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={editForm.assignType === "union" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setEditForm((f) => ({ ...f, assignType: "union", employeeGroupId: "" }))}
+            {editForm.assignType === "group" ? (
+              <div className="space-y-1.5">
+                <Label>Employee Group</Label>
+                <Select
+                  value={editForm.employeeGroupId}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
                 >
-                  Bargaining Unit
-                </Button>
-                <Button
-                  type="button"
-                  variant={editForm.assignType === "group" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setEditForm((f) => ({ ...f, assignType: "group", currentStep: "", currentLaneId: "" }))}
-                >
-                  Employee Group
-                </Button>
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select group…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(employeeGroups ?? []).map((g) => (
+                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-
-            {editForm.assignType === "union" ? (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Bargaining Unit</Label>
-                  <Select
-                    value={editForm.bargainingUnitId}
-                    onValueChange={(v) => setEditForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Select unit…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(units ?? []).map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {positions.length === 0 && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Current Step</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={editForm.currentStep}
-                        onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
-                        className="bg-background border-border"
-                        placeholder="e.g. 7"
-                      />
-                    </div>
-                    {editLanes.length > 0 && (
-                      <div className="space-y-1.5">
-                        <Label>Lane</Label>
-                        <Select
-                          value={editForm.currentLaneId}
-                          onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
-                        >
-                          <SelectTrigger className="bg-background border-border">
-                            <SelectValue placeholder="Select lane…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {editLanes.map((lane) => (
-                              <SelectItem key={lane.id} value={lane.id}>
-                                {lane.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
             ) : (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Employee Group</Label>
-                  <Select
-                    value={editForm.employeeGroupId}
-                    onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Select group…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(employeeGroups ?? []).map((g) => {
-                        const ps = g.compensationSchedules?.find((s) => s.isPrimary);
-                        return (
-                          <SelectItem key={g.id} value={g.id}>
-                            {g.name}
-                            {ps && (
-                              <span className="ml-1.5 text-xs text-muted-foreground">
-                                ({ps.scheduleType?.replace(/_/g, " ")})
-                              </span>
-                            )}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-1.5">
+                <Label>Bargaining Unit</Label>
+                <Select
+                  value={editForm.bargainingUnitId}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select unit…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(units ?? []).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-                {positions.length === 0 && groupScheduleIsGrid && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Current Step</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={editForm.currentStep}
-                        onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
-                        className="bg-background border-border"
-                        placeholder="e.g. 7"
-                      />
-                    </div>
-                    {groupScheduleLanes.length > 0 && (
-                      <div className="space-y-1.5">
-                        <Label>Lane</Label>
-                        <Select
-                          value={editForm.currentLaneId}
-                          onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
-                        >
-                          <SelectTrigger className="bg-background border-border">
-                            <SelectValue placeholder="Select lane…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {groupScheduleLanes
-                              .slice()
-                              .sort((a, b) => a.displayOrder - b.displayOrder)
-                              .map((lane) => (
-                                <SelectItem key={lane.id} value={lane.id}>
-                                  {lane.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+            {positions.length === 0 && editForm.assignType === "union" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Current Step</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={editForm.currentStep}
+                    onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
+                    className="bg-background border-border"
+                    placeholder="e.g. 7"
+                  />
+                </div>
+                {editLanes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>Lane</Label>
+                    <Select
+                      value={editForm.currentLaneId}
+                      onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select lane…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {editLanes.map((lane) => (
+                          <SelectItem key={lane.id} value={lane.id}>{lane.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
-              </>
+              </div>
+            )}
+
+            {positions.length === 0 && editForm.assignType === "group" && groupScheduleIsGrid && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Current Step</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={editForm.currentStep}
+                    onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
+                    className="bg-background border-border"
+                    placeholder="e.g. 7"
+                  />
+                </div>
+                {groupScheduleLanes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>Lane</Label>
+                    <Select
+                      value={editForm.currentLaneId}
+                      onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
+                    >
+                      <SelectTrigger className="bg-background border-border">
+                        <SelectValue placeholder="Select lane…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupScheduleLanes
+                          .slice()
+                          .sort((a, b) => a.displayOrder - b.displayOrder)
+                          .map((lane) => (
+                            <SelectItem key={lane.id} value={lane.id}>{lane.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             )}
 
             {positions.length === 0 && !(editForm.assignType === "union" && editLanes.length > 0) ? (
