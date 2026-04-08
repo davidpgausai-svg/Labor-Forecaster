@@ -4,8 +4,10 @@ import { db } from "@workspace/db";
 import {
   employeeGroupsTable,
   compensationSchedulesTable,
+  employeesTable,
+  employeePositionsTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or, count } from "drizzle-orm";
 
 const numericString = z
   .string()
@@ -138,9 +140,44 @@ router.put("/employee-groups/:id", async (req, res) => {
 });
 
 router.delete("/employee-groups/:id", async (req, res) => {
+  const groupId = req.params.id;
+
+  // Count employees directly assigned to this group (current or pending)
+  const [empCount] = await db
+    .select({ total: count() })
+    .from(employeesTable)
+    .where(
+      or(
+        eq(employeesTable.employeeGroupId, groupId),
+        eq(employeesTable.pendingEmployeeGroupId, groupId)
+      )
+    );
+
+  // Count positions assigned to this group
+  const [posCount] = await db
+    .select({ total: count() })
+    .from(employeePositionsTable)
+    .where(eq(employeePositionsTable.employeeGroupId, groupId));
+
+  const employeeTotal = empCount?.total ?? 0;
+  const positionTotal = posCount?.total ?? 0;
+
+  if (employeeTotal > 0 || positionTotal > 0) {
+    res.status(409).json({
+      error: "Cannot delete employee group with assigned employees",
+      employeeCount: employeeTotal,
+      positionCount: positionTotal,
+      message:
+        `This group has ${employeeTotal} employee${employeeTotal !== 1 ? "s" : ""}` +
+        (positionTotal > 0 ? ` and ${positionTotal} position${positionTotal !== 1 ? "s" : ""}` : "") +
+        " assigned to it. Reassign them before deleting.",
+    });
+    return;
+  }
+
   await db
     .delete(employeeGroupsTable)
-    .where(eq(employeeGroupsTable.id, req.params.id));
+    .where(eq(employeeGroupsTable.id, groupId));
   res.status(204).send();
 });
 
