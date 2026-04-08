@@ -7,6 +7,8 @@ import {
   getGetScenarioQueryKey,
 } from "@workspace/api-client-react";
 
+const SCENARIO_STORAGE_KEY = "collbar_selected_scenario_id";
+
 interface DistrictContextType {
   districtId: string | null;
   districtName: string | null;
@@ -33,7 +35,20 @@ const DistrictContext = createContext<DistrictContextType>({
 
 export function DistrictProvider({ children }: { children: ReactNode }) {
   const { data: districts, isLoading: districtLoading } = useListDistricts();
-  const [scenarioId, setScenarioId] = useState<string | null>(null);
+
+  const [scenarioId, setScenarioIdState] = useState<string | null>(() => {
+    try { return localStorage.getItem(SCENARIO_STORAGE_KEY); }
+    catch { return null; }
+  });
+
+  const setScenarioId = (id: string | null) => {
+    setScenarioIdState(id);
+    try {
+      if (id) localStorage.setItem(SCENARIO_STORAGE_KEY, id);
+      else localStorage.removeItem(SCENARIO_STORAGE_KEY);
+    } catch { /* ignore */ }
+  };
+
   const [activeContractYear, setActiveContractYear] = useState<number | null>(null);
 
   const district = districts && districts.length > 0 ? districts[0] : null;
@@ -46,12 +61,11 @@ export function DistrictProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (scenarios && scenarios.length > 0 && !scenarioId) {
-      const finalScenario = scenarios.find(s => s.isFinal);
-      const activeScenario = scenarios.find(s => s.status === "active");
-      setScenarioId((finalScenario || activeScenario || scenarios[0]).id);
+    if (scenarios && scenarioId) {
+      const found = scenarios.some(s => s.id === scenarioId);
+      if (!found) setScenarioId(null);
     }
-  }, [scenarios, scenarioId]);
+  }, [scenarios]);
 
   const { data: fullScenario, isLoading: scenarioLoading } = useGetScenario(scenarioId!, {
     query: { enabled: !!scenarioId, queryKey: getGetScenarioQueryKey(scenarioId!) },
