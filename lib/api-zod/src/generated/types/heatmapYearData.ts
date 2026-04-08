@@ -21,4 +21,8 @@ export interface HeatmapYearData {
   avgLane?: string | null;
   top3StepsPct?: number | null;
   bottom3StepsPct?: number | null;
+  totalPayroll?: string | null;
+  avgSalary?: string | null;
+  minSalary?: string | null;
+  maxSalary?: string | null;
 }

@@ -3,13 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployees,
   getListEmployeesQueryKey,
-  useListBargainingUnits,
-  getListBargainingUnitsQueryKey,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
-  useListSalarySchedules,
-  getListSalarySchedulesQueryKey,
-  type SalaryScheduleWithGrid,
   useCreateEmployee,
   type Employee,
 } from "@workspace/api-client-react";
@@ -23,7 +18,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
-import { getBadgeColorClass } from "@/lib/badges";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -75,9 +69,8 @@ export default function Employees() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addForm, setAddForm] = useState({
     firstName: "", lastName: "", employeeNumber: "",
-    assignType: "union" as "union" | "group",
-    bargainingUnitId: "", employeeGroupId: "",
-    currentAnnualSalary: "", currentStep: "", currentLaneId: "",
+    employeeGroupId: "",
+    currentAnnualSalary: "",
     status: "active", contractYear: 0,
   });
 
@@ -94,16 +87,6 @@ export default function Employees() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  const { data: units } = useListBargainingUnits(
-    { districtId: districtId! },
-    {
-      query: {
-        enabled: !!districtId,
-        queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }),
-      },
-    }
-  );
-
   const { data: employeeGroups } = useListEmployeeGroups(
     { districtId: districtId! },
     {
@@ -114,21 +97,17 @@ export default function Employees() {
     }
   );
 
-  const isUnitFilter = rosterFilter.startsWith("u:");
-  const isGroupFilter = rosterFilter.startsWith("g:");
-  const filteredBuId = isUnitFilter ? rosterFilter.slice(2) : undefined;
-  const filteredGroupId = isGroupFilter ? rosterFilter.slice(2) : undefined;
+  const filteredGroupId = rosterFilter.startsWith("g:") ? rosterFilter.slice(2) : undefined;
 
   const params = useMemo(
     () => ({
       districtId: districtId!,
-      bargainingUnitId: filteredBuId,
       employeeGroupId: filteredGroupId,
       status: statusFilter !== ALL ? statusFilter : undefined,
       page,
       pageSize,
     }),
-    [districtId, filteredBuId, filteredGroupId, statusFilter, page, pageSize]
+    [districtId, filteredGroupId, statusFilter, page, pageSize]
   );
 
   const queryClient = useQueryClient();
@@ -137,16 +116,10 @@ export default function Employees() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["listEmployees"] });
         setShowAddDialog(false);
-        setAddForm({ firstName: "", lastName: "", employeeNumber: "", assignType: "union", bargainingUnitId: "", employeeGroupId: "", currentAnnualSalary: "", currentStep: "", currentLaneId: "", status: "active", contractYear: 0 });
+        setAddForm({ firstName: "", lastName: "", employeeNumber: "", employeeGroupId: "", currentAnnualSalary: "", status: "active", contractYear: 0 });
       },
     },
   });
-
-  const { data: addFormSchedule } = useListSalarySchedules(
-    { bargainingUnitId: addForm.bargainingUnitId || undefined },
-    { query: { enabled: addForm.assignType === "union" && !!addForm.bargainingUnitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: addForm.bargainingUnitId || undefined }) } }
-  );
-  const addFormLanes = ((addFormSchedule as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
 
   const { data, isLoading } = useListEmployees(params, {
     query: {
@@ -217,20 +190,19 @@ export default function Employees() {
           );
         },
       }),
-      columnHelper.accessor("bargainingUnitName", {
-        header: "Unit / Group",
+      columnHelper.display({
+        id: "group",
+        header: "Group",
         cell: ({ row }) => {
           const groupName = (row.original as unknown as Record<string, unknown>).employeeGroupName as string | undefined;
           return (
             <div className="flex flex-col gap-0.5">
               {groupName ? (
                 <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20 w-fit text-xs">
-                  {groupName} · Group
+                  {groupName}
                 </Badge>
               ) : (
-                <Badge variant="outline" className={getBadgeColorClass(row.original.bargainingUnitName || "")}>
-                  {row.original.bargainingUnitName || "Unknown"}
-                </Badge>
+                <span className="text-muted-foreground text-sm">—</span>
               )}
             </div>
           );
@@ -341,13 +313,8 @@ export default function Employees() {
       status: addForm.status,
       contractYear: addForm.contractYear || 0,
     };
-    if (addForm.assignType === "union" && addForm.bargainingUnitId) {
-      payload.bargainingUnitId = addForm.bargainingUnitId;
-      if (addForm.currentStep) payload.currentStep = parseInt(addForm.currentStep, 10);
-      if (addForm.currentLaneId) payload.currentLaneId = addForm.currentLaneId;
-    } else if (addForm.assignType === "group" && addForm.employeeGroupId) {
+    if (addForm.employeeGroupId) {
       payload.employeeGroupId = addForm.employeeGroupId;
-      if (addForm.bargainingUnitId) payload.bargainingUnitId = addForm.bargainingUnitId;
     }
     createMutation.mutate({ data: payload as unknown as Parameters<typeof createMutation.mutate>[0]["data"] });
   };
@@ -399,14 +366,8 @@ export default function Employees() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All Employees</SelectItem>
-                {(units?.length ?? 0) > 0 && (
-                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Union</div>
-                )}
-                {units?.map((u) => (
-                  <SelectItem key={u.id} value={`u:${u.id}`}>{u.name}</SelectItem>
-                ))}
                 {(employeeGroups?.length ?? 0) > 0 && (
-                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-1">Employee Groups</div>
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Employee Groups</div>
                 )}
                 {employeeGroups?.map((g) => (
                   <SelectItem key={g.id} value={`g:${g.id}`}>{g.name}</SelectItem>
@@ -690,55 +651,14 @@ export default function Employees() {
               <Input className="bg-background/50 h-9 text-sm" value={addForm.employeeNumber} onChange={e => setAddForm(f => ({ ...f, employeeNumber: e.target.value }))} placeholder="e.g. EMP-001" />
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Assignment Type</Label>
-              <Select value={addForm.assignType} onValueChange={v => setAddForm(f => ({ ...f, assignType: v as "union" | "group", bargainingUnitId: "", employeeGroupId: "", currentStep: "", currentLaneId: "" }))}>
-                <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue /></SelectTrigger>
+              <Label className="text-xs">Employee Group</Label>
+              <Select value={addForm.employeeGroupId} onValueChange={v => setAddForm(f => ({ ...f, employeeGroupId: v }))}>
+                <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select group" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="union">Bargaining Unit</SelectItem>
-                  <SelectItem value="group">Employee Group</SelectItem>
+                  {employeeGroups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            {addForm.assignType === "union" ? (
-              <>
-                <div className="grid gap-1.5">
-                  <Label className="text-xs">Bargaining Unit</Label>
-                  <Select value={addForm.bargainingUnitId} onValueChange={v => setAddForm(f => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}>
-                    <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select unit" /></SelectTrigger>
-                    <SelectContent>
-                      {units?.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {addFormLanes.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs">Starting Step</Label>
-                      <Input className="bg-background/50 h-9 text-sm" type="number" min={1} value={addForm.currentStep} onChange={e => setAddForm(f => ({ ...f, currentStep: e.target.value }))} placeholder="1" />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs">Lane</Label>
-                      <Select value={addForm.currentLaneId} onValueChange={v => setAddForm(f => ({ ...f, currentLaneId: v }))}>
-                        <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select lane" /></SelectTrigger>
-                        <SelectContent>
-                          {addFormLanes.map((l: { id: string; name: string }) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="grid gap-1.5">
-                <Label className="text-xs">Employee Group</Label>
-                <Select value={addForm.employeeGroupId} onValueChange={v => setAddForm(f => ({ ...f, employeeGroupId: v }))}>
-                  <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select group" /></SelectTrigger>
-                  <SelectContent>
-                    {employeeGroups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label className="text-xs">Annual Salary</Label>

@@ -811,6 +811,10 @@ paths:
           in: query
           schema:
             type: string
+        - name: compensationScheduleId
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: Heatmap data for all contract years
@@ -3400,6 +3404,18 @@ components:
         bottom3StepsPct:
           type: number
           nullable: true
+        totalPayroll:
+          type: string
+          nullable: true
+        avgSalary:
+          type: string
+          nullable: true
+        minSalary:
+          type: string
+          nullable: true
+        maxSalary:
+          type: string
+          nullable: true
       required:
         - contractYear
         - yearLabel
@@ -3416,15 +3432,28 @@ components:
           type: string
         bargainingUnitId:
           type: string
+          nullable: true
         bargainingUnitName:
           type: string
+          nullable: true
+        employeeGroupId:
+          type: string
+          nullable: true
+        groupName:
+          type: string
+          nullable: true
+        scheduleType:
+          type: string
+          nullable: true
+        isSummaryOnly:
+          type: boolean
+          nullable: true
         years:
           type: array
           items:
             $ref: "#/components/schemas/HeatmapYearData"
       required:
         - scenarioId
-        - bargainingUnitId
         - years
 
     DashboardData:

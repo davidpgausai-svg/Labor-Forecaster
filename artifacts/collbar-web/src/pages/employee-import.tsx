@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useImportEmployees, CreateEmployeeRequest, useListBargainingUnits, getListBargainingUnitsQueryKey } from "@workspace/api-client-react";
+import { useImportEmployees, CreateEmployeeRequest } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ type ColumnMapping = {
   lastName: string;
   employeeId: string;
   baseSalary: string;
-  bargainingUnitId: string;
   currentStep: string;
   currentLaneId: string;
   status: string;
@@ -34,7 +33,6 @@ type ValidationRow = {
   employeeNumber: string;
   baseSalary: string;
   status: string;
-  bargainingUnitId: string;
   errors: string[];
 };
 
@@ -45,7 +43,6 @@ const FIELD_LABELS: Record<keyof ColumnMapping, string> = {
   lastName: "Last Name",
   employeeId: "Employee ID",
   baseSalary: "Base Salary",
-  bargainingUnitId: "Bargaining Unit",
   currentStep: "Current Step",
   currentLaneId: "Current Lane",
   status: "Status",
@@ -65,7 +62,6 @@ function guessMapping(headers: string[]): Partial<ColumnMapping> {
     lastName: find(["last", "lname", "surname"]),
     employeeId: find(["employee id", "emp id", "id", "eid"]),
     baseSalary: find(["salary", "base", "pay"]),
-    bargainingUnitId: find(["unit", "bargain", "bu"]),
     currentStep: find(["step"]),
     currentLaneId: find(["lane", "column", "col"]),
     status: find(["status", "active"]),
@@ -76,8 +72,6 @@ function rowToEmployee(
   row: ParsedRow,
   mapping: ColumnMapping,
   districtId: string,
-  targetBargainingUnitId: string | null,
-  defaultBuId: string | null,
 ): CreateEmployeeRequest {
   const get = (field: keyof ColumnMapping) => {
     const col = mapping[field];
@@ -86,14 +80,12 @@ function rowToEmployee(
   const salaryStr = get("baseSalary").replace(/[$,]/g, "");
   const salaryNum = parseFloat(salaryStr);
   const stepStr = get("currentStep");
-  const mappedBuId = get("bargainingUnitId");
-  const resolvedBuId = targetBargainingUnitId || mappedBuId || defaultBuId || "";
   return {
     districtId,
     firstName: get("firstName"),
     lastName: get("lastName"),
     employeeNumber: get("employeeId") || undefined,
-    bargainingUnitId: resolvedBuId,
+    bargainingUnitId: "" as string,
     currentAnnualSalary: isNaN(salaryNum) ? "0" : String(Math.round(salaryNum)),
     currentStep: stepStr ? parseInt(stepStr, 10) || undefined : undefined,
     currentLaneId: get("currentLaneId") || undefined,
@@ -117,16 +109,10 @@ export default function EmployeeImport() {
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: { row?: number; message?: string }[] } | null>(null);
   const [contractYear, setContractYear] = useState<number>(2025);
   const [incrementalMode, setIncrementalMode] = useState(false);
-  const [targetBargainingUnitId, setTargetBargainingUnitId] = useState<string>(SKIP_VALUE);
   const [validationRows, setValidationRows] = useState<ValidationRow[]>([]);
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Partial<ValidationRow>>({});
   const [importProgress, setImportProgress] = useState(0);
-
-  const { data: bargainingUnits } = useListBargainingUnits(
-    { districtId: districtId! },
-    { query: { enabled: !!districtId, queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }) } }
-  );
 
   const importMutation = useImportEmployees();
 
@@ -180,18 +166,14 @@ export default function EmployeeImport() {
 
   const isMappingValid = REQUIRED_FIELDS.every(f => mapping[f] && mapping[f] !== SKIP_VALUE);
 
-  const defaultBuId = bargainingUnits?.[0]?.id ?? null;
-  const resolvedTargetBuId = targetBargainingUnitId !== SKIP_VALUE ? targetBargainingUnitId : null;
-
   const buildValidationRows = () => {
     if (!districtId) return;
     const vrows: ValidationRow[] = rows.slice(0, 200).map((row, i) => {
-      const emp = rowToEmployee(row, mapping as ColumnMapping, districtId, resolvedTargetBuId, defaultBuId);
+      const emp = rowToEmployee(row, mapping as ColumnMapping, districtId);
       const errors: string[] = [];
       if (!emp.firstName) errors.push("Missing first name");
       if (!emp.lastName) errors.push("Missing last name");
       if (!emp.currentAnnualSalary || emp.currentAnnualSalary === "0") errors.push("Missing salary");
-      if (!emp.bargainingUnitId) errors.push("Missing bargaining unit");
       return {
         rowNum: i + 1,
         firstName: emp.firstName,
@@ -199,7 +181,6 @@ export default function EmployeeImport() {
         employeeNumber: emp.employeeNumber ?? "",
         baseSalary: emp.currentAnnualSalary ?? "0",
         status: emp.status ?? "active",
-        bargainingUnitId: emp.bargainingUnitId,
         errors,
       };
     });
@@ -241,7 +222,7 @@ export default function EmployeeImport() {
       firstName: vr.firstName,
       lastName: vr.lastName,
       employeeNumber: vr.employeeNumber || undefined,
-      bargainingUnitId: resolvedTargetBuId || vr.bargainingUnitId || defaultBuId || "",
+      bargainingUnitId: "" as string,
       currentAnnualSalary: vr.baseSalary,
       status: vr.status as "active" | "inactive",
     }));
@@ -261,7 +242,6 @@ export default function EmployeeImport() {
       employees,
       contractYear,
       incremental: incrementalMode,
-      ...(resolvedTargetBuId ? { bargainingUnitId: resolvedTargetBuId } : {}),
     };
 
     importMutation.mutate(
@@ -364,29 +344,6 @@ export default function EmployeeImport() {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Employees are associated with the selected contract year.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Target Bargaining Unit</label>
-                <Select
-                  value={targetBargainingUnitId}
-                  onValueChange={setTargetBargainingUnitId}
-                >
-                  <SelectTrigger className="bg-background/50">
-                    <SelectValue placeholder="Auto-detect from mapping" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SKIP_VALUE}>Auto-detect from mapping</SelectItem>
-                    {bargainingUnits?.map(bu => (
-                      <SelectItem key={bu.id} value={bu.id}>{bu.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {targetBargainingUnitId !== SKIP_VALUE
-                    ? `Override: all rows → ${bargainingUnits?.find(b => b.id === targetBargainingUnitId)?.name ?? targetBargainingUnitId}`
-                    : "Auto-detect bargaining unit from mapped column, or override all rows."}
                 </p>
               </div>
             </div>

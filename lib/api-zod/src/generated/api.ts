@@ -1439,12 +1439,17 @@ export const GetHeatmapDataParams = zod.object({
 export const GetHeatmapDataQueryParams = zod.object({
   bargainingUnitId: zod.coerce.string().optional(),
   employeeGroupId: zod.coerce.string().optional(),
+  compensationScheduleId: zod.coerce.string().optional(),
 });
 
 export const GetHeatmapDataResponse = zod.object({
   scenarioId: zod.string(),
-  bargainingUnitId: zod.string(),
-  bargainingUnitName: zod.string().optional(),
+  bargainingUnitId: zod.string().nullish(),
+  bargainingUnitName: zod.string().nullish(),
+  employeeGroupId: zod.string().nullish(),
+  groupName: zod.string().nullish(),
+  scheduleType: zod.string().nullish(),
+  isSummaryOnly: zod.boolean().nullish(),
   years: zod.array(
     zod.object({
       contractYear: zod.number(),
@@ -1484,6 +1489,10 @@ export const GetHeatmapDataResponse = zod.object({
       avgLane: zod.string().nullish(),
       top3StepsPct: zod.number().nullish(),
       bottom3StepsPct: zod.number().nullish(),
+      totalPayroll: zod.string().nullish(),
+      avgSalary: zod.string().nullish(),
+      minSalary: zod.string().nullish(),
+      maxSalary: zod.string().nullish(),
     }),
   ),
 });

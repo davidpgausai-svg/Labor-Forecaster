@@ -633,12 +633,20 @@ export interface HeatmapYearData {
   avgLane?: string | null;
   top3StepsPct?: number | null;
   bottom3StepsPct?: number | null;
+  totalPayroll?: string | null;
+  avgSalary?: string | null;
+  minSalary?: string | null;
+  maxSalary?: string | null;
 }
 
 export interface HeatmapData {
   scenarioId: string;
-  bargainingUnitId: string;
-  bargainingUnitName?: string;
+  bargainingUnitId?: string | null;
+  bargainingUnitName?: string | null;
+  employeeGroupId?: string | null;
+  groupName?: string | null;
+  scheduleType?: string | null;
+  isSummaryOnly?: boolean | null;
   years: HeatmapYearData[];
 }
 
@@ -1262,6 +1270,7 @@ export type CompareScenariosParams = {
 export type GetHeatmapDataParams = {
   bargainingUnitId?: string;
   employeeGroupId?: string;
+  compensationScheduleId?: string;
 };
 
 export type GetDashboardParams = {

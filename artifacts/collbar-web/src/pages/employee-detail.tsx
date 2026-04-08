@@ -5,12 +5,8 @@ import {
   getGetEmployeeQueryKey,
   useUpdateEmployee,
   useDiscardPendingChange,
-  useListBargainingUnits,
-  getListBargainingUnitsQueryKey,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
-  useListSalarySchedules,
-  getListSalarySchedulesQueryKey,
   useListImportGridLanes,
   getListImportGridLanesQueryKey,
   useListEmployeePositions,
@@ -20,7 +16,6 @@ import {
   useDeleteEmployeePosition,
   useGetDistrict,
   getGetDistrictQueryKey,
-  type SalaryScheduleWithGrid,
   type EmployeePosition,
   getListScenariosQueryKey,
   getListEmployeesQueryKey,
@@ -28,7 +23,6 @@ import {
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import { getBadgeColorClass } from "@/lib/badges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,8 +67,7 @@ export default function EmployeeDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: "", lastName: "", employeeNumber: "",
-    assignType: "union" as "union" | "group",
-    bargainingUnitId: "", employeeGroupId: "",
+    employeeGroupId: "",
     currentAnnualSalary: "", currentStep: "", currentLaneId: "",
     status: "active",
     editMode: "immediate" as "immediate" | "future",
@@ -83,19 +76,10 @@ export default function EmployeeDetail() {
 
   const queryClient = useQueryClient();
 
-  const { data: units } = useListBargainingUnits(
-    { districtId: districtId! },
-    { query: { enabled: !!districtId, queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }) } }
-  );
   const { data: employeeGroups } = useListEmployeeGroups(
     { districtId: districtId! },
     { query: { enabled: !!districtId, queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }) } }
   );
-  const { data: editSchedule } = useListSalarySchedules(
-    { bargainingUnitId: editForm.bargainingUnitId || undefined },
-    { query: { enabled: editForm.assignType === "union" && !!editForm.bargainingUnitId, queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: editForm.bargainingUnitId || undefined }) } }
-  );
-  const editLanes = ((editSchedule as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
 
   // Group assignment: find the primary compensation schedule for the selected group
   const selectedGroupData = (employeeGroups ?? []).find((g) => g.id === editForm.employeeGroupId);
@@ -105,7 +89,7 @@ export default function EmployeeDetail() {
     primaryCompSchedule?.id ?? "",
     {
       query: {
-        enabled: editForm.assignType === "group" && groupScheduleIsGrid && !!primaryCompSchedule?.id,
+        enabled: groupScheduleIsGrid && !!primaryCompSchedule?.id,
         queryKey: getListImportGridLanesQueryKey(primaryCompSchedule?.id ?? ""),
       },
     }
@@ -139,9 +123,7 @@ export default function EmployeeDetail() {
   const [showPositionDialog, setShowPositionDialog] = useState(false);
   const [editingPosition, setEditingPosition] = useState<EmployeePosition | null>(null);
   const [positionForm, setPositionForm] = useState({
-    assignType: "group" as "union" | "group",
     employeeGroupId: "",
-    bargainingUnitId: "",
     compensationScheduleId: "",
     jobTitle: "",
     fteFraction: "1.0000",
@@ -205,41 +187,24 @@ export default function EmployeeDetail() {
     selectedPosSchedule?.id ?? "",
     {
       query: {
-        enabled: positionForm.assignType === "group" && posGroupIsGrid && !!selectedPosSchedule?.id,
+        enabled: posGroupIsGrid && !!selectedPosSchedule?.id,
         queryKey: getListImportGridLanesQueryKey(selectedPosSchedule?.id ?? ""),
       },
     }
   );
-  // For union-path positions: fetch the BU's salary schedule to know if it has lanes
-  const { data: posUnionScheduleData } = useListSalarySchedules(
-    { bargainingUnitId: positionForm.bargainingUnitId || undefined },
-    {
-      query: {
-        enabled: positionForm.assignType === "union" && !!positionForm.bargainingUnitId,
-        queryKey: getListSalarySchedulesQueryKey({ bargainingUnitId: positionForm.bargainingUnitId || undefined }),
-      },
-    }
-  );
-  const posUnionLanes = ((posUnionScheduleData as unknown as SalaryScheduleWithGrid[])?.[0]?.lanes) ?? [];
 
   // Derived field-visibility for the position dialog
-  const posHasAssignment = positionForm.assignType === "group"
-    ? !!positionForm.employeeGroupId
-    : !!positionForm.bargainingUnitId;
-  const posShowStep = posHasAssignment && (positionForm.assignType === "union" || posGroupIsGrid);
-  const posShowLane = posHasAssignment && (
-    (positionForm.assignType === "union" && posUnionLanes.length > 0) ||
-    (posGroupIsGrid && posGroupLanes.length > 0)
-  );
+  const posHasAssignment = !!positionForm.employeeGroupId;
+  const posShowStep = posHasAssignment && posGroupIsGrid;
+  const posShowLane = posHasAssignment && posGroupIsGrid && posGroupLanes.length > 0;
   const posShowSalary = posHasAssignment && (
-    (positionForm.assignType === "union" && posUnionLanes.length === 0) ||
     posScheduleType === "individual_salary" ||
     posScheduleType === "range_based" ||
-    (positionForm.assignType === "group" && posScheduleType === null)
+    posScheduleType === null
   );
   const posShowHourly = posHasAssignment && posScheduleType === "hourly";
   const posPlacementNote = !posHasAssignment
-    ? "Select an assignment above to configure placement fields."
+    ? "Select a group above to configure placement fields."
     : posScheduleType === "per_diem"
     ? "Rate is driven by the per-diem schedule — no manual entry needed."
     : posScheduleType === "flat_rate"
@@ -252,9 +217,7 @@ export default function EmployeeDetail() {
     setEditingPosition(null);
     const hasPrimary = positions.some((p) => p.isPrimary);
     setPositionForm({
-      assignType: "group",
       employeeGroupId: "",
-      bargainingUnitId: "",
       compensationScheduleId: "",
       jobTitle: "",
       fteFraction: "1.0000",
@@ -275,9 +238,7 @@ export default function EmployeeDetail() {
   function openEditPosition(pos: EmployeePosition) {
     setEditingPosition(pos);
     setPositionForm({
-      assignType: pos.employeeGroupId ? "group" : "union",
       employeeGroupId: pos.employeeGroupId ?? "",
-      bargainingUnitId: pos.bargainingUnitId ?? "",
       compensationScheduleId: pos.compensationScheduleId ?? "",
       jobTitle: pos.jobTitle ?? "",
       fteFraction: pos.fteFraction ?? "1.0000",
@@ -297,8 +258,8 @@ export default function EmployeeDetail() {
 
   function handleSavePosition() {
     const body = {
-      employeeGroupId: positionForm.assignType === "group" ? (positionForm.employeeGroupId || null) : null,
-      bargainingUnitId: positionForm.assignType === "union" ? (positionForm.bargainingUnitId || null) : null,
+      employeeGroupId: positionForm.employeeGroupId || null,
+      bargainingUnitId: null,
       compensationScheduleId: positionForm.compensationScheduleId || null,
       jobTitle: positionForm.jobTitle || null,
       fteFraction: positionForm.fteFraction || "1.0000",
@@ -341,13 +302,10 @@ export default function EmployeeDetail() {
   function openEdit() {
     if (!emp) return;
     const e = emp as unknown as Record<string, unknown>;
-    const hasGroup = !!(e.employeeGroupId);
     setEditForm({
       firstName: emp.firstName ?? "",
       lastName: emp.lastName ?? "",
       employeeNumber: emp.employeeNumber ?? "",
-      assignType: hasGroup ? "group" : "union",
-      bargainingUnitId: emp.bargainingUnitId ?? "",
       employeeGroupId: String(e.employeeGroupId ?? ""),
       currentAnnualSalary: String(emp.currentAnnualSalary ?? ""),
       currentStep: emp.currentStep != null ? String(emp.currentStep) : "",
@@ -367,17 +325,9 @@ export default function EmployeeDetail() {
       currentAnnualSalary: parseFloat(editForm.currentAnnualSalary) || 0,
     };
     if (editForm.employeeNumber) body.employeeNumber = editForm.employeeNumber;
-    if (editForm.assignType === "union") {
-      body.bargainingUnitId = editForm.bargainingUnitId || null;
-      body.employeeGroupId = null;
-      if (editForm.currentStep) body.currentStep = parseInt(editForm.currentStep, 10);
-      if (editForm.currentLaneId) body.currentLaneId = editForm.currentLaneId;
-    } else {
-      body.employeeGroupId = editForm.employeeGroupId || null;
-      // Do NOT include bargainingUnitId for group assignments — the live BU is preserved on the DB side
-      if (editForm.currentStep) body.currentStep = parseInt(editForm.currentStep, 10);
-      if (editForm.currentLaneId) body.currentLaneId = editForm.currentLaneId;
-    }
+    body.employeeGroupId = editForm.employeeGroupId || null;
+    if (editForm.currentStep) body.currentStep = parseInt(editForm.currentStep, 10);
+    if (editForm.currentLaneId) body.currentLaneId = editForm.currentLaneId;
     if (editForm.editMode === "future" && editForm.effectiveContractYear) {
       body.effectiveContractYear = parseInt(editForm.effectiveContractYear, 10);
     }
@@ -433,19 +383,13 @@ export default function EmployeeDetail() {
             <h1 className="text-3xl font-bold tracking-tight">
               {emp.firstName} {emp.lastName}
             </h1>
-            <Badge
-              variant="outline"
-              className={getBadgeColorClass(emp.bargainingUnitName || "")}
-            >
-              {emp.bargainingUnitName || "Unknown Unit"}
-            </Badge>
             {!!empAny.employeeGroupName && (
               <Badge
                 variant="outline"
                 className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs"
                 title="Scenario calculations use this employee group config"
               >
-                {String(empAny.employeeGroupName)} · Group
+                {String(empAny.employeeGroupName)}
               </Badge>
             )}
             <Badge
@@ -872,7 +816,6 @@ export default function EmployeeDetail() {
                   <TableBody>
                     {positions.map((pos) => {
                       const group = (employeeGroups ?? []).find((g) => g.id === pos.employeeGroupId);
-                      const unit = (units ?? []).find((u) => u.id === pos.bargainingUnitId);
                       const groupSched = group?.compensationSchedules?.find((s) => s.isPrimary);
                       return (
                         <TableRow key={pos.id} className="border-border">
@@ -883,11 +826,11 @@ export default function EmployeeDetail() {
                               )}
                               <div>
                                 <div className="font-medium text-sm">
-                                  {pos.jobTitle || (group?.name ?? unit?.name ?? "—")}
+                                  {pos.jobTitle || (group?.name ?? "—")}
                                 </div>
-                                {pos.jobTitle && (group || unit) && (
+                                {pos.jobTitle && group && (
                                   <div className="text-xs text-muted-foreground">
-                                    {group?.name ?? unit?.name}
+                                    {group.name}
                                   </div>
                                 )}
                               </div>
@@ -1333,77 +1276,24 @@ export default function EmployeeDetail() {
               </Select>
             </div>
 
-            {editForm.assignType === "group" ? (
-              <div className="space-y-1.5">
-                <Label>Employee Group</Label>
-                <Select
-                  value={editForm.employeeGroupId}
-                  onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Select group…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(employeeGroups ?? []).map((g) => (
-                      <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>Bargaining Unit</Label>
-                <Select
-                  value={editForm.bargainingUnitId}
-                  onValueChange={(v) => setEditForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
-                >
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue placeholder="Select unit…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(units ?? []).map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <Label>Employee Group</Label>
+              <Select
+                value={editForm.employeeGroupId}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, employeeGroupId: v, currentLaneId: "" }))}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue placeholder="Select group…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(employeeGroups ?? []).map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {positions.length === 0 && editForm.assignType === "union" && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Current Step</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={editForm.currentStep}
-                    onChange={(e) => setEditForm((f) => ({ ...f, currentStep: e.target.value }))}
-                    className="bg-background border-border"
-                    placeholder="e.g. 7"
-                  />
-                </div>
-                {editLanes.length > 0 && (
-                  <div className="space-y-1.5">
-                    <Label>Lane</Label>
-                    <Select
-                      value={editForm.currentLaneId}
-                      onValueChange={(v) => setEditForm((f) => ({ ...f, currentLaneId: v }))}
-                    >
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Select lane…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {editLanes.map((lane) => (
-                          <SelectItem key={lane.id} value={lane.id}>{lane.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {positions.length === 0 && editForm.assignType === "group" && groupScheduleIsGrid && (
+            {positions.length === 0 && groupScheduleIsGrid && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Current Step</Label>
@@ -1440,7 +1330,7 @@ export default function EmployeeDetail() {
               </div>
             )}
 
-            {positions.length === 0 && !(editForm.assignType === "union" && editLanes.length > 0) ? (
+            {positions.length === 0 && !groupScheduleIsGrid ? (
               <div className="space-y-1.5">
                 <Label>Annual Salary</Label>
                 <div className="relative">
@@ -1507,134 +1397,54 @@ export default function EmployeeDetail() {
               />
             </div>
 
-            {/* Assignment type toggle */}
+            {/* Group selector */}
             <div className="space-y-1.5">
-              <Label>Assignment Type</Label>
-              <div className="flex gap-2">
-                <Button type="button" variant={positionForm.assignType === "group" ? "default" : "outline"} size="sm"
-                  onClick={() => setPositionForm((f) => ({ ...f, assignType: "group", bargainingUnitId: "", currentStep: "", currentLaneId: "" }))}>
-                  Employee Group
-                </Button>
-                <Button type="button" variant={positionForm.assignType === "union" ? "default" : "outline"} size="sm"
-                  onClick={() => setPositionForm((f) => ({ ...f, assignType: "union", employeeGroupId: "", currentLaneId: "" }))}>
-                  Bargaining Unit
-                </Button>
-              </div>
+              <Label>Employee Group</Label>
+              <Select
+                value={positionForm.employeeGroupId}
+                onValueChange={(v) => {
+                  const grp = (employeeGroups ?? []).find((g) => g.id === v);
+                  const primary = grp?.compensationSchedules?.find((cs) => cs.isPrimary);
+                  setPositionForm((f) => ({ ...f, employeeGroupId: v, compensationScheduleId: primary?.id ?? "", currentLaneId: "", currentStep: "" }));
+                }}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue placeholder="Select group…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(employeeGroups ?? []).map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                      {Boolean((g as unknown as Record<string, unknown>).isUnionized) && (
+                        <span className="ml-1.5 text-xs text-muted-foreground">· unionized</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Group or BU selector */}
-            {positionForm.assignType === "group" ? (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Employee Group</Label>
-                  <Select
-                    value={positionForm.employeeGroupId}
-                    onValueChange={(v) => {
-                      const grp = (employeeGroups ?? []).find((g) => g.id === v);
-                      const primary = grp?.compensationSchedules?.find((cs) => cs.isPrimary);
-                      setPositionForm((f) => ({ ...f, employeeGroupId: v, compensationScheduleId: primary?.id ?? "", currentLaneId: "", currentStep: "" }));
-                    }}
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Select group…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(employeeGroups ?? []).map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.name}
-                          {Boolean((g as unknown as Record<string, unknown>).isUnionized) && (
-                            <span className="ml-1.5 text-xs text-muted-foreground">· unionized</span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {posGroupSchedules.length > 0 && (
-                  <div className="space-y-1.5">
-                    <Label>Compensation Schedule</Label>
-                    <Select
-                      value={positionForm.compensationScheduleId}
-                      onValueChange={(v) => setPositionForm((f) => ({ ...f, compensationScheduleId: v, currentLaneId: "", currentStep: "" }))}
-                    >
-                      <SelectTrigger className="bg-background border-border">
-                        <SelectValue placeholder="Select schedule…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {posGroupSchedules.map((cs) => (
-                          <SelectItem key={cs.id} value={cs.id}>
-                            {cs.name}
-                            <span className="ml-1.5 text-xs text-muted-foreground">({cs.scheduleType.replace(/_/g, " ")})</span>
-                            {cs.isPrimary && <span className="ml-1 text-xs text-primary"> · primary</span>}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Bargaining Unit</Label>
-                  <Select
-                    value={positionForm.bargainingUnitId}
-                    onValueChange={(v) => setPositionForm((f) => ({ ...f, bargainingUnitId: v, currentLaneId: "" }))}
-                  >
-                    <SelectTrigger className="bg-background border-border">
-                      <SelectValue placeholder="Select unit…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(units ?? []).map((u) => (
-                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {positionForm.bargainingUnitId && (
-                  <div className="space-y-1.5">
-                    <Label>Salary Schedule</Label>
-                    {(() => {
-                      const schedules = (posUnionScheduleData as unknown as SalaryScheduleWithGrid[]) ?? [];
-                      if (schedules.length === 0) {
-                        return (
-                          <p className="text-xs text-amber-400 border border-amber-500/30 rounded-md px-3 py-2 bg-amber-500/10">
-                            No salary schedule configured for this bargaining unit.
-                          </p>
-                        );
-                      }
-                      if (schedules.length === 1) {
-                        return (
-                          <div className="text-sm px-3 py-2 rounded-md border border-border bg-muted/20 text-muted-foreground">
-                            {schedules[0].name}
-                            <span className="ml-2 text-xs">
-                              {posUnionLanes.length > 0 ? `${posUnionLanes.length} lanes · step/lane grid` : "step-only"}
-                            </span>
-                          </div>
-                        );
-                      }
-                      // Multiple schedules — let the user pick
-                      return (
-                        <Select
-                          value={positionForm.compensationScheduleId}
-                          onValueChange={(v) => setPositionForm((f) => ({ ...f, compensationScheduleId: v, currentLaneId: "" }))}
-                        >
-                          <SelectTrigger className="bg-background border-border">
-                            <SelectValue placeholder="Select salary schedule…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {schedules.map((sc) => (
-                              <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      );
-                    })()}
-                  </div>
-                )}
-              </>
+            {posGroupSchedules.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Compensation Schedule</Label>
+                <Select
+                  value={positionForm.compensationScheduleId}
+                  onValueChange={(v) => setPositionForm((f) => ({ ...f, compensationScheduleId: v, currentLaneId: "", currentStep: "" }))}
+                >
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue placeholder="Select schedule…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {posGroupSchedules.map((cs) => (
+                      <SelectItem key={cs.id} value={cs.id}>
+                        {cs.name}
+                        <span className="ml-1.5 text-xs text-muted-foreground">({cs.scheduleType.replace(/_/g, " ")})</span>
+                        {cs.isPrimary && <span className="ml-1 text-xs text-primary"> · primary</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
 
             {/* FTE — always shown */}
@@ -1691,7 +1501,7 @@ export default function EmployeeDetail() {
                         <SelectValue placeholder="Select lane…" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(positionForm.assignType === "union" ? posUnionLanes : posGroupLanes)
+                        {posGroupLanes
                           .slice()
                           .sort((a, b) => a.displayOrder - b.displayOrder)
                           .map((lane) => (

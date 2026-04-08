@@ -3,11 +3,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useGetHeatmapData,
   getGetHeatmapDataQueryKey,
-  useListBargainingUnits,
-  getListBargainingUnitsQueryKey,
   useListEmployeeGroups,
   getListEmployeeGroupsQueryKey,
   type EmployeeGroupWithSchedules,
+  type HeatmapYearData,
 } from "@workspace/api-client-react";
 import { useDistrictContext } from "@/context/DistrictContext";
 import { formatCurrency } from "@/lib/format";
@@ -25,6 +24,8 @@ import {
   Download,
   ImageIcon,
   FileText,
+  BarChart2,
+  Users,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -42,256 +43,47 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 
-const UNIT_COLORS: Record<string, string> = {
-  Licensed: "hsl(217,91%,60%)",
-  ESP: "hsl(258,90%,66%)",
-  CM: "hsl(38,92%,50%)",
-};
-const COLOR_FALLBACKS = ["hsl(217,91%,60%)", "hsl(258,90%,66%)", "hsl(38,92%,50%)"];
-function unitColor(name: string, idx: number) {
-  return UNIT_COLORS[name] ?? COLOR_FALLBACKS[idx % COLOR_FALLBACKS.length];
+// ── Schedule type helpers ───────────────────────────────────────────────────
+
+const GRID_TYPES = ["direct_import_grid", "index_based_grid"];
+const HOURLY_TYPE = "hourly";
+
+function scheduleLabel(scheduleType: string | null | undefined): string {
+  if (!scheduleType) return "Unknown";
+  return scheduleType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+// ── Top-level page ──────────────────────────────────────────────────────────
 
 export default function HeatmapPage() {
-  const { districtId } = useDistrictContext();
-  const { data: units, isLoading: unitsLoading } = useListBargainingUnits(
+  const { districtId, contractYears, yearLabelMap } = useDistrictContext();
+
+  const { data: employeeGroups, isLoading: groupsLoading } = useListEmployeeGroups(
     { districtId: districtId! },
-    {
-      query: {
-        enabled: !!districtId,
-        queryKey: getListBargainingUnitsQueryKey({ districtId: districtId! }),
-      },
+    { query: { enabled: !!districtId, queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }) } }
+  );
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+
+  // Auto-select first group when data loads
+  useEffect(() => {
+    if (!selectedGroupId && employeeGroups && employeeGroups.length > 0) {
+      setSelectedGroupId(employeeGroups[0].id);
     }
-  );
+  }, [employeeGroups, selectedGroupId]);
 
-  const { data: employeeGroups } = useListEmployeeGroups(
-    { districtId: districtId! },
-    {
-      query: {
-        enabled: !!districtId,
-        queryKey: getListEmployeeGroupsQueryKey({ districtId: districtId! }),
-      },
-    }
-  );
-
-  const salaryUnits = units?.filter((u) => u.compensationType === "salary") || [];
-  const hourlyUnits = units?.filter((u) => u.compensationType !== "salary") || [];
-
-  return (
-    <div className="space-y-8 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Demographic Heatmap
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Visualize staff distribution across the salary schedule over 5 contract years.
-          </p>
-        </div>
-      </div>
-
-      {unitsLoading ? (
-        <Skeleton className="h-[600px] w-full" />
-      ) : salaryUnits.length === 0 && (!employeeGroups || employeeGroups.length === 0) ? (
-        <Card className="bg-card border-border">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No salary bargaining units or employee groups found.
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {salaryUnits.length > 0 && (
-            <>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Bargaining Units</h3>
-              <Tabs defaultValue={salaryUnits[0]?.id} className="w-full">
-                <TabsList className="bg-muted border-border">
-                  {salaryUnits.map((unit) => (
-                    <TabsTrigger
-                      key={unit.id}
-                      value={unit.id}
-                      className="data-[state=active]:bg-background"
-                    >
-                      {unit.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                {salaryUnits.map((unit) => (
-                  <TabsContent key={unit.id} value={unit.id} className="mt-6">
-                    <HeatmapViewer unitId={unit.id} unitName={unit.name} />
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </>
-          )}
-
-          {employeeGroups && employeeGroups.length > 0 && (
-            <EmployeeGroupHeatmapSection groups={employeeGroups} />
-          )}
-
-          {hourlyUnits.length > 0 && (
-            <div className="space-y-4">
-              <div className="border-t border-border pt-6">
-                <h2 className="text-lg font-semibold tracking-tight mb-1">
-                  ESP / CM Distribution by Step
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Grouped bar chart showing employee count per step across hourly bargaining units.
-                </p>
-              </div>
-              <HourlyUnitBarChart units={hourlyUnits} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-const GRID_COMPATIBLE_SCHEDULE_TYPES = ["direct_import_grid", "index_based_grid"];
-
-function EmployeeGroupHeatmapSection({ groups }: { groups: EmployeeGroupWithSchedules[] }) {
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(groups[0]?.id ?? "");
-
-  const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? groups[0];
-  const ps = selectedGroup?.compensationSchedules?.find((s) => s.isPrimary);
-  const scheduleType = ps?.scheduleType ?? null;
-  const isGridCompatible = scheduleType && GRID_COMPATIBLE_SCHEDULE_TYPES.includes(scheduleType);
-
-  return (
-    <div className="space-y-4 border-t border-border pt-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight mb-1">Employee Groups</h2>
-          <p className="text-sm text-muted-foreground">
-            Lane/step distribution heatmap per group. Only salary-grid schedules are supported.
-          </p>
-        </div>
-        <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-          <SelectTrigger className="w-[240px] bg-muted border-border shrink-0">
-            <SelectValue placeholder="Select group…" />
-          </SelectTrigger>
-          <SelectContent>
-            {groups.map((g) => {
-              const gps = g.compensationSchedules?.find((s) => s.isPrimary);
-              return (
-                <SelectItem key={g.id} value={g.id}>
-                  <span>{g.name}</span>
-                  {gps && (
-                    <span className="ml-1.5 text-xs text-muted-foreground">
-                      ({gps.scheduleType?.replace(/_/g, " ")})
-                    </span>
-                  )}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {selectedGroup && (
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded font-mono">{selectedGroup.code}</span>
-            {ps && (
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                {ps.name} — {scheduleType?.replace(/_/g, " ")}
-              </span>
-            )}
-          </div>
-
-          {!ps && (
-            <Card className="bg-card border-border">
-              <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                No primary compensation schedule assigned to this group. Configure one in Settings to enable heatmap.
-              </CardContent>
-            </Card>
-          )}
-
-          {ps && scheduleType && !isGridCompatible && (
-            <Card className="bg-card border-border">
-              <CardContent className="py-8">
-                <div className="flex items-start gap-3 text-sm text-muted-foreground max-w-xl">
-                  <ImageIcon className="h-5 w-5 mt-0.5 shrink-0 text-muted-foreground/60" />
-                  <div>
-                    <p className="font-medium text-foreground mb-1">
-                      {scheduleType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} — Lane/Step Heatmap Not Applicable
-                    </p>
-                    <p>
-                      This compensation type does not use a lane/step salary grid. Heatmap visualization is available
-                      only for salary-grid schedules (Individual Salary, Range-Based, Direct Import Grid).
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {ps && isGridCompatible && (
-            <EmployeeGroupHeatmapViewer groupId={selectedGroup.id} groupName={selectedGroup.name} />
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EmployeeGroupHeatmapViewer({ groupId, groupName }: { groupId: string; groupName: string }) {
-  const { scenarioId } = useDistrictContext();
-  return (
-    <HeatmapViewer
-      unitId={groupId}
-      unitName={groupName}
-      employeeGroupId={groupId}
-      key={groupId}
-      scenarioIdOverride={scenarioId ?? undefined}
-    />
-  );
-}
-
-function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }: {
-  unitId: string;
-  unitName: string;
-  employeeGroupId?: string;
-  scenarioIdOverride?: string;
-}) {
-  const { scenarioId: ctxScenarioId } = useDistrictContext();
-  const scenarioId = scenarioIdOverride ?? ctxScenarioId;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
-
-  const heatmapParams = employeeGroupId
-    ? { employeeGroupId }
-    : { bargainingUnitId: unitId };
-
-  const { data, isLoading } = useGetHeatmapData(
-    scenarioId!,
-    heatmapParams,
-    {
-      query: {
-        enabled: !!scenarioId && (!!unitId || !!employeeGroupId),
-        queryKey: getGetHeatmapDataQueryKey(scenarioId!, heatmapParams),
-      },
-    }
-  );
-
+  // Global year navigation — drives all schedule viewers simultaneously
   const [currentYearIndex, setCurrentYearIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    setCurrentYearIndex(0);
-    setIsPlaying(false);
-  }, [unitId]);
-
-  useEffect(() => {
-    if (!isPlaying || !data || data.years.length === 0) return;
+    if (!isPlaying || contractYears.length === 0) return;
     const timer = setInterval(() => {
       setCurrentYearIndex((prev) => {
-        if (prev >= data.years.length - 1) {
+        if (prev >= contractYears.length - 1) {
           setIsPlaying(false);
           return prev;
         }
@@ -299,17 +91,273 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
       });
     }, 1500);
     return () => clearInterval(timer);
-  }, [isPlaying, data]);
+  }, [isPlaying, contractYears]);
+
+  const selectedGroup = employeeGroups?.find((g) => g.id === selectedGroupId);
+
+  return (
+    <div className="space-y-6 max-w-[1400px] mx-auto">
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Demographic Heatmap</h1>
+          <p className="text-muted-foreground text-sm">
+            Staff distribution across compensation schedules by employee group.
+          </p>
+        </div>
+
+        {/* Group picker */}
+        {groupsLoading ? (
+          <Skeleton className="h-9 w-64" />
+        ) : (
+          <Select value={selectedGroupId} onValueChange={(v) => { setSelectedGroupId(v); setCurrentYearIndex(0); setIsPlaying(false); }}>
+            <SelectTrigger className="w-64 bg-muted border-border">
+              <SelectValue placeholder="Select employee group…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(employeeGroups ?? []).map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name}
+                  {Boolean((g as unknown as Record<string, unknown>).isUnionized) && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">· unionized</span>
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {!selectedGroup ? (
+        <Card className="bg-card border-border">
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {groupsLoading ? <Skeleton className="h-4 w-40 mx-auto" /> : "No employee groups found."}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Global year navigator */}
+          {contractYears.length > 0 && (
+            <div className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-2 w-fit">
+              <Button
+                variant={isPlaying ? "secondary" : "default"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  if (currentYearIndex === contractYears.length - 1) setCurrentYearIndex(0);
+                  setIsPlaying((p) => !p);
+                }}
+              >
+                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentYearIndex((p) => Math.max(0, p - 1))}
+                disabled={currentYearIndex === 0}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Button>
+              <div className="px-3 py-1 bg-muted rounded font-mono font-bold text-sm min-w-[100px] text-center">
+                {yearLabelMap.get(contractYears[currentYearIndex]) ?? `Year ${contractYears[currentYearIndex]}`}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentYearIndex((p) => Math.min(contractYears.length - 1, p + 1))}
+                disabled={currentYearIndex === contractYears.length - 1}
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+              <div className="flex gap-1 pl-1">
+                {contractYears.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setIsPlaying(false); setCurrentYearIndex(i); }}
+                    className={`h-2 rounded-full transition-all ${i === currentYearIndex ? "bg-primary w-4" : "bg-muted-foreground/40 hover:bg-muted-foreground/70 w-2"}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Schedule tabs for the selected group */}
+          <GroupSchedulePanel
+            group={selectedGroup}
+            currentYearIndex={currentYearIndex}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Per-group schedule tabs ─────────────────────────────────────────────────
+
+function GroupSchedulePanel({
+  group,
+  currentYearIndex,
+}: {
+  group: EmployeeGroupWithSchedules;
+  currentYearIndex: number;
+}) {
+  const schedules = group.compensationSchedules ?? [];
+  const [activeScheduleId, setActiveScheduleId] = useState<string>(schedules[0]?.id ?? "");
+
+  // Reset tab when group changes
+  useEffect(() => {
+    setActiveScheduleId(schedules[0]?.id ?? "");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group.id]);
+
+  if (schedules.length === 0) {
+    return (
+      <Card className="bg-card border-border">
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          No compensation schedules configured for this group. Add schedules in Settings.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Tabs value={activeScheduleId} onValueChange={setActiveScheduleId} className="w-full">
+      <TabsList className="bg-muted border-border flex-wrap h-auto gap-1 p-1">
+        {schedules.map((sched) => (
+          <TabsTrigger
+            key={sched.id}
+            value={sched.id}
+            className="data-[state=active]:bg-background text-xs gap-1.5"
+          >
+            {sched.name}
+            <span className="text-muted-foreground font-normal">
+              ({scheduleLabel(sched.scheduleType)})
+            </span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      {schedules.map((sched) => (
+        <TabsContent key={sched.id} value={sched.id} className="mt-6">
+          <ScheduleViewer
+            groupId={group.id}
+            groupName={group.name}
+            scheduleId={sched.id}
+            scheduleName={sched.name}
+            scheduleType={sched.scheduleType}
+            currentYearIndex={currentYearIndex}
+          />
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
+// ── Per-schedule data fetcher + renderer ────────────────────────────────────
+
+function ScheduleViewer({
+  groupId,
+  groupName,
+  scheduleId,
+  scheduleName,
+  scheduleType,
+  currentYearIndex,
+}: {
+  groupId: string;
+  groupName: string;
+  scheduleId: string;
+  scheduleName: string;
+  scheduleType: string;
+  currentYearIndex: number;
+}) {
+  const { scenarioId } = useDistrictContext();
+
+  const params = { employeeGroupId: groupId, compensationScheduleId: scheduleId };
+  const { data, isLoading } = useGetHeatmapData(scenarioId!, params, {
+    query: {
+      enabled: !!scenarioId,
+      queryKey: getGetHeatmapDataQueryKey(scenarioId!, params),
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-[400px] w-full" />;
+
+  if (!data || data.years.length === 0) {
+    return (
+      <Card className="bg-card border-border">
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          No projection data for this schedule. Run scenario calculation first.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const yearData = data.years[currentYearIndex] ?? data.years[0];
+  const isSummaryOnly = !!(data as unknown as Record<string, unknown>).isSummaryOnly;
+
+  if (isSummaryOnly) {
+    if (scheduleType === HOURLY_TYPE) {
+      return <HourlyStepChart data={data} yearData={yearData} scheduleName={scheduleName} />;
+    }
+    return <SalarySummaryCard yearData={yearData} scheduleType={scheduleType} scheduleName={scheduleName} />;
+  }
+
+  return (
+    <GridHeatmapViewer
+      data={data}
+      yearData={yearData}
+      groupName={groupName}
+      scheduleName={scheduleName}
+    />
+  );
+}
+
+// ── Grid heatmap viewer ─────────────────────────────────────────────────────
+
+function GridHeatmapViewer({
+  data,
+  yearData,
+  groupName,
+  scheduleName,
+}: {
+  data: { years: HeatmapYearData[] };
+  yearData: HeatmapYearData;
+  groupName: string;
+  scheduleName: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const { scenarioId } = useDistrictContext();
+
+  const maxStep = yearData.maxStep;
+  const lanes = yearData.lanes;
+
+  const getCellColor = (count: number) => {
+    if (count === 0) return "bg-slate-900/40 border-border/30";
+    if (count === 1) return "bg-blue-900/40 border-blue-500/20 text-blue-300";
+    if (count <= 3) return "bg-blue-800/60 border-blue-400/40 text-blue-200";
+    if (count <= 5) return "bg-blue-600 border-blue-400 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]";
+    return "bg-indigo-600 border-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]";
+  };
+
+  const legendItems = [
+    { label: "0", color: "bg-slate-900/40 border-border/30" },
+    { label: "1", color: "bg-blue-900/40 border-blue-500/20" },
+    { label: "2–3", color: "bg-blue-800/60 border-blue-400/40" },
+    { label: "4–5", color: "bg-blue-600 border-blue-400" },
+    { label: "6+", color: "bg-indigo-600 border-indigo-400" },
+  ];
 
   const exportPng = async () => {
     if (!containerRef.current) return;
     try {
       const dataUrl = await toPng(containerRef.current, { backgroundColor: "#111620" });
       const link = document.createElement("a");
-      link.download = `heatmap-${unitName}-${yearData?.yearLabel ?? "year"}.png`;
+      link.download = `heatmap-${groupName}-${scheduleName}-${yearData.yearLabel}.png`;
       link.href = dataUrl;
       link.click();
-      toast({ title: "PNG saved", description: `heatmap-${unitName}-${yearData?.yearLabel ?? "year"}.png` });
+      toast({ title: "PNG saved" });
     } catch (err) {
       toast({ title: "Export failed", description: err instanceof Error ? err.message : "PNG capture failed.", variant: "destructive" });
     }
@@ -326,195 +374,61 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ heatmapPng: base64 }),
       });
-      if (!res.ok) {
-        let msg = `Server error ${res.status}`;
-        try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
-        throw new Error(msg);
-      }
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       const cd = res.headers.get("Content-Disposition") ?? "";
-      const match = cd.match(/filename="([^"]+)"/);
-      const filename = match?.[1] ?? `Heatmap_${unitName}_${new Date().toISOString().slice(0, 10)}.pdf`;
-      link.download = filename;
+      link.download = cd.match(/filename="([^"]+)"/)?.[1] ?? `Heatmap_${groupName}_${new Date().toISOString().slice(0, 10)}.pdf`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-      toast({ title: "PDF saved", description: filename });
+      toast({ title: "PDF saved" });
     } catch (err) {
-      toast({ title: "Export failed", description: err instanceof Error ? err.message : "PDF generation failed.", variant: "destructive" });
+      toast({ title: "Export failed", description: err instanceof Error ? err.message : "PDF failed.", variant: "destructive" });
     }
   };
 
-  if (isLoading) return <Skeleton className="h-[500px] w-full" />;
-  if (!data || data.years.length === 0) {
-    const allInGroups = !!(data as unknown as Record<string, unknown>)?.allInGroups;
-    return (
-      <Card className="bg-card border-border">
-        <CardContent className="py-12 text-center text-muted-foreground">
-          {allInGroups ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">No direct union employees</p>
-              <p className="text-xs">
-                Every employee in this bargaining unit is assigned to an employee group,
-                so the calc engine uses their group config — not this unit's step/lane schedule.
-                Use the employee group filter above to view their heatmap.
-              </p>
-            </div>
-          ) : (
-            "No heatmap data found for this unit. Ensure a scenario is selected and employees are assigned."
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const yearData = data.years[currentYearIndex];
-  const maxStep = yearData.maxStep;
-  const lanes = yearData.lanes;
-
-  const getCellColor = (count: number) => {
-    if (count === 0) return "bg-slate-900/40 border-border/30";
-    if (count === 1)
-      return "bg-blue-900/40 border-blue-500/20 text-blue-300";
-    if (count <= 3)
-      return "bg-blue-800/60 border-blue-400/40 text-blue-200";
-    if (count <= 5)
-      return "bg-blue-600 border-blue-400 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]";
-    return "bg-indigo-600 border-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]";
-  };
-
-  const totalCells = maxStep * lanes.length;
-  const occupiedCells = yearData.cells.filter((c) => (c.employeeCount ?? 0) > 0).length;
-  const concentrationPct = totalCells > 0 ? Math.round((occupiedCells / totalCells) * 100) : 0;
-
-  const occupiedSteps = [...new Set(yearData.cells.filter(c => (c.employeeCount ?? 0) > 0).map(c => c.stepNumber).filter((n): n is number => n !== undefined))];
-  const avgStep = occupiedSteps.length > 0
-    ? (occupiedSteps.reduce((s: number, n: number) => s + n, 0) / occupiedSteps.length).toFixed(1)
-    : "—";
-
-  const topStepPct = yearData.totalEmployees > 0
-    ? Math.round((yearData.employeesAtTopStep / yearData.totalEmployees) * 100)
-    : 0;
-
-  const legendItems = [
-    { label: "0", color: "bg-slate-900/40 border-border/30" },
-    { label: "1", color: "bg-blue-900/40 border-blue-500/20" },
-    { label: "2–3", color: "bg-blue-800/60 border-blue-400/40" },
-    { label: "4–5", color: "bg-blue-600 border-blue-400" },
-    { label: "6+", color: "bg-indigo-600 border-indigo-400" },
-  ];
-
   return (
     <div className="space-y-4">
+      {/* Stats bar */}
       <div className="flex items-center justify-between bg-card border border-border p-3 rounded-lg flex-wrap gap-3">
-        <div className="flex items-center gap-4">
-          <Button
-            variant={isPlaying ? "secondary" : "default"}
-            size="icon"
-            onClick={() => {
-              if (currentYearIndex === data.years.length - 1)
-                setCurrentYearIndex(0);
-              setIsPlaying(!isPlaying);
-            }}
-          >
-            {isPlaying ? (
-              <Pause className="w-4 h-4" />
-            ) : (
-              <Play className="w-4 h-4" />
-            )}
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() =>
-                setCurrentYearIndex((p) => Math.max(0, p - 1))
-              }
-              disabled={currentYearIndex === 0}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <div className="px-4 py-2 bg-muted rounded font-mono font-bold text-center min-w-[120px]">
-              {yearData.yearLabel}
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() =>
-                setCurrentYearIndex((p) =>
-                  Math.min(data.years.length - 1, p + 1)
-                )
-              }
-              disabled={currentYearIndex === data.years.length - 1}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="hidden sm:flex gap-1">
-            {data.years.map((y, i) => (
-              <button
-                key={i}
-                onClick={() => { setIsPlaying(false); setCurrentYearIndex(i); }}
-                className={`w-2 h-2 rounded-full transition-all ${i === currentYearIndex ? "bg-primary w-4" : "bg-muted-foreground/40 hover:bg-muted-foreground/70"}`}
-              />
-            ))}
-          </div>
-        </div>
-
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Total Staff</span>
-            <span className="font-mono font-bold text-base">{yearData.totalEmployees}</span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Median Salary</span>
-            <span className="font-mono font-bold text-base">{formatCurrency(yearData.medianSalary)}</span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Avg Step</span>
-            <span className="font-mono font-bold text-base text-blue-400">{(yearData.avgStep ?? "—").toString()}</span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Modal Lane</span>
-            <span className="font-mono font-bold text-base text-purple-400 truncate max-w-[80px]" title={yearData.avgLane ?? "—"}>
-              {yearData.avgLane ?? "—"}
-            </span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Top-3 Steps</span>
-            <span className="font-mono font-bold text-base text-amber-500">
-              {yearData.top3StepsPct != null ? `${yearData.top3StepsPct}%` : "—"}
-              <span className="text-xs font-normal text-muted-foreground ml-1">of staff</span>
-            </span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">Bot-3 Steps</span>
-            <span className="font-mono font-bold text-base text-green-400">
-              {yearData.bottom3StepsPct != null ? `${yearData.bottom3StepsPct}%` : "—"}
-              <span className="text-xs font-normal text-muted-foreground ml-1">of staff</span>
-            </span>
-          </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="border-border gap-2 h-9">
-                <Download className="w-4 h-4" /> Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={exportPng} className="gap-2 cursor-pointer">
-                <ImageIcon className="w-4 h-4" /> Export as PNG
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportPdf} className="gap-2 cursor-pointer">
-                <FileText className="w-4 h-4" /> Export as PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <StatPill label="Total Staff" value={String(yearData.totalEmployees)} />
+          <StatPill label="Median Salary" value={formatCurrency(yearData.medianSalary ?? "0")} />
+          <StatPill label="Avg Step" value={yearData.avgStep != null ? String(yearData.avgStep) : "—"} color="text-blue-400" />
+          <StatPill label="Modal Lane" value={yearData.avgLane ?? "—"} color="text-purple-400" truncate />
+          <StatPill
+            label="Top-3 Steps"
+            value={yearData.top3StepsPct != null ? `${yearData.top3StepsPct}%` : "—"}
+            color="text-amber-500"
+            suffix="of staff"
+          />
+          <StatPill
+            label="Bot-3 Steps"
+            value={yearData.bottom3StepsPct != null ? `${yearData.bottom3StepsPct}%` : "—"}
+            color="text-green-400"
+            suffix="of staff"
+          />
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="border-border gap-2 h-9">
+              <Download className="w-4 h-4" /> Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={exportPng} className="gap-2 cursor-pointer">
+              <ImageIcon className="w-4 h-4" /> Export as PNG
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportPdf} className="gap-2 cursor-pointer">
+              <FileText className="w-4 h-4" /> Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
+      {/* Legend */}
       <div className="flex flex-wrap gap-3 px-1">
         <span className="text-xs text-muted-foreground mr-1">Legend:</span>
         {legendItems.map((item) => (
@@ -525,24 +439,19 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
         ))}
       </div>
 
+      {/* Grid */}
       <div className="overflow-x-auto" ref={containerRef}>
         <div className="min-w-max bg-card border border-border rounded-lg p-6">
           <div
             className="grid gap-1"
-            style={{
-              gridTemplateColumns: `60px repeat(${lanes.length}, minmax(80px, 1fr))`,
-            }}
+            style={{ gridTemplateColumns: `60px repeat(${lanes.length}, minmax(80px, 1fr))` }}
           >
-            <div className="h-8"></div>
+            <div className="h-8" />
             {lanes.map((lane) => (
-              <div
-                key={lane.id}
-                className="h-8 flex items-center justify-center text-xs font-medium text-muted-foreground border-b border-border/50"
-              >
+              <div key={lane.id} className="h-8 flex items-center justify-center text-xs font-medium text-muted-foreground border-b border-border/50">
                 {lane.name}
               </div>
             ))}
-
             {Array.from({ length: maxStep }).map((_, stepIdx) => {
               const stepNum = stepIdx + 1;
               return (
@@ -551,10 +460,7 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
                     {stepNum}
                   </div>
                   {lanes.map((lane) => {
-                    const cellData = yearData.cells.find(
-                      (c) =>
-                        c.stepNumber === stepNum && c.laneId === lane.id
-                    );
+                    const cellData = yearData.cells.find((c) => c.stepNumber === stepNum && c.laneId === lane.id);
                     const count = cellData?.employeeCount || 0;
                     const isTopStep = stepNum === maxStep;
                     return (
@@ -563,45 +469,34 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
                           <div
                             className={`h-10 rounded border transition-all duration-500 flex items-center justify-center font-mono text-sm cursor-pointer ${getCellColor(count)} hover:ring-2 hover:ring-primary/50 relative overflow-hidden ${isTopStep && count > 0 ? "ring-1 ring-amber-500/40" : ""}`}
                           >
-                            {count > 0 ? (
+                            {count > 0 && (
                               <motion.div
-                                key={`${currentYearIndex}-${count}`}
+                                key={count}
                                 initial={{ scale: 0.5, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 className="z-10"
                               >
                                 {count}
                               </motion.div>
-                            ) : null}
+                            )}
                           </div>
                         </PopoverTrigger>
                         {count > 0 && (
                           <PopoverContent className="w-64 bg-popover border-border p-0">
                             <div className="px-3 py-2 border-b border-border bg-muted/30">
                               <div className="flex items-center justify-between">
-                                <div className="text-xs font-semibold">
-                                  Step {stepNum} / {lane.name}
-                                </div>
+                                <span className="text-xs font-semibold">Step {stepNum} / {lane.name}</span>
                                 {isTopStep && (
-                                  <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-[10px] py-0">
-                                    Top Step
-                                  </Badge>
+                                  <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-[10px] py-0">Top Step</Badge>
                                 )}
                               </div>
-                              <div className="text-[10px] text-muted-foreground">
-                                {count} employee{count !== 1 ? "s" : ""}
-                              </div>
+                              <div className="text-[10px] text-muted-foreground">{count} employee{count !== 1 ? "s" : ""}</div>
                             </div>
                             <div className="max-h-48 overflow-y-auto py-1">
                               {cellData?.employees?.map((emp, i) => (
-                                <div
-                                  key={i}
-                                  className="flex justify-between px-3 py-1.5 text-sm hover:bg-muted/50"
-                                >
+                                <div key={i} className="flex justify-between px-3 py-1.5 text-sm hover:bg-muted/50">
                                   <span className="truncate">{emp.name}</span>
-                                  <span className="font-mono text-muted-foreground">
-                                    {formatCurrency(emp.salary)}
-                                  </span>
+                                  <span className="font-mono text-muted-foreground">{formatCurrency(emp.salary)}</span>
                                 </div>
                               ))}
                             </div>
@@ -620,113 +515,92 @@ function HeatmapViewer({ unitId, unitName, employeeGroupId, scenarioIdOverride }
   );
 }
 
-type HourlyUnitData = {
-  unitId: string;
-  unitName: string;
-  stepCounts: Record<number, number>;
-  isLoading: boolean;
-};
+// ── Salary summary card for non-grid schedules ──────────────────────────────
 
-function HourlyUnitDataFetcher({
-  unit,
-  selectedYear,
-  onData,
+function SalarySummaryCard({
+  yearData,
+  scheduleType,
+  scheduleName,
 }: {
-  unit: { id: string; name: string };
-  selectedYear: number;
-  onData: (d: HourlyUnitData) => void;
+  yearData: HeatmapYearData & { totalPayroll?: string | null; avgSalary?: string | null; minSalary?: string | null; maxSalary?: string | null };
+  scheduleType: string;
+  scheduleName: string;
 }) {
-  const { scenarioId } = useDistrictContext();
-  const { data, isLoading } = useGetHeatmapData(
-    scenarioId!,
-    { bargainingUnitId: unit.id },
-    {
-      query: {
-        enabled: !!scenarioId && !!unit.id,
-        queryKey: getGetHeatmapDataQueryKey(scenarioId!, { bargainingUnitId: unit.id }),
-      },
-    }
+  const yr = yearData as unknown as Record<string, unknown>;
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Users className="w-4 h-4 text-muted-foreground" />
+          {scheduleName}
+          <Badge variant="outline" className="text-xs bg-muted/40 text-muted-foreground border-border font-normal">
+            {scheduleLabel(scheduleType)}
+          </Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Summary view — this schedule type does not use a lane/step grid.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <SummaryStatBox label="Headcount" value={String(yearData.totalEmployees)} />
+          <SummaryStatBox label="Total Payroll" value={formatCurrency(String(yr.totalPayroll ?? "0"))} />
+          <SummaryStatBox label="Avg Salary" value={formatCurrency(String(yr.avgSalary ?? "0"))} />
+          <SummaryStatBox label="Median Salary" value={formatCurrency(yearData.medianSalary ?? "0")} />
+          <SummaryStatBox label="Min Salary" value={formatCurrency(String(yr.minSalary ?? "0"))} />
+          <SummaryStatBox label="Max Salary" value={formatCurrency(String(yr.maxSalary ?? "0"))} />
+        </div>
+      </CardContent>
+    </Card>
   );
-
-  useEffect(() => {
-    const yearData = data?.years.find((y) => y.contractYear === selectedYear) ?? data?.years[0];
-    const stepCounts: Record<number, number> = {};
-    yearData?.cells.forEach((cell) => {
-      const s = cell.stepNumber ?? 0;
-      stepCounts[s] = (stepCounts[s] ?? 0) + (cell.employeeCount ?? 0);
-    });
-    onData({ unitId: unit.id, unitName: unit.name, stepCounts, isLoading });
-  }, [data, isLoading, selectedYear, unit.id, unit.name]);
-
-  return null;
 }
 
-function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }) {
-  const { contractYears, yearLabelMap } = useDistrictContext();
-  const [selectedYear, setSelectedYear] = useState<number>(contractYears[0] ?? 0);
-  const [unitDataMap, setUnitDataMap] = useState<Record<string, HourlyUnitData>>({});
+// ── Hourly step bar chart ───────────────────────────────────────────────────
 
-  const handleUnitData = (d: HourlyUnitData) => {
-    setUnitDataMap((prev) => ({ ...prev, [d.unitId]: d }));
-  };
-
-  const isLoading = Object.values(unitDataMap).some((d) => d.isLoading) || units.length > Object.keys(unitDataMap).length;
-
-  const allSteps = new Set<number>();
-  Object.values(unitDataMap).forEach((d) => Object.keys(d.stepCounts).forEach((s) => allSteps.add(Number(s))));
-  const chartData = [...allSteps]
-    .sort((a, b) => a - b)
-    .map((step) => {
-      const row: Record<string, number | string> = { step: `Step ${step}` };
-      units.forEach((u) => {
-        row[u.name] = unitDataMap[u.id]?.stepCounts[step] ?? 0;
-      });
-      return row;
-    });
-
-  const hasData = chartData.some((row) =>
-    units.some((u) => typeof row[u.name] === "number" && (row[u.name] as number) > 0)
-  );
-
-  const yearLabel = yearLabelMap.get(selectedYear) ?? `Year ${selectedYear}`;
+function HourlyStepChart({
+  data,
+  yearData,
+  scheduleName,
+}: {
+  data: { years: HeatmapYearData[] };
+  yearData: HeatmapYearData;
+  scheduleName: string;
+}) {
+  const yr = yearData as unknown as Record<string, unknown>;
+  const stepCountMap: Record<number, number> = {};
+  yearData.cells.forEach((cell) => {
+    const s = cell.stepNumber ?? 0;
+    stepCountMap[s] = (stepCountMap[s] ?? 0) + (cell.employeeCount ?? 0);
+  });
+  const chartData = Object.entries(stepCountMap)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([step, count]) => ({ step: `Step ${step}`, count }));
 
   return (
-    <>
-      {units.map((unit) => (
-        <HourlyUnitDataFetcher key={unit.id} unit={unit} selectedYear={selectedYear} onData={handleUnitData} />
-      ))}
+    <div className="space-y-4">
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Employee Distribution by Step
-            </CardTitle>
-            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-              <SelectTrigger className="w-36 bg-background/50 h-8 text-xs">
-                <SelectValue>
-                  {yearLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {contractYears.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {yearLabelMap.get(y) ?? `Year ${y}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-muted-foreground" />
+            {scheduleName} — Step Distribution
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : !hasData ? (
-            <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-              No step data for {yearLabel}. Run scenario calculation to populate.
+          {/* Summary stats row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <SummaryStatBox label="Headcount" value={String(yearData.totalEmployees)} />
+            <SummaryStatBox label="Total Payroll" value={formatCurrency(String(yr.totalPayroll ?? "0"))} />
+            <SummaryStatBox label="Avg Salary" value={formatCurrency(String(yr.avgSalary ?? "0"))} />
+            <SummaryStatBox label="Median Salary" value={formatCurrency(yearData.medianSalary ?? "0")} />
+          </div>
+
+          {chartData.length === 0 ? (
+            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+              No step data. Run scenario calculation to populate.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={chartData} barCategoryGap="20%" barGap={4}>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={chartData} barCategoryGap="20%">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="step" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
@@ -739,15 +613,47 @@ function HourlyUnitBarChart({ units }: { units: { id: string; name: string }[] }
                     fontSize: 12,
                   }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }} />
-                {units.map((unit, idx) => (
-                  <Bar key={unit.id} dataKey={unit.name} fill={unitColor(unit.name, idx)} radius={[3, 3, 0, 0]} />
-                ))}
+                <Bar dataKey="count" fill="hsl(258,90%,66%)" radius={[3, 3, 0, 0]} name="Employees" />
               </BarChart>
             </ResponsiveContainer>
           )}
         </CardContent>
       </Card>
-    </>
+    </div>
+  );
+}
+
+// ── Small display helpers ───────────────────────────────────────────────────
+
+function StatPill({
+  label,
+  value,
+  color,
+  suffix,
+  truncate,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  suffix?: string;
+  truncate?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-end">
+      <span className="text-muted-foreground text-xs uppercase tracking-wider">{label}</span>
+      <span className={`font-mono font-bold text-base ${color ?? ""} ${truncate ? "truncate max-w-[80px]" : ""}`} title={value}>
+        {value}
+        {suffix && <span className="text-xs font-normal text-muted-foreground ml-1">{suffix}</span>}
+      </span>
+    </div>
+  );
+}
+
+function SummaryStatBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
+      <p className="font-mono font-semibold text-sm">{value}</p>
+    </div>
   );
 }

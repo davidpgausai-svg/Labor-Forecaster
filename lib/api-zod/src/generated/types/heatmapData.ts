@@ -9,7 +9,11 @@ import type { HeatmapYearData } from "./heatmapYearData";
 
 export interface HeatmapData {
   scenarioId: string;
-  bargainingUnitId: string;
-  bargainingUnitName?: string;
+  bargainingUnitId?: string | null;
+  bargainingUnitName?: string | null;
+  employeeGroupId?: string | null;
+  groupName?: string | null;
+  scheduleType?: string | null;
+  isSummaryOnly?: boolean | null;
   years: HeatmapYearData[];
 }

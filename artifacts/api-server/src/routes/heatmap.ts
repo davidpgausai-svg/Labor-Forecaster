@@ -28,7 +28,7 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     return;
   }
   const { scenarioId } = req.params;
-  const { bargainingUnitId: buQuery, employeeGroupId: groupQuery } = req.query;
+  const { bargainingUnitId: buQuery, employeeGroupId: groupQuery, compensationScheduleId: schedQuery } = req.query;
 
   const scenarios = await db.select().from(scenariosTable).where(eq(scenariosTable.id, scenarioId));
   const scenario = scenarios[0];
@@ -43,9 +43,11 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
     .where(eq(scenarioYearConfigsTable.scenarioId, scenarioId))
     .orderBy(scenarioYearConfigsTable.contractYear);
 
-  // Employee-group mode: use the group's primary compensation schedule for lane/step structure
+  // Employee-group mode
   if (groupQuery) {
     const targetGroupId = groupQuery as string;
+    const targetScheduleId = schedQuery as string | undefined;
+
     const groupData = await db.select().from(employeeGroupsTable).where(eq(employeeGroupsTable.id, targetGroupId)).then((r) => r[0]);
 
     const groupEmployees = await db
@@ -54,30 +56,59 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       .where(and(eq(employeesTable.districtId, scenario.districtId), eq(employeesTable.employeeGroupId, targetGroupId)));
 
     if (groupEmployees.length === 0) {
-      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, scheduleType: null, isSummaryOnly: false, years: [] });
       return;
     }
 
-    // Find the group's primary compensation schedule
-    const primarySchedule = await db
-      .select()
-      .from(compensationSchedulesTable)
-      .where(and(
-        eq(compensationSchedulesTable.employeeGroupId, targetGroupId),
-        eq(compensationSchedulesTable.isPrimary, true),
-      ))
-      .limit(1)
-      .then((r) => r[0]);
+    // Resolve which compensation schedule to use
+    const targetSchedule = targetScheduleId
+      ? await db.select().from(compensationSchedulesTable).where(eq(compensationSchedulesTable.id, targetScheduleId)).limit(1).then((r) => r[0])
+      : await db.select().from(compensationSchedulesTable).where(and(eq(compensationSchedulesTable.employeeGroupId, targetGroupId), eq(compensationSchedulesTable.isPrimary, true))).limit(1).then((r) => r[0]);
 
-    if (!primarySchedule) {
-      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+    if (!targetSchedule) {
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, scheduleType: null, isSummaryOnly: false, years: [] });
       return;
     }
 
-    const compScheduleId = primarySchedule.id;
-    const scheduleType = primarySchedule.scheduleType;
+    const compScheduleId = targetSchedule.id;
+    const scheduleType = targetSchedule.scheduleType;
+    const isGrid = scheduleType === "index_based_grid" || scheduleType === "direct_import_grid";
 
-    // Fetch lanes scoped to the compensation schedule
+    const yearRecords = await db.select().from(employeeYearRecordsTable).where(eq(employeeYearRecordsTable.scenarioId, scenarioId));
+    const groupYearConfigs = yearConfigs.filter((c) => c.employeeGroupId === targetGroupId);
+    const contractYearsList = [...new Set(groupYearConfigs.map((c) => c.contractYear))].sort((a, b) => a - b);
+    const employeeIds = new Set(groupEmployees.map((e) => e.id));
+
+    // ── Summary-only mode for non-grid schedules ──────────────────────────────
+    if (!isGrid) {
+      const yearsData = contractYearsList.map((contractYear) => {
+        const config = groupYearConfigs.find((c) => c.contractYear === contractYear);
+        const yearData = yearRecords.filter((r) => r.contractYear === contractYear && employeeIds.has(r.employeeId));
+        const salaries = yearData.map((r) => r.projectedBaseSalaryCents / 100).filter((s) => s > 0);
+        salaries.sort((a, b) => a - b);
+        const totalPayroll = salaries.reduce((sum, s) => sum + s, 0);
+        const avgSalary = salaries.length > 0 ? totalPayroll / salaries.length : 0;
+        const minSalary = salaries[0] ?? 0;
+        const maxSalary = salaries[salaries.length - 1] ?? 0;
+        const mid = Math.floor(salaries.length / 2);
+        const medianSalary = salaries.length === 0 ? null
+          : (salaries.length % 2 === 0 ? (salaries[mid - 1] + salaries[mid]) / 2 : salaries[mid]).toFixed(2);
+        return {
+          contractYear,
+          yearLabel: config?.yearLabel ?? `Year ${contractYear}`,
+          cells: [], lanes: [], maxStep: 0, totalEmployees: yearData.length, employeesAtTopStep: 0,
+          medianSalary, avgStep: null, avgLane: null, top3StepsPct: null, bottom3StepsPct: null,
+          totalPayroll: totalPayroll.toFixed(2),
+          avgSalary: avgSalary.toFixed(2),
+          minSalary: minSalary.toFixed(2),
+          maxSalary: maxSalary.toFixed(2),
+        };
+      });
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, scheduleType, isSummaryOnly: true, years: yearsData });
+      return;
+    }
+
+    // ── Grid mode ─────────────────────────────────────────────────────────────
     const lanes = await db
       .select()
       .from(lanesTable)
@@ -85,51 +116,34 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       .orderBy(lanesTable.displayOrder);
 
     if (lanes.length === 0) {
-      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, scheduleType, isSummaryOnly: false, years: [] });
       return;
     }
 
-    // Derive step numbers based on schedule type
     let stepNumbers: number[] = [];
     if (scheduleType === "index_based_grid") {
-      const config = await db
-        .select()
-        .from(indexGridConfigsTable)
-        .where(eq(indexGridConfigsTable.compensationScheduleId, compScheduleId))
-        .limit(1)
-        .then((r) => r[0]);
+      const config = await db.select().from(indexGridConfigsTable).where(eq(indexGridConfigsTable.compensationScheduleId, compScheduleId)).limit(1).then((r) => r[0]);
       const maxSteps = config?.maxSteps ?? 20;
       stepNumbers = Array.from({ length: maxSteps }, (_, i) => i + 1);
-    } else if (scheduleType === "direct_import_grid") {
-      const result = await db
-        .select({ maxStep: max(importGridCellsTable.stepNumber) })
-        .from(importGridCellsTable)
-        .where(eq(importGridCellsTable.compensationScheduleId, compScheduleId));
-      const maxStep = result[0]?.maxStep ?? 0;
-      stepNumbers = Array.from({ length: maxStep }, (_, i) => i + 1);
     } else {
-      // Unsupported schedule type for heatmap
-      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
-      return;
+      const result = await db.select({ maxStep: max(importGridCellsTable.stepNumber) }).from(importGridCellsTable).where(eq(importGridCellsTable.compensationScheduleId, compScheduleId));
+      const maxStepVal = result[0]?.maxStep ?? 0;
+      stepNumbers = Array.from({ length: maxStepVal }, (_, i) => i + 1);
     }
 
     if (stepNumbers.length === 0) {
-      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: [] });
+      res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, scheduleType, isSummaryOnly: false, years: [] });
       return;
     }
 
     const maxStep = stepNumbers[stepNumbers.length - 1];
+    const laneIdSet = new Set(lanes.map((l) => l.id));
 
-    const yearRecords = await db.select().from(employeeYearRecordsTable).where(eq(employeeYearRecordsTable.scenarioId, scenarioId));
-    const groupYearConfigs = yearConfigs.filter((c) => c.employeeGroupId === targetGroupId);
-    const contractYears = [...new Set(groupYearConfigs.map((c) => c.contractYear))].sort((a, b) => a - b);
-    const employeeIds = new Set(groupEmployees.map((e) => e.id));
-
-    const yearsData = contractYears.map((contractYear) => {
+    const yearsData = contractYearsList.map((contractYear) => {
       const config = groupYearConfigs.find((c) => c.contractYear === contractYear);
-      const yearData = yearRecords.filter((r) => r.contractYear === contractYear && employeeIds.has(r.employeeId));
+      // Only include records whose lane belongs to this schedule's lanes
+      const yearData = yearRecords.filter((r) => r.contractYear === contractYear && employeeIds.has(r.employeeId) && r.projectedLaneId && laneIdSet.has(r.projectedLaneId));
       const cellMap = new Map<string, { laneId: string; laneName: string; stepNumber: number; employeeCount: number; totalSalary: Decimal; employees: Array<{ id: string; name: string; salary: string }> }>();
-      let salaryTotal = new Decimal("0");
       const stepCounts: number[] = [];
       const laneCountMap = new Map<string, number>();
       const allSalaryValues: number[] = [];
@@ -147,21 +161,16 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
         }
         cell.employeeCount++;
         const salaryDollars = (record.projectedBaseSalaryCents / 100).toFixed(2);
-        const salaryNum = parseFloat(salaryDollars);
         cell.totalSalary = cell.totalSalary.plus(salaryDollars);
         cell.employees.push({ id: emp.id, name: `${emp.firstName} ${emp.lastName}`, salary: salaryDollars });
-        salaryTotal = salaryTotal.plus(salaryDollars);
         stepCounts.push(record.projectedStep);
-        allSalaryValues.push(salaryNum);
+        allSalaryValues.push(parseFloat(salaryDollars));
         laneCountMap.set(lane.name, (laneCountMap.get(lane.name) ?? 0) + 1);
       }
 
       const flatCells = Array.from(cellMap.values()).map((c) => ({ laneId: c.laneId, laneName: c.laneName, stepNumber: c.stepNumber, employeeCount: c.employeeCount, totalSalary: c.totalSalary.toDecimalPlaces(2).toString(), employees: c.employees }));
-      const matrix: Array<Array<{ count: number; totalSalary: string } | null>> = stepNumbers.map((stepNum) =>
-        lanes.map((lane) => { const cell = flatCells.find((c) => c.stepNumber === stepNum && c.laneId === lane.id); return (!cell || cell.employeeCount === 0) ? null : { count: cell.employeeCount, totalSalary: cell.totalSalary }; })
-      );
-      const totalEmployees = yearData.filter((r) => { const emp = groupEmployees.find((e) => e.id === r.employeeId); return emp && r.projectedLaneId; }).length;
-      const employeesAtTopStep = yearData.filter((r) => r.projectedStep === maxStep && groupEmployees.find((e) => e.id === r.employeeId)).length;
+      const totalEmployees = yearData.filter((r) => r.projectedLaneId).length;
+      const employeesAtTopStep = yearData.filter((r) => r.projectedStep === maxStep).length;
       allSalaryValues.sort((a, b) => a - b);
       let medianSalary: string | null = null;
       if (allSalaryValues.length > 0) {
@@ -178,10 +187,20 @@ router.get("/heatmap/:scenarioId", async (req, res) => {
       const bottom3Steps = new Set(sortedSteps.slice(0, 3));
       const top3Count = stepCounts.filter(s => top3Steps.has(s)).length;
       const bottom3Count = stepCounts.filter(s => bottom3Steps.has(s)).length;
-      return { contractYear, yearLabel: config?.yearLabel ?? `Year ${contractYear}`, lanes: lanes.map((l) => ({ id: l.id, name: l.name })), stepHeaders: stepNumbers, matrix, cells: flatCells, maxStep, totalEmployees, medianSalary, avgStep: stepCounts.length > 0 ? Math.round((stepCounts.reduce((a, b) => a + b, 0) / stepCounts.length) * 10) / 10 : null, employeesAtTopStep, avgLane, top3StepsPct: stepCounts.length > 0 ? Math.round((top3Count / stepCounts.length) * 1000) / 10 : null, bottom3StepsPct: stepCounts.length > 0 ? Math.round((bottom3Count / stepCounts.length) * 1000) / 10 : null };
+
+      return {
+        contractYear, yearLabel: config?.yearLabel ?? `Year ${contractYear}`,
+        lanes: lanes.map((l) => ({ id: l.id, name: l.name })), stepHeaders: stepNumbers, matrix: [],
+        cells: flatCells, maxStep, totalEmployees, medianSalary,
+        avgStep: stepCounts.length > 0 ? Math.round((stepCounts.reduce((a, b) => a + b, 0) / stepCounts.length) * 10) / 10 : null,
+        employeesAtTopStep, avgLane,
+        top3StepsPct: stepCounts.length > 0 ? Math.round((top3Count / stepCounts.length) * 1000) / 10 : null,
+        bottom3StepsPct: stepCounts.length > 0 ? Math.round((bottom3Count / stepCounts.length) * 1000) / 10 : null,
+        totalPayroll: null, avgSalary: null, minSalary: null, maxSalary: null,
+      };
     });
 
-    res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, years: yearsData });
+    res.json({ scenarioId, employeeGroupId: targetGroupId, groupName: groupData?.name ?? null, scheduleType, isSummaryOnly: false, years: yearsData });
     return;
   }
 
