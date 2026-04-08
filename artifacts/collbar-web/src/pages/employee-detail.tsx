@@ -409,6 +409,8 @@ export default function EmployeeDetail() {
   const hasStepData = projections.some((p) => p.projectedStep !== null && p.projectedStep !== undefined);
   const hasLaneData = projections.some((p) => p.projectedLaneName !== null && p.projectedLaneName !== undefined);
 
+  const primaryPosition = positions.find(p => p.isPrimary) ?? positions[0] ?? null;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-start gap-4">
@@ -672,7 +674,7 @@ export default function EmployeeDetail() {
                     <div className="font-medium font-mono">
                       {activeProjRow.projectedStep !== null && activeProjRow.projectedStep !== undefined
                         ? s(activeProjRow.projectedStep)
-                        : (emp.currentStep || "—")}
+                        : (emp.currentStep ?? primaryPosition?.currentStep ?? "—")}
                     </div>
                   </div>
                   <div>
@@ -680,7 +682,7 @@ export default function EmployeeDetail() {
                       Lane
                     </div>
                     <div className="font-medium">
-                      {s(activeProjRow.projectedLaneName) || emp.laneName || "—"}
+                      {s(activeProjRow.projectedLaneName) || emp.laneName || (primaryPosition?.currentLaneId ? positionLaneMap.get(primaryPosition.currentLaneId) : undefined) || "—"}
                     </div>
                   </div>
                 </div>
@@ -754,7 +756,7 @@ export default function EmployeeDetail() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <span>Salary: {formatCurrency(emp.currentAnnualSalary)}</span>
-                    <span>Step: {emp.currentStep ?? (projections[0]?.projectedStep as string | number | undefined) ?? "—"} / {emp.laneName ?? (projections[0]?.projectedLaneName as string | undefined) ?? "—"}</span>
+                    <span>Step: {emp.currentStep ?? primaryPosition?.currentStep ?? (projections[0]?.projectedStep as string | number | undefined) ?? "—"} / {emp.laneName ?? (primaryPosition?.currentLaneId ? positionLaneMap.get(primaryPosition.currentLaneId) : undefined) ?? (projections[0]?.projectedLaneName as string | undefined) ?? "—"}</span>
                   </div>
                 </div>
               </>
@@ -773,13 +775,13 @@ export default function EmployeeDetail() {
                     <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                       Step
                     </div>
-                    <div className="font-medium">{emp.currentStep ?? (projections[0]?.projectedStep as string | number | undefined) ?? "—"}</div>
+                    <div className="font-medium">{emp.currentStep ?? primaryPosition?.currentStep ?? (projections[0]?.projectedStep as string | number | undefined) ?? "—"}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                       Lane
                     </div>
-                    <div className="font-medium">{emp.laneName ?? (projections[0]?.projectedLaneName as string | undefined) ?? "—"}</div>
+                    <div className="font-medium">{emp.laneName ?? (primaryPosition?.currentLaneId ? positionLaneMap.get(primaryPosition.currentLaneId) : undefined) ?? (projections[0]?.projectedLaneName as string | undefined) ?? "—"}</div>
                   </div>
                 </div>
                 <div>
