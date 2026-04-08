@@ -114,8 +114,10 @@ export default function Employees() {
   const createMutation = useCreateEmployee({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["listEmployees"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
         setShowAddDialog(false);
+        // Reset roster filter to show all employees so the new one is visible
+        setRosterFilter(ALL);
         setAddForm({ firstName: "", lastName: "", employeeNumber: "", employeeGroupId: "", currentAnnualSalary: "", status: "active", contractYear: 0 });
       },
     },

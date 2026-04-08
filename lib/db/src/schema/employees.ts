@@ -47,7 +47,6 @@ export const employeesTable = pgTable("employees", {
     .notNull()
     .references(() => districtsTable.id, { onDelete: "cascade" }),
   bargainingUnitId: uuid("bargaining_unit_id")
-    .notNull()
     .references(() => bargainingUnitsTable.id),
   employeeNumber: text("employee_number"),
   firstName: text("first_name").notNull(),
