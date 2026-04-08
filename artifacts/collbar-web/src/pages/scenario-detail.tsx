@@ -305,7 +305,7 @@ function UnifiedGroupSelector({
                     : "bg-violet-500/15 text-violet-500"
                 }`}
               >
-                {entry.kind === "unit" ? "Union" : "Non-Union"}
+                {entry.kind === "unit" ? "Bargaining Unit" : "Employee Group"}
               </span>
             </button>
           );

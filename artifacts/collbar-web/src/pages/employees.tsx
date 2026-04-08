@@ -225,7 +225,7 @@ export default function Employees() {
             <div className="flex flex-col gap-0.5">
               {groupName ? (
                 <Badge variant="outline" className="bg-violet-500/10 text-violet-400 border-violet-500/20 w-fit text-xs">
-                  {groupName} · Non-Union
+                  {groupName} · Group
                 </Badge>
               ) : (
                 <Badge variant="outline" className={getBadgeColorClass(row.original.bargainingUnitName || "")}>
@@ -406,7 +406,7 @@ export default function Employees() {
                   <SelectItem key={u.id} value={`u:${u.id}`}>{u.name}</SelectItem>
                 ))}
                 {(employeeGroups?.length ?? 0) > 0 && (
-                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-1">Non-Union</div>
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-1">Employee Groups</div>
                 )}
                 {employeeGroups?.map((g) => (
                   <SelectItem key={g.id} value={`g:${g.id}`}>{g.name}</SelectItem>
@@ -694,8 +694,8 @@ export default function Employees() {
               <Select value={addForm.assignType} onValueChange={v => setAddForm(f => ({ ...f, assignType: v as "union" | "group", bargainingUnitId: "", employeeGroupId: "", currentStep: "", currentLaneId: "" }))}>
                 <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="union">Union (step-and-lane schedule)</SelectItem>
-                  <SelectItem value="group">Non-Union (individual salary)</SelectItem>
+                  <SelectItem value="union">Bargaining Unit</SelectItem>
+                  <SelectItem value="group">Employee Group</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -730,7 +730,7 @@ export default function Employees() {
               </>
             ) : (
               <div className="grid gap-1.5">
-                <Label className="text-xs">Non-Union Group</Label>
+                <Label className="text-xs">Employee Group</Label>
                 <Select value={addForm.employeeGroupId} onValueChange={v => setAddForm(f => ({ ...f, employeeGroupId: v }))}>
                   <SelectTrigger className="bg-background/50 h-9 text-sm"><SelectValue placeholder="Select group" /></SelectTrigger>
                   <SelectContent>

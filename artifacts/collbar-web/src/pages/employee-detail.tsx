@@ -443,9 +443,9 @@ export default function EmployeeDetail() {
               <Badge
                 variant="outline"
                 className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs"
-                title="Scenario calculations use this employee group config (Non-Union path)"
+                title="Scenario calculations use this employee group config"
               >
-                {String(empAny.employeeGroupName)} · Non-Union
+                {String(empAny.employeeGroupName)} · Group
               </Badge>
             )}
             <Badge
