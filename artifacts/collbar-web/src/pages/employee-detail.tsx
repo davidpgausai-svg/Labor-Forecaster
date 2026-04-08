@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo } from "react";
+import { useQueryClient, useQueries } from "@tanstack/react-query";
 import {
   useGetEmployee,
   getGetEmployeeQueryKey,
@@ -9,6 +9,7 @@ import {
   getListEmployeeGroupsQueryKey,
   useListImportGridLanes,
   getListImportGridLanesQueryKey,
+  listImportGridLanes,
   useListEmployeePositions,
   getListEmployeePositionsQueryKey,
   useCreateEmployeePosition,
@@ -192,6 +193,46 @@ export default function EmployeeDetail() {
       },
     }
   );
+
+  // Fetch lanes for all grid-based compensation schedules referenced by positions,
+  // so the Positions table can resolve laneId -> laneName for every row.
+  const positionScheduleIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const pos of positions) {
+      const grp = (employeeGroups ?? []).find((g) => g.id === pos.employeeGroupId);
+      const schedules: Array<{ isPrimary: boolean; scheduleType: string; id: string }> = grp?.compensationSchedules ?? [];
+      const resolvedSched = pos.compensationScheduleId
+        ? schedules.find((s) => s.id === pos.compensationScheduleId)
+        : schedules.find((s) => s.isPrimary);
+      if (
+        resolvedSched &&
+        (resolvedSched.scheduleType === "index_based_grid" || resolvedSched.scheduleType === "direct_import_grid")
+      ) {
+        ids.add(resolvedSched.id);
+      }
+    }
+    return Array.from(ids);
+  }, [positions, employeeGroups]);
+
+  const positionLanesQueries = useQueries({
+    queries: positionScheduleIds.map((schedId) => ({
+      queryKey: getListImportGridLanesQueryKey(schedId),
+      queryFn: () => listImportGridLanes(schedId),
+      enabled: positionScheduleIds.length > 0,
+    })),
+  });
+
+  const positionLaneMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const q of positionLanesQueries) {
+      if (q.data) {
+        for (const lane of q.data as Array<{ id: string; name: string }>) {
+          map.set(lane.id, lane.name);
+        }
+      }
+    }
+    return map;
+  }, [positionLanesQueries]);
 
   // Derived field-visibility for the position dialog
   const posHasAssignment = !!positionForm.employeeGroupId;
@@ -713,7 +754,7 @@ export default function EmployeeDetail() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <span>Salary: {formatCurrency(emp.currentAnnualSalary)}</span>
-                    <span>Step: {emp.currentStep ?? "—"} / {emp.laneName ?? "—"}</span>
+                    <span>Step: {emp.currentStep ?? (projections[0]?.projectedStep as string | number | undefined) ?? "—"} / {emp.laneName ?? (projections[0]?.projectedLaneName as string | undefined) ?? "—"}</span>
                   </div>
                 </div>
               </>
@@ -732,13 +773,13 @@ export default function EmployeeDetail() {
                     <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                       Step
                     </div>
-                    <div className="font-medium">{emp.currentStep || "—"}</div>
+                    <div className="font-medium">{emp.currentStep ?? (projections[0]?.projectedStep as string | number | undefined) ?? "—"}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                       Lane
                     </div>
-                    <div className="font-medium">{emp.laneName || "—"}</div>
+                    <div className="font-medium">{emp.laneName ?? (projections[0]?.projectedLaneName as string | undefined) ?? "—"}</div>
                   </div>
                 </div>
                 <div>
@@ -845,7 +886,21 @@ export default function EmployeeDetail() {
                             {groupSched?.scheduleType?.replace(/_/g, " ") ?? "—"}
                           </TableCell>
                           <TableCell className="text-center font-mono text-sm">
-                            {pos.currentStep != null ? `${pos.currentStep}` : "—"}
+                            {pos.currentStep != null ? (
+                              <span>
+                                {`${pos.currentStep}`}
+                                {(() => {
+                                  const laneName = pos.currentLaneId
+                                    ? positionLaneMap.get(pos.currentLaneId)
+                                    : pos.isPrimary
+                                    ? (projections[0]?.projectedLaneName as string | undefined)
+                                    : undefined;
+                                  return laneName
+                                    ? <span className="ml-1 text-xs text-muted-foreground font-sans">/ {laneName}</span>
+                                    : null;
+                                })()}
+                              </span>
+                            ) : "—"}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
                             {formatCurrency(pos.currentAnnualSalary)}
