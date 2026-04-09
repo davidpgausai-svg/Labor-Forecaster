@@ -974,45 +974,53 @@ export default function EmployeeDetail() {
             )}
 
             {/* ── Total Rewards ─────────────────────────────────────────────── */}
-            {currentYearProjRow && (() => {
-              const cy = currentYearProjRow;
-              const cents = (key: string) => Number(cy[key] ?? 0);
-              const fmt = (c: number) => formatCurrency((c / 100).toFixed(2));
-              const salary    = cents("projectedBaseSalaryCents");
-              const retire    = cents("retirementContributionCents");
-              const fica      = cents("ficaCostCents");
-              const futa      = cents("futaCostCents");
-              const suta      = cents("sutaCostCents");
-              const health    = cents("healthInsuranceCostCents");
-              const other     = cents("otherBenefitsCostCents");
-              const total     = cents("totalEmployerCostCents");
-              return (
-                <div className="border-t border-border/50 pt-4 space-y-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Rewards</span>
-                    <span className="text-xs text-muted-foreground">{s(cy.yearLabel ?? `Year ${cy.contractYear}`)}</span>
-                  </div>
-                  {[
-                    ["Base Salary",    salary],
-                    ["Retirement",     retire],
-                    ["FICA / Medicare",fica],
-                    ["FUTA",           futa],
-                    ["SUTA",           suta],
-                    ["Health Insurance",health],
-                    ["Other Benefits", other],
-                  ].map(([label, val]) => (
-                    <div key={label as string} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{label as string}</span>
-                      <span className="font-mono">{fmt(val as number)}</span>
+            <div className="border-t border-border/50 pt-4 space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Rewards</span>
+                {currentYearProjRow && (
+                  <span className="text-xs text-muted-foreground">{s(currentYearProjRow.yearLabel ?? `Year ${currentYearProjRow.contractYear}`)}</span>
+                )}
+              </div>
+              {currentYearProjRow ? (() => {
+                const cy = currentYearProjRow;
+                const cents = (key: string) => Number(cy[key] ?? 0);
+                const fmt = (c: number) => formatCurrency((c / 100).toFixed(2));
+                const salary = cents("projectedBaseSalaryCents");
+                const retire = cents("retirementContributionCents");
+                const fica   = cents("ficaCostCents");
+                const futa   = cents("futaCostCents");
+                const suta   = cents("sutaCostCents");
+                const health = cents("healthInsuranceCostCents");
+                const other  = cents("otherBenefitsCostCents");
+                const total  = cents("totalEmployerCostCents");
+                return (
+                  <>
+                    {[
+                      ["Base Salary",     salary],
+                      ["Retirement",      retire],
+                      ["FICA / Medicare", fica],
+                      ["FUTA",            futa],
+                      ["SUTA",            suta],
+                      ["Health Insurance",health],
+                      ["Other Benefits",  other],
+                    ].map(([label, val]) => (
+                      <div key={label as string} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{label as string}</span>
+                        <span className="font-mono">{fmt(val as number)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm font-semibold border-t border-border/50 pt-2 mt-1">
+                      <span>Total Employer Cost</span>
+                      <span className="font-mono text-primary">{fmt(total)}</span>
                     </div>
-                  ))}
-                  <div className="flex justify-between text-sm font-semibold border-t border-border/50 pt-2 mt-1">
-                    <span>Total Employer Cost</span>
-                    <span className="font-mono text-primary">{fmt(total)}</span>
-                  </div>
-                </div>
-              );
-            })()}
+                  </>
+                );
+              })() : (
+                <p className="text-xs text-muted-foreground">
+                  No projection data — activate a scenario and run calculations to see the cost breakdown.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
