@@ -23,6 +23,15 @@ import {
   employeePositionsTable,
   employeePositionYearRecordsTable,
   districtsTable,
+  employerTaxConfigTable,
+  benefitPlanTypesTable,
+  benefitPlanTiersTable,
+  benefitPlanRatesTable,
+  retirementPlansTable,
+  employeeGroupBenefitAssignmentsTable,
+  employeeGroupRetirementAssignmentsTable,
+  employerAccountContributionsTable,
+  employerFlatCostsTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { calcEmployeeProjection, calcScenarioSummary } from "./scenario-engine.js";
@@ -32,6 +41,8 @@ import type {
   YearConfigWithSchedule,
   EmployeeInput,
   BargainingUnitConfig,
+  EmployerCostConfig,
+  BenefitPlanData,
   SalaryScheduleData,
   ScheduleCell,
   EmployeeYearResult,
@@ -46,6 +57,156 @@ import { calcPerDiemEmployeeYear } from "./per-diem-engine.js";
 import type { PerDiemConfig, PerDiemCap } from "./per-diem-engine.js";
 
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP, precision: 28 });
+
+/**
+ * Load normalized Employer Cost Center data for a district + optional employee group.
+ * Returns an EmployerCostConfig that calcBenefits() uses instead of (or to supplement)
+ * the flat BargainingUnitConfig fields.
+ *
+ * Falls back gracefully — if no data exists yet (pre-migration), all arrays are
+ * empty and taxConfig is null, so calcBenefits() falls back to flat fields.
+ */
+async function loadEmployerCostConfig(
+  districtId: string,
+  employeeGroupId: string | null
+): Promise<EmployerCostConfig> {
+  // 1. Tax config (district-level)
+  const taxRow = await db
+    .select()
+    .from(employerTaxConfigTable)
+    .where(eq(employerTaxConfigTable.districtId, districtId))
+    .limit(1)
+    .then((r) => r[0] ?? null);
+
+  const taxConfig = taxRow
+    ? {
+        ssRate: taxRow.ssRate,
+        ssWageBase: taxRow.ssWageBase,
+        medicareRate: taxRow.medicareRate,
+        futaRate: taxRow.futaRate,
+        futaWageBase: taxRow.futaWageBase,
+        sutaRate: taxRow.sutaRate,
+        sutaWageBase: taxRow.sutaWageBase,
+        workersCompRatePer100: taxRow.workersCompRatePer100,
+      }
+    : null;
+
+  // 2. Benefit plans (group-specific via assignments)
+  const benefitPlans: BenefitPlanData[] = [];
+  if (employeeGroupId) {
+    const assignments = await db
+      .select({ plan: benefitPlanTypesTable })
+      .from(employeeGroupBenefitAssignmentsTable)
+      .innerJoin(
+        benefitPlanTypesTable,
+        eq(employeeGroupBenefitAssignmentsTable.benefitPlanTypeId, benefitPlanTypesTable.id)
+      )
+      .where(
+        and(
+          eq(employeeGroupBenefitAssignmentsTable.employeeGroupId, employeeGroupId),
+          eq(benefitPlanTypesTable.isActive, true)
+        )
+      );
+
+    const planIds = assignments.map((a) => a.plan.id);
+
+    // Batch-load tiers and rates for all assigned plans
+    const allTiers = planIds.length > 0
+      ? await db
+          .select()
+          .from(benefitPlanTiersTable)
+          .where(inArray(benefitPlanTiersTable.benefitPlanTypeId, planIds))
+      : [];
+    const allRates = planIds.length > 0
+      ? await db
+          .select()
+          .from(benefitPlanRatesTable)
+          .where(inArray(benefitPlanRatesTable.benefitPlanTypeId, planIds))
+      : [];
+
+    for (const { plan } of assignments) {
+      const tiers = allTiers
+        .filter((t) => t.benefitPlanTypeId === plan.id)
+        .map((t) => ({
+          tier: t.tier,
+          employerContributionAnnual: t.employerContributionAnnual,
+        }));
+      const rateRow = allRates.find((r) => r.benefitPlanTypeId === plan.id);
+      benefitPlans.push({
+        id: plan.id,
+        category: plan.category,
+        planName: plan.planName,
+        calculationMethod: plan.calculationMethod,
+        tiers,
+        salaryRate: rateRow?.rate ?? null,
+        coveredEarningsCap: rateRow?.coveredEarningsCap ?? null,
+      });
+    }
+  }
+
+  // 3. Retirement plan (group-specific — first assigned plan)
+  let retirementPlan: EmployerCostConfig["retirementPlan"] = null;
+  if (employeeGroupId) {
+    const retRow = await db
+      .select({ plan: retirementPlansTable })
+      .from(employeeGroupRetirementAssignmentsTable)
+      .innerJoin(
+        retirementPlansTable,
+        eq(employeeGroupRetirementAssignmentsTable.retirementPlanId, retirementPlansTable.id)
+      )
+      .where(eq(employeeGroupRetirementAssignmentsTable.employeeGroupId, employeeGroupId))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+
+    if (retRow) {
+      retirementPlan = {
+        id: retRow.plan.id,
+        planName: retRow.plan.planName,
+        planType: retRow.plan.planType,
+        employerRate: retRow.plan.employerRate,
+        grossUpRate: retRow.plan.grossUpRate,
+        employeeRate: retRow.plan.employeeRate,
+        isFicaExempt: retRow.plan.isFicaExempt,
+      };
+    }
+  }
+
+  // 4. HSA contributions (district-level)
+  const hsaRows = await db
+    .select()
+    .from(employerAccountContributionsTable)
+    .where(
+      and(
+        eq(employerAccountContributionsTable.districtId, districtId),
+        eq(employerAccountContributionsTable.accountType, "hsa")
+      )
+    );
+
+  // 5. Flat per-employee costs (district-level)
+  const flatCostRows = await db
+    .select()
+    .from(employerFlatCostsTable)
+    .where(
+      and(
+        eq(employerFlatCostsTable.districtId, districtId),
+        eq(employerFlatCostsTable.isActive, true)
+      )
+    );
+
+  return {
+    taxConfig,
+    benefitPlans,
+    retirementPlan,
+    hsaContributions: hsaRows.map((r) => ({
+      tier: r.tier,
+      annualContribution: r.employerContributionAnnual,
+    })),
+    flatCosts: flatCostRows.map((r) => ({
+      costName: r.costName,
+      annualCostPerEmployee: r.annualCostPerEmployee,
+    })),
+  };
+}
 
 async function getScenarioWithConfigs(scenarioId: string) {
   const scenarios = await db
@@ -178,6 +339,7 @@ function toYearConfigs(
       stepAdvancement: c.stepAdvancement,
       healthPremiumIncreaseRate: c.healthPremiumIncreaseRate,
       healthEmployerCapRate: c.healthEmployerCapRate,
+      benefitCostTrendRate: c.benefitCostTrendRate ?? null,
       employeeGroupId: c.employeeGroupId ?? null,
       compensationScheduleId: c.compensationScheduleId ?? null,
       scheduleType,
@@ -324,6 +486,8 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         projectedTotalCompensationCents: toCents(r.projectedTotalCompensation)!,
         retirementContributionCents: toCents(r.retirementContribution)!,
         ficaCostCents: toCents(r.ficaCost)!,
+        futaCostCents: toCents(r.futaCost ?? "0")!,
+        sutaCostCents: toCents(r.sutaCost ?? "0")!,
         healthInsuranceCostCents: toCents(r.healthInsuranceCost)!,
         otherBenefitsCostCents: toCents(r.otherBenefitsCost)!,
         totalEmployerCostCents: toCents(r.totalEmployerCost)!,
@@ -613,6 +777,7 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
     employee: typeof employeesTable.$inferSelect,
     positions: (typeof employeePositionsTable.$inferSelect)[],
     empGroupConfig: BargainingUnitConfig | null, // employee's own group config (for fallback)
+    employerCostConfig: EmployerCostConfig | null = null,
   ): { aggregateResults: EmployeeYearResult[]; positionResults: PositionYearResult[] } {
     const primaryPos = positions.find((p) => p.isPrimary) ?? positions[0];
     const primaryGroupId = primaryPos?.employeeGroupId ?? null;
@@ -767,7 +932,8 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
           primaryYearConfig,
           yearIdx,
           employee.insuranceElection,
-          new Decimal("1")
+          new Decimal("1"),
+          employerCostConfig
         );
 
         if (!benefitEligible) {
@@ -783,6 +949,8 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
             totalEmployerCost: aggregateSalary
               .plus(rawBenefits.retirementContribution)
               .plus(rawBenefits.ficaCost)
+              .plus(rawBenefits.futaCost)
+              .plus(rawBenefits.sutaCost)
               .plus(rawBenefits.workersCompCost)
               .plus(rawBenefits.lifeCost),
           };
@@ -803,6 +971,8 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         projectedTotalCompensation: aggregateSalary.toDecimalPlaces(2, R).toString(),
         retirementContribution: aggregateBenefits?.retirementContribution.toDecimalPlaces(2, R).toString() ?? "0",
         ficaCost: aggregateBenefits?.ficaCost.toDecimalPlaces(2, R).toString() ?? "0",
+        futaCost: aggregateBenefits?.futaCost.toDecimalPlaces(2, R).toString() ?? "0",
+        sutaCost: aggregateBenefits?.sutaCost.toDecimalPlaces(2, R).toString() ?? "0",
         healthInsuranceCost: aggregateBenefits?.healthInsuranceCost.toDecimalPlaces(2, R).toString() ?? "0",
         otherBenefitsCost: aggregateBenefits?.otherBenefitsCost.toDecimalPlaces(2, R).toString() ?? "0",
         totalEmployerCost: aggregateBenefits?.totalEmployerCost.toDecimalPlaces(2, R).toString() ?? aggregateSalary.toDecimalPlaces(2, R).toString(),
@@ -860,6 +1030,7 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
 
     const typedYearConfigs = toYearConfigs(dbYearConfigs, scheduleTypeMap);
     const scheduleData = await loadScheduleForUnit(bargainingUnitId);
+    const buEmployerCostConfig = await loadEmployerCostConfig(scenario.districtId, null);
 
     for (const { employee } of unitEmployees) {
       const empPositions = positionsByEmployee.get(employee.id);
@@ -883,7 +1054,7 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         pendingScheduleData = null;
         pendingYearCfgs = pendingGroupYearConfigsMap.get(empInput.pendingEmployeeGroupId) ?? null;
       }
-      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId, null, pendingBuCfg, pendingScheduleData, pendingYearCfgs);
+      const yearResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, scheduleData, scenarioId, null, pendingBuCfg, pendingScheduleData, pendingYearCfgs, null, null, false, buEmployerCostConfig);
       pushResults(yearResults);
     }
   }
@@ -1015,10 +1186,12 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
       contractYears: groupConfig.contractYears,
     };
 
+    const groupEmployerCostConfig = await loadEmployerCostConfig(scenario.districtId, employeeGroupId);
+
     for (const { employee } of groupEmps) {
       const empPositions = positionsByEmployee.get(employee.id);
       if (empPositions && empPositions.length > 0) {
-        const { aggregateResults, positionResults } = calcMultiPositionEmployee(employee, empPositions, buConfig);
+        const { aggregateResults, positionResults } = calcMultiPositionEmployee(employee, empPositions, buConfig, groupEmployerCostConfig);
         pushResults(aggregateResults, positionResults, totalFteFractionFor(empPositions), benefitEligibleFor(empPositions));
         continue;
       }
@@ -1036,7 +1209,7 @@ export async function runScenarioCalculation(scenarioId: string): Promise<Scenar
         pendingScheduleData = null;
         pendingYearCfgs = pendingGroupYearConfigsMap.get(empInput.pendingEmployeeGroupId) ?? null;
       }
-      let finalResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, groupScheduleData, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData, pendingYearCfgs, salaryRanges);
+      let finalResults = calcEmployeeProjection(empInput, typedYearConfigs, buConfig, groupScheduleData, scenarioId, indexGridConfig, pendingBuCfg, pendingScheduleData, pendingYearCfgs, salaryRanges, null, false, groupEmployerCostConfig);
 
       // Pass 1: per-diem daily rate (secondary schedule — sets projectedDailyRate only)
       if (perDiemConfig) {

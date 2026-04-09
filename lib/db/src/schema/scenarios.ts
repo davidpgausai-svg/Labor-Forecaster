@@ -133,6 +133,8 @@ export const employeeYearRecordsTable = pgTable("employee_year_records", {
   projectedTotalCompensationCents: bigint("projected_total_compensation_cents", { mode: "number" }).notNull(),
   retirementContributionCents: bigint("retirement_contribution_cents", { mode: "number" }).notNull(),
   ficaCostCents: bigint("fica_cost_cents", { mode: "number" }).notNull(),
+  futaCostCents: bigint("futa_cost_cents", { mode: "number" }).notNull().default(0),
+  sutaCostCents: bigint("suta_cost_cents", { mode: "number" }).notNull().default(0),
   healthInsuranceCostCents: bigint("health_insurance_cost_cents", { mode: "number" }).notNull(),
   otherBenefitsCostCents: bigint("other_benefits_cost_cents", { mode: "number" }).notNull(),
   totalEmployerCostCents: bigint("total_employer_cost_cents", { mode: "number" }).notNull(),

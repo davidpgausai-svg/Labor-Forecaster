@@ -36,6 +36,8 @@ export interface YearConfig {
   stepAdvancement: boolean;
   healthPremiumIncreaseRate?: string | null;
   healthEmployerCapRate?: string | null;
+  // Unified trend rate — takes precedence over healthPremiumIncreaseRate when set
+  benefitCostTrendRate?: string | null;
 }
 
 export interface EmployeeInput {
@@ -133,6 +135,59 @@ export interface BargainingUnitConfig {
   contractYears: number;
 }
 
+// ─── Normalized Employer Cost Config (from Employer Cost Center tables) ────────
+
+export interface BenefitTierData {
+  tier: string; // ee_only | ee_spouse | ee_child | family
+  employerContributionAnnual: string;
+}
+
+export interface BenefitPlanData {
+  id: string;
+  category: string; // health | dental | vision | life | add | ltd | std | other
+  planName: string;
+  calculationMethod: string; // flat_dollar | rate_per_100 | rate_per_1000 | percent_of_salary
+  tiers: BenefitTierData[]; // populated for flat_dollar plans
+  salaryRate?: string | null; // rate for rate-based plans (from benefit_plan_rates)
+  coveredEarningsCap?: string | null;
+}
+
+export interface RetirementPlanData {
+  id: string;
+  planName: string;
+  planType: string; // defined_benefit | defined_contribution
+  employerRate: string;
+  grossUpRate: string;
+  employeeRate: string;
+  isFicaExempt: boolean;
+}
+
+export interface EmployerTaxData {
+  ssRate: string;
+  ssWageBase: string;
+  medicareRate: string;
+  futaRate: string;
+  futaWageBase: string;
+  sutaRate: string;
+  sutaWageBase: string;
+  workersCompRatePer100: string;
+}
+
+export interface HsaContributionData {
+  tier: string;
+  annualContribution: string;
+}
+
+/** Loaded from Employer Cost Center normalized tables. All fields optional/nullable —
+ *  if not present, calcBenefits falls back to BargainingUnitConfig flat fields. */
+export interface EmployerCostConfig {
+  taxConfig: EmployerTaxData | null;
+  benefitPlans: BenefitPlanData[];
+  retirementPlan: RetirementPlanData | null;
+  hsaContributions: HsaContributionData[];
+  flatCosts: Array<{ costName: string; annualCostPerEmployee: string }>;
+}
+
 export interface ScheduleCell {
   laneId: string;
   stepNumber: number;
@@ -178,6 +233,8 @@ export interface EmployeeYearResult {
   projectedTotalCompensation: string;
   retirementContribution: string;
   ficaCost: string;
+  futaCost?: string;
+  sutaCost?: string;
   healthInsuranceCost: string;
   otherBenefitsCost: string;
   totalEmployerCost: string;

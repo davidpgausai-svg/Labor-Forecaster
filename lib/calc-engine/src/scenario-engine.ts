@@ -12,6 +12,7 @@ import type {
   YearConfigWithSchedule,
   EmployeeInput,
   BargainingUnitConfig,
+  EmployerCostConfig,
   SalaryScheduleData,
   LaneInfo,
   EmployeeYearResult,
@@ -36,7 +37,8 @@ export function calcEmployeeProjection(
   pendingYearConfigs?: (YearConfig | YearConfigWithSchedule)[] | null,
   salaryRanges?: import("./range-based-engine.js").SalaryRangeData[] | null,
   importGridCells?: ImportGridCell[] | null,
-  skipBenefits?: boolean
+  skipBenefits?: boolean,
+  employerCostConfig?: EmployerCostConfig | null
 ): EmployeeYearResult[] {
   const results: EmployeeYearResult[] = [];
 
@@ -224,8 +226,8 @@ export function calcEmployeeProjection(
 
     const ZERO = new Decimal("0");
     const benefits = skipBenefits
-      ? { retirementContribution: ZERO, ficaCost: ZERO, healthInsuranceCost: ZERO, otherBenefitsCost: ZERO, totalEmployerCost: projectedBaseSalary }
-      : calcBenefits(projectedBaseSalary, activeUnitConfig, config, yearIdx, employee.insuranceElection, proRateFraction);
+      ? { retirementContribution: ZERO, ficaCost: ZERO, futaCost: ZERO, sutaCost: ZERO, healthInsuranceCost: ZERO, otherBenefitsCost: ZERO, totalEmployerCost: projectedBaseSalary }
+      : calcBenefits(projectedBaseSalary, activeUnitConfig, config, yearIdx, employee.insuranceElection, proRateFraction, employerCostConfig);
 
     results.push({
       employeeId: employee.id,
@@ -238,6 +240,8 @@ export function calcEmployeeProjection(
       projectedTotalCompensation: projectedBaseSalary.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
       retirementContribution: benefits.retirementContribution.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
       ficaCost: benefits.ficaCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      futaCost: benefits.futaCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
+      sutaCost: benefits.sutaCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
       healthInsuranceCost: benefits.healthInsuranceCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
       otherBenefitsCost: benefits.otherBenefitsCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),
       totalEmployerCost: benefits.totalEmployerCost.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toString(),

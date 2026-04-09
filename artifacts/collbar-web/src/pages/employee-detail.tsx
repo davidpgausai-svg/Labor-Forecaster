@@ -18,7 +18,26 @@ import {
   useDeleteEmployeePosition,
   useGetDistrict,
   getGetDistrictQueryKey,
+  useListGroupBenefitAssignments,
+  getListGroupBenefitAssignmentsQueryKey,
+  useListBenefitPlans,
+  getListBenefitPlansQueryKey,
+  useListGroupRetirementAssignments,
+  getListGroupRetirementAssignmentsQueryKey,
+  useListRetirementPlans,
+  getListRetirementPlansQueryKey,
+  useGetTaxConfig,
+  getGetTaxConfigQueryKey,
+  useListHsaHraContributions,
+  getListHsaHraContributionsQueryKey,
+  useListEmployerFlatCosts,
+  getListEmployerFlatCostsQueryKey,
   type EmployeePosition,
+  type BenefitPlanWithDetails,
+  type RetirementPlan,
+  type EmployerTaxConfig,
+  type EmployerAccountContribution,
+  type EmployerFlatCost,
   getListScenariosQueryKey,
   getListEmployeesQueryKey,
   getGetDashboardQueryKey,
@@ -139,6 +158,22 @@ export default function EmployeeDetail() {
         invalidateAll();
       },
     },
+  });
+
+  // ── Benefit enrollment edit ────────────────────────────────────────────────
+  const [showBenefitEdit, setShowBenefitEdit] = useState(false);
+  const [benefitEditForm, setBenefitEditForm] = useState<{
+    insuranceElection: "single" | "single_plus_spouse" | "single_plus_child" | "family" | "waived";
+  }>({ insuranceElection: "single" });
+
+  // ── Retirement enrollment edit ─────────────────────────────────────────────
+  const [showRetirementEdit, setShowRetirementEdit] = useState(false);
+  const [retirementEditForm, setRetirementEditForm] = useState({
+    retirementEligible: "false",
+    retirementPlan: "none" as "none" | "option1_4year" | "option2_2year" | "option3_longevity",
+    retirementTargetYear: "",
+    yearsInDistrict: "0",
+    yearsTotalService: "0",
   });
 
   // ── Positions ──────────────────────────────────────────────────────────────
@@ -363,6 +398,51 @@ export default function EmployeeDetail() {
   );
   const benefitFteThreshold = parseFloat(String(district?.benefitEligibleFteThreshold ?? "0.75"));
 
+  // Employee group ID needed for group-specific cost center queries
+  const groupIdForCostCenter = emp
+    ? (String((emp as unknown as Record<string, unknown>).employeeGroupId ?? "") || null)
+    : null;
+
+  // ── Employer Cost Center data ──────────────────────────────────────────────
+  const safeGroupId = groupIdForCostCenter ?? "__none__";
+  const { data: groupBenefitAssignments = [] } = useListGroupBenefitAssignments(
+    { employeeGroupId: safeGroupId },
+    { query: { enabled: !!groupIdForCostCenter, queryKey: getListGroupBenefitAssignmentsQueryKey({ employeeGroupId: safeGroupId }) } }
+  );
+  const { data: allBenefitPlans = [] } = useListBenefitPlans(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListBenefitPlansQueryKey({ districtId: districtId! }) } }
+  );
+  const { data: groupRetirementAssignments = [] } = useListGroupRetirementAssignments(
+    { employeeGroupId: safeGroupId },
+    { query: { enabled: !!groupIdForCostCenter, queryKey: getListGroupRetirementAssignmentsQueryKey({ employeeGroupId: safeGroupId }) } }
+  );
+  const { data: allRetirementPlans = [] } = useListRetirementPlans(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListRetirementPlansQueryKey({ districtId: districtId! }) } }
+  );
+  const { data: taxConfig } = useGetTaxConfig(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getGetTaxConfigQueryKey({ districtId: districtId! }) } }
+  );
+  const { data: hsaContributions = [] } = useListHsaHraContributions(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListHsaHraContributionsQueryKey({ districtId: districtId! }) } }
+  );
+  const { data: flatCosts = [] } = useListEmployerFlatCosts(
+    { districtId: districtId! },
+    { query: { enabled: !!districtId, queryKey: getListEmployerFlatCostsQueryKey({ districtId: districtId! }) } }
+  );
+
+  // Cross-reference assignments with full plan details
+  const assignedBenefitPlanIds = new Set(groupBenefitAssignments.map((a) => a.benefitPlanTypeId));
+  const assignedBenefitPlans = (allBenefitPlans as BenefitPlanWithDetails[]).filter((p) => assignedBenefitPlanIds.has(p.id));
+  const assignedRetirementPlanIds = new Set(groupRetirementAssignments.map((a) => a.retirementPlanId));
+  const assignedRetirementPlans = (allRetirementPlans as RetirementPlan[]).filter((p) => assignedRetirementPlanIds.has(p.id));
+  // HSA contributions — filter to hsa account type only
+  const hsaRows = (hsaContributions as EmployerAccountContribution[]).filter((h) => h.accountType === "hsa");
+  const activeFlatCosts = (flatCosts as EmployerFlatCost[]).filter((c) => c.isActive);
+
   function openEdit() {
     if (!emp) return;
     const e = emp as unknown as Record<string, unknown>;
@@ -379,6 +459,47 @@ export default function EmployeeDetail() {
       effectiveContractYear: "",
     });
     setShowEdit(true);
+  }
+
+  function openBenefitEdit() {
+    if (!emp) return;
+    setBenefitEditForm({
+      insuranceElection: (emp.insuranceElection ?? "single") as typeof benefitEditForm.insuranceElection,
+    });
+    setShowBenefitEdit(true);
+  }
+
+  function openRetirementEdit() {
+    if (!emp) return;
+    setRetirementEditForm({
+      retirementEligible: emp.retirementEligible ? "true" : "false",
+      retirementPlan: (emp.retirementPlan ?? "none") as typeof retirementEditForm.retirementPlan,
+      retirementTargetYear: (emp as unknown as Record<string, unknown>).retirementTargetYear != null ? String((emp as unknown as Record<string, unknown>).retirementTargetYear) : "",
+      yearsInDistrict: String(emp.yearsInDistrict ?? 0),
+      yearsTotalService: String(emp.yearsTotalService ?? 0),
+    });
+    setShowRetirementEdit(true);
+  }
+
+  function handleSaveBenefitEdit() {
+    updateMutation.mutate(
+      { id, data: { insuranceElection: benefitEditForm.insuranceElection } as Parameters<typeof updateMutation.mutate>[0]["data"] },
+      { onSuccess: () => setShowBenefitEdit(false) }
+    );
+  }
+
+  function handleSaveRetirementEdit() {
+    const body = {
+      retirementEligible: retirementEditForm.retirementEligible === "true",
+      retirementPlan: retirementEditForm.retirementPlan === "none" ? null : retirementEditForm.retirementPlan,
+      retirementTargetYear: retirementEditForm.retirementTargetYear ? parseInt(retirementEditForm.retirementTargetYear, 10) : null,
+      yearsInDistrict: parseInt(retirementEditForm.yearsInDistrict, 10) || 0,
+      yearsTotalService: parseInt(retirementEditForm.yearsTotalService, 10) || 0,
+    };
+    updateMutation.mutate(
+      { id, data: body as Parameters<typeof updateMutation.mutate>[0]["data"] },
+      { onSuccess: () => setShowRetirementEdit(false) }
+    );
   }
 
   function handleSaveEdit() {
@@ -989,25 +1110,27 @@ export default function EmployeeDetail() {
 
         {/* ── Benefits ────────────────────────────────────────────────────── */}
         <TabsContent value="benefits" className="mt-6 space-y-6">
-          {/* Eligibility summary card */}
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Benefit Eligibility</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(() => {
-                const firstYear = projections[0] as Record<string, unknown> | undefined;
-                const hasMultiPos = firstYear && firstYear.totalFteFraction != null;
-                const totalFte = hasMultiPos ? parseFloat(String(firstYear!.totalFteFraction)) : null;
-                const eligible = hasMultiPos ? !!(firstYear!.benefitEligible) : true;
-                const insuranceLabel: Record<string, string> = {
-                  single: "Single",
-                  single_plus_spouse: "Single + Spouse",
-                  single_plus_child: "Single + Child",
-                  family: "Family",
-                  waived: "Waived",
-                };
-                return (
+          {/* ── Enrollment Card ────────────────────────────────────────────── */}
+          {(() => {
+            const firstYear = projections[0] as Record<string, unknown> | undefined;
+            const hasMultiPos = firstYear && firstYear.totalFteFraction != null;
+            const totalFte = hasMultiPos ? parseFloat(String(firstYear!.totalFteFraction)) : null;
+            const eligible = hasMultiPos ? !!(firstYear!.benefitEligible) : true;
+            const insuranceLabel: Record<string, string> = {
+              single: "Single", single_plus_spouse: "Single + Spouse",
+              single_plus_child: "Single + Child", family: "Family", waived: "Waived",
+            };
+            return (
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Insurance Enrollment</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={openBenefitEdit} className="h-7 w-7 p-0">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Insurance Election</p>
@@ -1021,31 +1144,189 @@ export default function EmployeeDetail() {
                     )}
                     {hasMultiPos && (
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Threshold</p>
+                        <p className="text-xs text-muted-foreground">FTE Threshold</p>
                         <p className="text-sm font-mono font-medium">{benefitFteThreshold.toFixed(4)}</p>
                       </div>
                     )}
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Employer Benefits</p>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-xs",
-                          eligible
-                            ? "bg-green-500/10 text-green-400 border-green-500/20"
-                            : "bg-red-500/10 text-red-400 border-red-500/20"
-                        )}
-                      >
+                      <Badge variant="outline" className={cn("text-xs", eligible ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20")}>
                         {eligible ? "Eligible" : "Not Eligible"}
                       </Badge>
                     </div>
                   </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
-          {/* Year-by-year benefits table */}
+          {/* ── Benefit Plans ──────────────────────────────────────────────── */}
+          {(() => {
+            const TIER_ORDER = ["ee_only", "ee_spouse", "ee_child", "family"] as const;
+            const TIER_LABEL: Record<string, string> = { ee_only: "Single", ee_spouse: "+Spouse", ee_child: "+Child", family: "Family" };
+            const CAT_LABEL: Record<string, string> = { health: "Health", dental: "Dental", vision: "Vision", life: "Life Insurance", add: "AD&D", ltd: "Long-Term Disability", std: "Short-Term Disability", other: "Other" };
+            const electionTier: Record<string, string> = { single: "ee_only", single_plus_spouse: "ee_spouse", single_plus_child: "ee_child", family: "family" };
+            const activeTier = electionTier[emp.insuranceElection ?? ""] ?? "";
+            const flatPlans = assignedBenefitPlans.filter((p) => p.calculationMethod === "flat_dollar");
+            const ratePlans = assignedBenefitPlans.filter((p) => p.calculationMethod !== "flat_dollar");
+            const salary = parseFloat(String(empAny.currentAnnualSalary ?? emp.currentAnnualSalary ?? "0"));
+
+            if (assignedBenefitPlans.length === 0) {
+              return (
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-3"><CardTitle className="text-base">Benefit Plans</CardTitle></CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">No benefit plans assigned to this employee's group. Configure plans and group assignments in <strong>Employer Costs → Benefits</strong>.</p>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            return (
+              <>
+                {flatPlans.length > 0 && (
+                  <Card className="bg-card border-border">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Benefit Plans</CardTitle>
+                      <p className="text-xs text-muted-foreground">From this employee's group assignment. Active tier highlighted.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      {flatPlans.map((plan) => (
+                        <div key={plan.id}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-medium">{plan.planName}</span>
+                            <Badge variant="outline" className="text-xs bg-muted/30 text-muted-foreground border-border">{CAT_LABEL[plan.category] ?? plan.category}</Badge>
+                          </div>
+                          {plan.tiers && plan.tiers.length > 0 ? (
+                            <Table>
+                              <TableHeader className="bg-muted/50">
+                                <TableRow className="border-border">
+                                  {TIER_ORDER.filter((t) => plan.tiers.some((r) => r.tier === t)).map((t) => (
+                                    <TableHead key={t} className={cn("text-right text-xs", t === activeTier && emp.insuranceElection !== "waived" && "text-primary")}>{TIER_LABEL[t]}</TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow className="border-border">
+                                  {TIER_ORDER.filter((t) => plan.tiers.some((r) => r.tier === t)).map((t) => {
+                                    const tierRow = plan.tiers.find((r) => r.tier === t);
+                                    const isActive = t === activeTier && emp.insuranceElection !== "waived";
+                                    return (
+                                      <TableCell key={t} className={cn("text-right font-mono text-sm", isActive && "text-primary font-semibold bg-primary/5")}>
+                                        {tierRow ? formatCurrency(String(parseFloat(tierRow.employerContributionAnnual).toFixed(2))) : "—"}
+                                        {isActive && <span className="ml-1 text-[10px] text-primary/70">▲</span>}
+                                      </TableCell>
+                                    );
+                                  })}
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">No tier data configured.</p>
+                          )}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {ratePlans.length > 0 && (
+                  <Card className="bg-card border-border">
+                    <CardHeader className="pb-3"><CardTitle className="text-base">Rate-Based Plans</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      {ratePlans.map((plan) => {
+                        const rate = plan.rate;
+                        let estCost: number | null = null;
+                        if (rate && salary > 0) {
+                          const r = parseFloat(rate.rate);
+                          const cap = rate.coveredEarningsCap ? Math.min(salary, parseFloat(rate.coveredEarningsCap)) : salary;
+                          if (plan.calculationMethod === "percent_of_salary") estCost = cap * r / 100;
+                          else if (plan.calculationMethod === "rate_per_100") estCost = (cap / 100) * r;
+                          else if (plan.calculationMethod === "rate_per_1000") estCost = (cap / 1000) * r;
+                        }
+                        return (
+                          <div key={plan.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                            <div>
+                              <p className="text-sm font-medium">{plan.planName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {CAT_LABEL[plan.category] ?? plan.category}
+                                {rate && ` · ${parseFloat(rate.rate).toFixed(4)} ${plan.calculationMethod === "percent_of_salary" ? "% of salary" : plan.calculationMethod === "rate_per_100" ? "per $100" : "per $1,000"}`}
+                                {rate?.coveredEarningsCap && ` · cap ${formatCurrency(rate.coveredEarningsCap)}`}
+                              </p>
+                            </div>
+                            {estCost != null && (
+                              <span className="font-mono text-sm text-muted-foreground">{formatCurrency(estCost.toFixed(2))}/yr est.</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            );
+          })()}
+
+          {/* ── HSA / HRA ──────────────────────────────────────────────────── */}
+          {hsaRows.length > 0 && (() => {
+            const TIER_ORDER = ["ee_only", "ee_spouse", "ee_child", "family"] as const;
+            const TIER_LABEL: Record<string, string> = { ee_only: "Single", ee_spouse: "+Spouse", ee_child: "+Child", family: "Family" };
+            const electionTier: Record<string, string> = { single: "ee_only", single_plus_spouse: "ee_spouse", single_plus_child: "ee_child", family: "family" };
+            const activeTier = electionTier[emp.insuranceElection ?? ""] ?? "";
+            return (
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3"><CardTitle className="text-base">HSA Employer Contributions</CardTitle></CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="border-border">
+                        {TIER_ORDER.filter((t) => hsaRows.some((h) => h.tier === t)).map((t) => (
+                          <TableHead key={t} className={cn("text-right text-xs", t === activeTier && emp.insuranceElection !== "waived" && "text-primary")}>{TIER_LABEL[t]}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow className="border-border">
+                        {TIER_ORDER.filter((t) => hsaRows.some((h) => h.tier === t)).map((t) => {
+                          const row = hsaRows.find((h) => h.tier === t);
+                          const isActive = t === activeTier && emp.insuranceElection !== "waived";
+                          return (
+                            <TableCell key={t} className={cn("text-right font-mono text-sm", isActive && "text-primary font-semibold bg-primary/5")}>
+                              {row ? formatCurrency(parseFloat(row.employerContributionAnnual).toFixed(2)) : "—"}
+                              {isActive && <span className="ml-1 text-[10px] text-primary/70">▲</span>}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* ── Flat Per-Employee Costs ─────────────────────────────────────── */}
+          {activeFlatCosts.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3"><CardTitle className="text-base">Flat Per-Employee Costs</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {activeFlatCosts.map((fc) => (
+                  <div key={fc.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                    <span className="text-sm">{fc.costName}</span>
+                    <span className="font-mono text-sm">{formatCurrency(parseFloat(fc.annualCostPerEmployee).toFixed(2))}/yr</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-xs text-muted-foreground font-medium">Total flat costs/yr</span>
+                  <span className="font-mono text-sm font-medium">
+                    {formatCurrency(activeFlatCosts.reduce((sum, fc) => sum + parseFloat(fc.annualCostPerEmployee), 0).toFixed(2))}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Projected Benefits by Year ──────────────────────────────────── */}
           {hasProjections && (
             <Card className="bg-card border-border">
               <CardHeader className="pb-3">
@@ -1084,16 +1365,34 @@ export default function EmployeeDetail() {
 
         {/* ── Retirement & Taxes ──────────────────────────────────────────── */}
         <TabsContent value="retirement" className="mt-6 space-y-6">
-          {/* Profile summary */}
+
+          {/* ── Retirement Enrollment (editable) ───────────────────────────── */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Retirement Profile</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Retirement Enrollment</CardTitle>
+                <Button variant="ghost" size="sm" onClick={openRetirementEdit} className="h-7 w-7 p-0">
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Retirement System</p>
                   <p className="text-sm font-medium">{s(empAny.retirementSystem ?? empAny.bargainingUnitRetirementSystem ?? "—")}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Retirement Eligible</p>
+                  <Badge variant="outline" className={cn("text-xs", emp.retirementEligible ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-muted/40 text-muted-foreground border-border")}>
+                    {emp.retirementEligible ? "Eligible" : "Not Eligible"}
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">FICA Status</p>
+                  <Badge variant="outline" className="text-xs bg-muted/40 text-muted-foreground border-border">
+                    {emp.retirementEligible ? "FICA-Exempt (TRS)" : "FICA Liable"}
+                  </Badge>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Years in District</p>
@@ -1103,20 +1402,103 @@ export default function EmployeeDetail() {
                   <p className="text-xs text-muted-foreground">Total Service Years</p>
                   <p className="text-sm font-mono font-medium">{emp.yearsTotalService ?? "—"}</p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">FICA Status</p>
-                  <Badge
-                    variant="outline"
-                    className="text-xs bg-muted/40 text-muted-foreground border-border"
-                  >
-                    {emp.retirementEligible ? "FICA-Exempt (TRS)" : "FICA Liable"}
-                  </Badge>
-                </div>
+                {empAny.retirementTargetYear != null && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Target Retirement Year</p>
+                    <p className="text-sm font-mono font-medium">{String(empAny.retirementTargetYear)}</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Year-by-year taxes table */}
+          {/* ── Assigned Retirement Plan ────────────────────────────────────── */}
+          {assignedRetirementPlans.length > 0 ? (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Retirement Plan</CardTitle>
+                <p className="text-xs text-muted-foreground">Assigned to this employee's group</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {assignedRetirementPlans.map((plan) => (
+                  <div key={plan.id} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="sm:col-span-3 space-y-1">
+                      <p className="text-sm font-medium">{plan.planName}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{(plan.planType ?? "").replace(/_/g, " ")}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Employer Rate</p>
+                      <p className="text-sm font-mono">{formatPercent(String(parseFloat(plan.employerRate ?? "0") * 100))}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">TRS Gross-Up Rate</p>
+                      <p className="text-sm font-mono">{formatPercent(String(parseFloat(plan.grossUpRate ?? "0") * 100))}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Employee Rate</p>
+                      <p className="text-sm font-mono">{formatPercent(String(parseFloat(plan.employeeRate ?? "0") * 100))}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">FICA Exempt</p>
+                      <Badge variant="outline" className={cn("text-xs", plan.isFicaExempt ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-muted/40 text-muted-foreground border-border")}>
+                        {plan.isFicaExempt ? "Yes (TRS)" : "No (IMRF/other)"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-3"><CardTitle className="text-base">Retirement Plan</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">No retirement plan assigned to this employee's group. Configure in <strong>Employer Costs → Retirement</strong>.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Employer Tax Rates ──────────────────────────────────────────── */}
+          {(taxConfig as EmployerTaxConfig | null | undefined) && (() => {
+            const tc = taxConfig as EmployerTaxConfig;
+            const pct = (v: string) => `${(parseFloat(v) * 100).toFixed(4)}%`;
+            return (
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Employer Tax Rates</CardTitle>
+                  <p className="text-xs text-muted-foreground">District-wide rates applied to this employee</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Social Security</p>
+                      <p className="text-sm font-mono">{pct(tc.ssRate)}</p>
+                      <p className="text-xs text-muted-foreground">Wage base: {formatCurrency(parseFloat(tc.ssWageBase).toFixed(0))}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Medicare</p>
+                      <p className="text-sm font-mono">{pct(tc.medicareRate)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">FUTA</p>
+                      <p className="text-sm font-mono">{pct(tc.futaRate)}</p>
+                      <p className="text-xs text-muted-foreground">Wage base: {formatCurrency(parseFloat(tc.futaWageBase).toFixed(0))}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">SUTA</p>
+                      <p className="text-sm font-mono">{pct(tc.sutaRate)}</p>
+                      <p className="text-xs text-muted-foreground">Wage base: {formatCurrency(parseFloat(tc.sutaWageBase).toFixed(0))}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Workers Comp</p>
+                      <p className="text-sm font-mono">${parseFloat(tc.workersCompRatePer100).toFixed(4)} per $100</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* ── Projected Retirement & Taxes by Year ────────────────────────── */}
           {hasProjections && (
             <Card className="bg-card border-border">
               <CardHeader className="pb-3">
@@ -1735,6 +2117,135 @@ export default function EmployeeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Insurance Election Edit Dialog ──────────────────────────────────── */}
+      <Dialog open={showBenefitEdit} onOpenChange={setShowBenefitEdit}>
+        <DialogContent className="max-w-sm bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle>Edit Insurance Enrollment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Insurance Election</Label>
+              <Select
+                value={benefitEditForm.insuranceElection}
+                onValueChange={(v) => setBenefitEditForm({ insuranceElection: v as typeof benefitEditForm.insuranceElection })}
+              >
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single (Employee Only)</SelectItem>
+                  <SelectItem value="single_plus_spouse">Employee + Spouse</SelectItem>
+                  <SelectItem value="single_plus_child">Employee + Child</SelectItem>
+                  <SelectItem value="family">Family</SelectItem>
+                  <SelectItem value="waived">Waived / Opt-Out</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Controls which benefit tier rates apply in cost projections.
+              </p>
+            </div>
+          </div>
+          {updateMutation.isError && (
+            <div className="flex items-center gap-2 text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md px-3 py-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{(updateMutation.error as { message?: string })?.message ?? "Save failed."}</span>
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="ghost" onClick={() => setShowBenefitEdit(false)} disabled={updateMutation.isPending}>Cancel</Button>
+            <Button onClick={handleSaveBenefitEdit} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Retirement Enrollment Edit Dialog ──────────────────────────────── */}
+      <Dialog open={showRetirementEdit} onOpenChange={setShowRetirementEdit}>
+        <DialogContent className="max-w-sm bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle>Edit Retirement Enrollment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Retirement Eligible</Label>
+              <Select
+                value={retirementEditForm.retirementEligible}
+                onValueChange={(v) => setRetirementEditForm((f) => ({ ...f, retirementEligible: v }))}
+              >
+                <SelectTrigger className="bg-background border-border"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Yes — Eligible</SelectItem>
+                  <SelectItem value="false">No — Not Eligible</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Retirement Plan</Label>
+              <Select
+                value={retirementEditForm.retirementPlan}
+                onValueChange={(v) => setRetirementEditForm((f) => ({ ...f, retirementPlan: v as typeof retirementEditForm.retirementPlan }))}
+              >
+                <SelectTrigger className="bg-background border-border"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="option1_4year">Option 1 — 4-Year Escalator</SelectItem>
+                  <SelectItem value="option2_2year">Option 2 — 2-Year Enhanced</SelectItem>
+                  <SelectItem value="option3_longevity">Option 3 — Longevity Bonus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Target Retirement Year (optional)</Label>
+              <Input
+                type="number"
+                min={2024}
+                max={2050}
+                value={retirementEditForm.retirementTargetYear}
+                onChange={(e) => setRetirementEditForm((f) => ({ ...f, retirementTargetYear: e.target.value }))}
+                className="bg-background border-border"
+                placeholder="e.g. 2027"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Years in District</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={retirementEditForm.yearsInDistrict}
+                  onChange={(e) => setRetirementEditForm((f) => ({ ...f, yearsInDistrict: e.target.value }))}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Total Service Years</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={retirementEditForm.yearsTotalService}
+                  onChange={(e) => setRetirementEditForm((f) => ({ ...f, yearsTotalService: e.target.value }))}
+                  className="bg-background border-border"
+                />
+              </div>
+            </div>
+          </div>
+          {updateMutation.isError && (
+            <div className="flex items-center gap-2 text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md px-3 py-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{(updateMutation.error as { message?: string })?.message ?? "Save failed."}</span>
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="ghost" onClick={() => setShowRetirementEdit(false)} disabled={updateMutation.isPending}>Cancel</Button>
+            <Button onClick={handleSaveRetirementEdit} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
