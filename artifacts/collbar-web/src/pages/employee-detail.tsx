@@ -443,6 +443,74 @@ export default function EmployeeDetail() {
   const hsaRows = (hsaContributions as EmployerAccountContribution[]).filter((h) => h.accountType === "hsa");
   const activeFlatCosts = (flatCosts as EmployerFlatCost[]).filter((c) => c.isActive);
 
+  // Compute Total Rewards from current salary + Employer Cost Center rates.
+  // Used when no scenario projection exists for the current year.
+  const currentYearTotalRewards = useMemo(() => {
+    if (!emp) return null;
+    const salary = parseFloat(emp.currentAnnualSalary ?? "0");
+    if (!salary) return null;
+
+    const tc = (taxConfig as EmployerTaxConfig | null | undefined) ?? null;
+    const tierMap: Record<string, string> = {
+      single: "ee_only", single_plus_spouse: "ee_spouse",
+      single_plus_child: "ee_child", family: "family",
+    };
+    const tier = tierMap[emp.insuranceElection ?? ""] ?? null;
+
+    // Retirement — employer rate + TRS gross-up
+    const retirePlan = (assignedRetirementPlans as RetirementPlan[])[0] ?? null;
+    const isFicaExempt = retirePlan?.isFicaExempt ?? emp.retirementEligible ?? false;
+    const retire = salary * (parseFloat(retirePlan?.employerRate ?? "0") + parseFloat(retirePlan?.grossUpRate ?? "0"));
+
+    // FICA / Medicare
+    let fica = 0;
+    if (tc) {
+      const med = parseFloat(tc.medicareRate ?? "0");
+      if (!isFicaExempt) {
+        fica = Math.min(salary, parseFloat(tc.ssWageBase ?? "0")) * parseFloat(tc.ssRate ?? "0") + salary * med;
+      } else {
+        fica = salary * med;
+      }
+    }
+
+    // FUTA / SUTA
+    const futa = tc ? Math.min(salary, parseFloat(tc.futaWageBase ?? "0")) * parseFloat(tc.futaRate ?? "0") : 0;
+    const suta = tc ? Math.min(salary, parseFloat(tc.sutaWageBase ?? "0")) * parseFloat(tc.sutaRate ?? "0") : 0;
+
+    // Benefit plans
+    let health = 0;
+    let other  = 0;
+    for (const plan of assignedBenefitPlans as BenefitPlanWithDetails[]) {
+      if (plan.calculationMethod === "flat_dollar") {
+        const tierRow = tier ? plan.tiers?.find((t) => t.tier === tier) : null;
+        if (!tierRow) continue;
+        const contrib = parseFloat(tierRow.employerContributionAnnual ?? "0");
+        if (plan.category === "health") health += contrib; else other += contrib;
+      } else {
+        const rate = parseFloat(plan.rate?.rate ?? "0");
+        const cap  = plan.rate?.coveredEarningsCap ? parseFloat(plan.rate.coveredEarningsCap) : null;
+        const base = cap ? Math.min(salary, cap) : salary;
+        let contrib = 0;
+        if (plan.calculationMethod === "percent_of_salary") contrib = base * rate;
+        else if (plan.calculationMethod === "rate_per_100")  contrib = (base / 100)  * rate;
+        else if (plan.calculationMethod === "rate_per_1000") contrib = (base / 1000) * rate;
+        other += contrib;
+      }
+    }
+
+    // HSA contributions for the employee's tier
+    for (const h of hsaRows as EmployerAccountContribution[]) {
+      if (tier && h.tier === tier) other += parseFloat(h.employerContributionAnnual ?? "0");
+    }
+
+    // Flat per-employee costs + workers comp
+    for (const fc of activeFlatCosts as EmployerFlatCost[]) other += parseFloat(fc.annualCostPerEmployee ?? "0");
+    if (tc) other += (salary / 100) * parseFloat(tc.workersCompRatePer100 ?? "0");
+
+    const total = salary + retire + fica + futa + suta + health + other;
+    return { salary, retire, fica, futa, suta, health, other, total };
+  }, [emp, taxConfig, assignedBenefitPlans, assignedRetirementPlans, hsaRows, activeFlatCosts]);
+
   function openEdit() {
     if (!emp) return;
     const e = emp as unknown as Record<string, unknown>;
@@ -974,53 +1042,49 @@ export default function EmployeeDetail() {
             )}
 
             {/* ── Total Rewards ─────────────────────────────────────────────── */}
-            <div className="border-t border-border/50 pt-4 space-y-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Rewards</span>
-                {currentYearProjRow && (
-                  <span className="text-xs text-muted-foreground">{s(currentYearProjRow.yearLabel ?? `Year ${currentYearProjRow.contractYear}`)}</span>
-                )}
-              </div>
-              {currentYearProjRow ? (() => {
-                const cy = currentYearProjRow;
-                const cents = (key: string) => Number(cy[key] ?? 0);
-                const fmt = (c: number) => formatCurrency((c / 100).toFixed(2));
-                const salary = cents("projectedBaseSalaryCents");
-                const retire = cents("retirementContributionCents");
-                const fica   = cents("ficaCostCents");
-                const futa   = cents("futaCostCents");
-                const suta   = cents("sutaCostCents");
-                const health = cents("healthInsuranceCostCents");
-                const other  = cents("otherBenefitsCostCents");
-                const total  = cents("totalEmployerCostCents");
-                return (
-                  <>
-                    {[
-                      ["Base Salary",     salary],
-                      ["Retirement",      retire],
-                      ["FICA / Medicare", fica],
-                      ["FUTA",            futa],
-                      ["SUTA",            suta],
-                      ["Health Insurance",health],
-                      ["Other Benefits",  other],
-                    ].map(([label, val]) => (
-                      <div key={label as string} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{label as string}</span>
-                        <span className="font-mono">{fmt(val as number)}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between text-sm font-semibold border-t border-border/50 pt-2 mt-1">
-                      <span>Total Employer Cost</span>
-                      <span className="font-mono text-primary">{fmt(total)}</span>
+            {(currentYearProjRow || currentYearTotalRewards) && (() => {
+              // Prefer scenario projection data; fall back to live calculation from current salary + rates
+              const useProj = !!currentYearProjRow;
+              const cy = currentYearProjRow;
+              const cr = currentYearTotalRewards;
+              const fmt = (v: number) => formatCurrency(v.toFixed(2));
+              const salary = useProj ? Number(cy!["projectedBaseSalaryCents"]) / 100 : cr!.salary;
+              const retire = useProj ? Number(cy!["retirementContributionCents"]) / 100 : cr!.retire;
+              const fica   = useProj ? Number(cy!["ficaCostCents"]) / 100 : cr!.fica;
+              const futa   = useProj ? Number(cy!["futaCostCents"]) / 100 : cr!.futa;
+              const suta   = useProj ? Number(cy!["sutaCostCents"]) / 100 : cr!.suta;
+              const health = useProj ? Number(cy!["healthInsuranceCostCents"]) / 100 : cr!.health;
+              const other  = useProj ? Number(cy!["otherBenefitsCostCents"]) / 100 : cr!.other;
+              const total  = useProj ? Number(cy!["totalEmployerCostCents"]) / 100 : cr!.total;
+              return (
+                <div className="border-t border-border/50 pt-4 space-y-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Rewards</span>
+                    <span className="text-xs text-muted-foreground">
+                      {useProj ? s(cy!.yearLabel ?? `Year ${cy!.contractYear}`) : "Current Year"}
+                    </span>
+                  </div>
+                  {[
+                    ["Base Salary",     salary],
+                    ["Retirement",      retire],
+                    ["FICA / Medicare", fica],
+                    ["FUTA",            futa],
+                    ["SUTA",            suta],
+                    ["Health Insurance",health],
+                    ["Other Benefits",  other],
+                  ].map(([label, val]) => (
+                    <div key={label as string} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{label as string}</span>
+                      <span className="font-mono">{fmt(val as number)}</span>
                     </div>
-                  </>
-                );
-              })() : (
-                <p className="text-xs text-muted-foreground">
-                  No projection data — activate a scenario and run calculations to see the cost breakdown.
-                </p>
-              )}
-            </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-semibold border-t border-border/50 pt-2 mt-1">
+                    <span>Total Employer Cost</span>
+                    <span className="font-mono text-primary">{fmt(total)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
