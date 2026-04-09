@@ -189,10 +189,10 @@ export default function RetirementPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      {formatPercent(plan.employerRate)}
+                      {formatPercent(String(parseFloat(plan.employerRate ?? "0") * 100))}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      {formatPercent(plan.grossUpRate)}
+                      {formatPercent(String(parseFloat(plan.grossUpRate ?? "0") * 100))}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {plan.isFicaExempt ? (
@@ -259,7 +259,7 @@ export default function RetirementPage() {
                       <span className="text-sm">{plan.planName}</span>
                       <span className="text-xs text-muted-foreground">
                         {plan.planType === "defined_benefit" ? "Defined Benefit" : "Defined Contribution"}
-                        {" · "}Gross-Up: {formatPercent(plan.grossUpRate)}
+                        {" · "}Gross-Up: {formatPercent(String(parseFloat(plan.grossUpRate ?? "0") * 100))}
                       </span>
                     </label>
                   );
