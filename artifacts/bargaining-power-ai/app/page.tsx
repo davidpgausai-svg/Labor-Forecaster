@@ -11,7 +11,7 @@ export default function LandingPage() {
             Sign In
           </Link>
           <Link href="/register" className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors">
-            Start Free Trial
+            Get Started
           </Link>
         </div>
       </nav>
@@ -30,7 +30,7 @@ export default function LandingPage() {
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link href="/register" className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
-            Start Free Trial
+            Get Started
           </Link>
           <Link href="/login" className="border border-white/20 hover:border-white/40 text-white px-8 py-3 rounded-lg text-lg transition-colors">
             Sign In

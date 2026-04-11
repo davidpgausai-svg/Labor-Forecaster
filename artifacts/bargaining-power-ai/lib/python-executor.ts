@@ -25,7 +25,7 @@ export async function executePythonModel(pythonCode: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     exec(
       `python3 ${scriptPath}`,
-      { timeout: 120_000, maxBuffer: 50 * 1024 * 1024 },
+      { timeout: 150_000, maxBuffer: 50 * 1024 * 1024 },
       (error, _stdout, stderr) => {
         try { unlinkSync(scriptPath); } catch {}
         if (error) {
