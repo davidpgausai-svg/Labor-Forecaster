@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/bpai"
+title = "Bargaining Power AI"
+version = "1.0.0"
+id = "artifacts/bargaining-power-ai"
+router = "path"
+
+[[services]]
+name = "web"
+paths = ["/bpai"]
+localPort = 3001
+
+[services.development]
+run = "pnpm --filter @workspace/bargaining-power-ai run dev"
+
+[services.production]
+
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/bargaining-power-ai", "run", "build"]
+
+[services.production.run]
+args = ["pnpm", "--filter", "@workspace/bargaining-power-ai", "run", "start"]
+
+[services.env]
+PORT = "3001"
+NEXT_PUBLIC_BASE_PATH = "/bpai"
+UPLOAD_DIR = "/home/runner/workspace/artifacts/bargaining-power-ai/.uploads"

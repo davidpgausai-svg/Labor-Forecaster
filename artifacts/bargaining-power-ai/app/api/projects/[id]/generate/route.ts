@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-
-export const maxDuration = 180;
 import { auth } from "@/lib/auth";
 import { anthropic, MODELING_MODEL } from "@/lib/anthropic";
 import { getModelingSystemPrompt } from "@/lib/skills";
-import { executePythonModel, saveFile } from "@/lib/python-executor";
-import { readFile } from "@/lib/python-executor";
+import { executePythonModel, saveFile, readFile } from "@/lib/python-executor";
 import db from "@/lib/db";
 import { randomUUID } from "crypto";
+
+export const maxDuration = 180;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -23,7 +22,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { organization_id, metadata } = project.rows[0];
 
-  // Get roster upload if present
   const rosterUpload = await db.query<{ file_path: string }>(
     "SELECT file_path FROM bp_uploads WHERE project_id = $1 AND file_type = 'roster' ORDER BY created_at DESC LIMIT 1",
     [projectId]
@@ -35,7 +33,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } catch { /* use default */ }
   }
 
-  // Create cost model record
   const modelRes = await db.query<{ id: string }>(
     `INSERT INTO bp_cost_models (project_id, organization_id, status, assumptions, generated_by)
      VALUES ($1, $2, 'generating', $3, $4) RETURNING id`,
@@ -44,7 +41,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const modelId = modelRes.rows[0].id;
   const startMs = Date.now();
 
-  // Update project status
   await db.query("UPDATE bp_projects SET status = 'processing' WHERE id = $1", [projectId]);
 
   try {
@@ -87,7 +83,6 @@ INSTRUCTIONS:
     const filePath = saveFile(excelBuffer, filename);
     const genMs = Date.now() - startMs;
 
-    // Build a quick summary from the first ~2000 chars of Claude's output for display
     const summary = {
       generated: true,
       model: MODELING_MODEL,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, use } from "react";
 import { useRouter } from "next/navigation";
+import { apiPath } from "@/lib/api";
 
 type Upload = {
   id: string;
@@ -66,7 +67,7 @@ export default function ProjectPage({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function fetchProject() {
-    const res = await fetch(`/api/projects/${id}`);
+    const res = await fetch(apiPath(`/api/projects/${id}`));
     if (!res.ok) return;
     const data = await res.json();
     setProject(data.project);
@@ -104,7 +105,7 @@ export default function ProjectPage({
       const fd = new FormData();
       fd.append("file", file);
       fd.append("fileType", file.name.toLowerCase().includes("roster") ? "roster" : "cba");
-      const res = await fetch(`/api/projects/${id}/upload`, { method: "POST", body: fd });
+      const res = await fetch(apiPath(`/api/projects/${id}/upload`), { method: "POST", body: fd });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error ?? "Upload failed");
@@ -122,7 +123,7 @@ export default function ProjectPage({
     setExtractingId(uploadId);
     setError("");
     try {
-      const res = await fetch(`/api/projects/${id}/extract`, {
+      const res = await fetch(apiPath(`/api/projects/${id}/extract`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uploadId }),
@@ -143,7 +144,7 @@ export default function ProjectPage({
     setGenLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/projects/${id}/generate`, { method: "POST" });
+      const res = await fetch(apiPath(`/api/projects/${id}/generate`), { method: "POST" });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error ?? "Generation failed");
@@ -156,8 +157,8 @@ export default function ProjectPage({
     }
   }
 
-  async function handleDownload(modelId: string) {
-    window.location.href = `/api/projects/${id}/download?modelId=${modelId}`;
+  function handleDownload(modelId: string) {
+    window.location.href = apiPath(`/api/projects/${id}/download?modelId=${modelId}`);
   }
 
   const cbaUploads = uploads.filter((u) => u.file_type === "cba");

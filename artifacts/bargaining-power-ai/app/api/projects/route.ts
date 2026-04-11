@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { assertOrgAccess } from "@/lib/orgs";
 import db from "@/lib/db";
-import { z } from "zod";
-
-const createSchema = z.object({
-  name: z.string().min(1),
-  orgId: z.string().uuid(),
-  state: z.string().length(2).optional(),
-  pensionSystem: z.string().optional(),
-  contractStartYear: z.number().int().optional(),
-  contractEndYear: z.number().int().optional(),
-});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -22,15 +12,11 @@ export async function GET(req: NextRequest) {
 
   await assertOrgAccess(session.user.id, orgId);
 
-  const r = await db.query(
-    `SELECT p.*, u.name as created_by_name
-     FROM bp_projects p
-     LEFT JOIN bp_users u ON u.id = p.created_by
-     WHERE p.organization_id = $1
-     ORDER BY p.created_at DESC`,
+  const result = await db.query(
+    "SELECT id, name, status, state, pension_system, contract_start_year, contract_end_year, created_at FROM bp_projects WHERE organization_id = $1 ORDER BY created_at DESC",
     [orgId]
   );
-  return NextResponse.json(r.rows);
+  return NextResponse.json({ projects: result.rows });
 }
 
 export async function POST(req: NextRequest) {
@@ -38,16 +24,17 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const parsed = createSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  const { name, orgId, state, pensionSystem, contractStartYear, contractEndYear } = body;
 
-  const { name, orgId, state, pensionSystem, contractStartYear, contractEndYear } = parsed.data;
+  if (!name || !orgId) return NextResponse.json({ error: "name and orgId required" }, { status: 400 });
+
   await assertOrgAccess(session.user.id, orgId);
 
-  const r = await db.query<{ id: string }>(
+  const result = await db.query<{ id: string }>(
     `INSERT INTO bp_projects (organization_id, name, state, pension_system, contract_start_year, contract_end_year, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
     [orgId, name, state ?? null, pensionSystem ?? null, contractStartYear ?? null, contractEndYear ?? null, session.user.id]
   );
-  return NextResponse.json({ id: r.rows[0].id });
+
+  return NextResponse.json({ id: result.rows[0].id });
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { apiPath } from "@/lib/api";
 
 const US_STATES = [
   ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],
@@ -50,12 +51,11 @@ export default function NewProjectPage() {
     setLoading(true);
     setError("");
     try {
-      // Resolve org slug → id
-      const orgRes = await fetch(`/api/orgs/${params.orgSlug}`);
+      const orgRes = await fetch(apiPath(`/api/orgs/${params.orgSlug}`));
       if (!orgRes.ok) throw new Error("Organization not found");
       const { id: orgId } = await orgRes.json();
 
-      const res = await fetch("/api/projects", {
+      const res = await fetch(apiPath("/api/projects"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
