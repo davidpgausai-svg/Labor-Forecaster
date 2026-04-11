@@ -12,7 +12,11 @@ export async function GET(
   const { slug } = await params;
   const org = await getOrgBySlug(slug);
   if (!org) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  await assertOrgAccess(session.user.id, org.id).catch(() => null);
+  try {
+    await assertOrgAccess(session.user.id, org.id);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   return NextResponse.json({ id: org.id, name: org.name, slug: org.slug, plan: org.plan });
 }

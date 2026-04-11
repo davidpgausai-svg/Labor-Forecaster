@@ -23,9 +23,11 @@ export async function GET(
   const project = pResult.rows[0];
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await assertOrgAccess(session.user.id, project.organization_id).catch(() => {
+  try {
+    await assertOrgAccess(session.user.id, project.organization_id);
+  } catch {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  });
+  }
 
   const uploadsResult = await db.query(
     "SELECT id, file_name, file_type, file_size, processed, extracted_data, created_at FROM bp_uploads WHERE project_id = $1 ORDER BY created_at DESC",

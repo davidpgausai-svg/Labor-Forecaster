@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertOrgAccess } from "@/lib/orgs";
 import { anthropic, EXTRACTION_MODEL } from "@/lib/anthropic";
 import { getExtractionSystemPrompt } from "@/lib/skills";
 import { readFile } from "@/lib/python-executor";
@@ -17,6 +18,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     [uploadId, projectId]
   );
   if (!upload.rows[0]) return NextResponse.json({ error: "Upload not found" }, { status: 404 });
+
+  try {
+    await assertOrgAccess(session.user.id, upload.rows[0].organization_id);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { file_path, mime_type } = upload.rows[0];
   const fileBuffer = readFile(file_path);

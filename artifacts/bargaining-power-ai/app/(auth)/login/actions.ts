@@ -1,6 +1,5 @@
 "use server";
 
-import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
 
 export async function loginAction(
@@ -14,7 +13,9 @@ export async function loginAction(
       redirectTo: data.callbackUrl ?? `${basePath}/app`,
     });
   } catch (error) {
-    if (error instanceof AuthError) return "Invalid email or password";
+    const e = error as { type?: string; digest?: string };
+    if (e.digest?.startsWith("NEXT_REDIRECT")) throw error;
+    if (e.type === "CredentialsSignin") return "Invalid email or password";
     throw error;
   }
 }

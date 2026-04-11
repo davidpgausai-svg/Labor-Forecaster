@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertOrgAccess } from "@/lib/orgs";
 import { readFile } from "@/lib/python-executor";
 import db from "@/lib/db";
 
@@ -8,11 +9,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
+
+  const project = await db.query<{ organization_id: string }>(
+    "SELECT organization_id FROM bp_projects WHERE id = $1", [projectId]
+  );
+  if (!project.rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await assertOrgAccess(session.user.id, project.rows[0].organization_id);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const modelId = req.nextUrl.searchParams.get("modelId");
 
   const q = modelId
     ? await db.query<{ output_file_path: string; project_id: string }>(
-        "SELECT output_file_path, project_id FROM bp_cost_models WHERE id = $1 AND status = 'complete'", [modelId]
+        "SELECT output_file_path, project_id FROM bp_cost_models WHERE id = $1 AND project_id = $2 AND status = 'complete'",
+        [modelId, projectId]
       )
     : await db.query<{ output_file_path: string; project_id: string }>(
         "SELECT output_file_path, project_id FROM bp_cost_models WHERE project_id = $1 AND status = 'complete' ORDER BY created_at DESC LIMIT 1",

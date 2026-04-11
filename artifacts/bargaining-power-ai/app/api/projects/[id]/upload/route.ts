@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertOrgAccess } from "@/lib/orgs";
 import { saveFile } from "@/lib/python-executor";
 import db from "@/lib/db";
 import { randomUUID } from "crypto";
@@ -17,6 +18,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     "SELECT organization_id FROM bp_projects WHERE id = $1", [projectId]
   );
   if (!project.rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await assertOrgAccess(session.user.id, project.rows[0].organization_id);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

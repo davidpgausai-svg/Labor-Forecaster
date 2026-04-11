@@ -1,6 +1,5 @@
 "use server";
 
-import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -22,37 +21,57 @@ export async function registerAction(
 
   const { name, email, password, orgName } = parsed.data;
 
-  const existing = await db.query("SELECT id FROM bp_users WHERE email = $1", [email]);
-  if (existing.rows.length > 0) return "Email already registered";
-
   const hash = await bcrypt.hash(password, 12);
 
-  const userRes = await db.query<{ id: string }>(
-    "INSERT INTO bp_users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
-    [name, email, hash]
-  );
-  const userId = userRes.rows[0].id;
-
   let slug = slugify(orgName);
-  const slugCheck = await db.query("SELECT id FROM bp_orgs WHERE slug = $1", [slug]);
-  if (slugCheck.rows.length > 0) slug = `${slug}-${Date.now()}`;
 
-  const orgRes = await db.query<{ id: string }>(
-    "INSERT INTO bp_orgs (name, slug) VALUES ($1, $2) RETURNING id",
-    [orgName, slug]
-  );
-  const orgId = orgRes.rows[0].id;
+  const client = await db.connect();
+  let orgSlug = slug;
+  try {
+    await client.query("BEGIN");
 
-  await db.query(
-    "INSERT INTO bp_org_members (user_id, organization_id, role, accepted_at) VALUES ($1, $2, $3, NOW())",
-    [userId, orgId, "owner"]
-  );
+    const existing = await client.query("SELECT id FROM bp_users WHERE email = $1 FOR UPDATE", [email]);
+    if (existing.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return "Email already registered";
+    }
+
+    const userRes = await client.query<{ id: string }>(
+      "INSERT INTO bp_users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
+      [name, email, hash]
+    );
+    const userId = userRes.rows[0].id;
+
+    const slugCheck = await client.query("SELECT id FROM bp_orgs WHERE slug = $1 FOR UPDATE", [slug]);
+    if (slugCheck.rows.length > 0) slug = `${slug}-${Date.now()}`;
+    orgSlug = slug;
+
+    const orgRes = await client.query<{ id: string }>(
+      "INSERT INTO bp_orgs (name, slug) VALUES ($1, $2) RETURNING id",
+      [orgName, slug]
+    );
+    const orgId = orgRes.rows[0].id;
+
+    await client.query(
+      "INSERT INTO bp_org_members (user_id, organization_id, role, accepted_at) VALUES ($1, $2, $3, NOW())",
+      [userId, orgId, "owner"]
+    );
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/bpai";
   try {
-    await signIn("credentials", { email, password, redirectTo: `${basePath}/app/${slug}` });
+    await signIn("credentials", { email, password, redirectTo: `${basePath}/app/${orgSlug}` });
   } catch (error) {
-    if (error instanceof AuthError) return "Login after registration failed. Please sign in manually.";
+    const e = error as { type?: string; digest?: string };
+    if (e.digest?.startsWith("NEXT_REDIRECT")) throw error;
+    if (e.type === "CredentialsSignin") return "Login after registration failed. Please sign in manually.";
     throw error;
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertOrgAccess } from "@/lib/orgs";
 import { anthropic, MODELING_MODEL } from "@/lib/anthropic";
 import { getModelingSystemPrompt } from "@/lib/skills";
 import { executePythonModel, saveFile, readFile } from "@/lib/python-executor";
@@ -21,6 +22,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!project.rows[0]) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
   const { organization_id, metadata } = project.rows[0];
+
+  try {
+    await assertOrgAccess(session.user.id, organization_id);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const rosterUpload = await db.query<{ file_path: string }>(
     "SELECT file_path FROM bp_uploads WHERE project_id = $1 AND file_type = 'roster' ORDER BY created_at DESC LIMIT 1",
