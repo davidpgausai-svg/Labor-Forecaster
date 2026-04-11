@@ -211,8 +211,14 @@
   }
 }
 @layer utilities {
+  .visible {
+    visibility: visible;
+  }
   .fixed {
     position: fixed;
+  }
+  .static {
+    position: static;
   }
   .start {
     inset-inline-start: var(--spacing);
@@ -270,6 +276,9 @@
   }
   .block {
     display: block;
+  }
+  .contents {
+    display: contents;
   }
   .flex {
     display: flex;
