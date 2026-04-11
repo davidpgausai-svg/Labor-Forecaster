@@ -2,6 +2,8 @@ import { exec } from "child_process";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string; numpages: number }>;
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? join(process.cwd(), ".uploads");
 
@@ -18,6 +20,11 @@ async function getPython(): Promise<string> {
 
 export function ensureUploadDir() {
   if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
+  const result = await pdfParse(pdfBuffer);
+  return result.text.trim();
 }
 
 export async function executePythonModel(pythonCode: string): Promise<Buffer> {
@@ -51,95 +58,6 @@ export async function executePythonModel(pythonCode: string): Promise<Buffer> {
           resolve(buf);
         } catch {
           reject(new Error("Excel output file was not generated"));
-        }
-      }
-    );
-  });
-}
-
-export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
-  const jobId = randomUUID();
-  const pdfPath = join("/tmp", `bp_pdf_${jobId}.pdf`);
-  const txtPath = join("/tmp", `bp_txt_${jobId}.txt`);
-
-  writeFileSync(pdfPath, pdfBuffer);
-
-  const script = `
-import sys, subprocess
-
-def try_install(pkg):
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", pkg],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except Exception:
-        return False
-
-def extract(pdf_path, txt_path):
-    # Try pypdf
-    try:
-        import pypdf
-    except ImportError:
-        try_install("pypdf")
-        try:
-            import pypdf
-        except ImportError:
-            pypdf = None
-
-    if pypdf is not None:
-        try:
-            reader = pypdf.PdfReader(pdf_path)
-            pages = len(reader.pages)
-            text = ""
-            for page in reader.pages:
-                text += (page.extract_text() or "") + "\\n"
-            with open(txt_path, "w", encoding="utf-8") as f:
-                f.write(f"PAGES:{pages}\\n" + text)
-            return
-        except Exception as e:
-            pass
-
-    # Try pdfminer.six
-    try:
-        from pdfminer.high_level import extract_text
-    except ImportError:
-        try_install("pdfminer.six")
-        try:
-            from pdfminer.high_level import extract_text
-        except ImportError:
-            raise RuntimeError("No PDF extraction library available (tried pypdf, pdfminer.six)")
-
-    text = extract_text(pdf_path)
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write("PAGES:0\\n" + text)
-
-extract(sys.argv[1], sys.argv[2])
-`.trim();
-
-  const scriptPath = join("/tmp", `bp_pdfext_${jobId}.py`);
-  writeFileSync(scriptPath, script, "utf-8");
-
-  const python = await getPython();
-  return new Promise((resolve, reject) => {
-    exec(
-      `"${python}" "${scriptPath}" "${pdfPath}" "${txtPath}"`,
-      { timeout: 60_000 },
-      (error, _stdout, stderr) => {
-        try { unlinkSync(scriptPath); } catch {}
-        try { unlinkSync(pdfPath); } catch {}
-        if (error) {
-          try { unlinkSync(txtPath); } catch {}
-          reject(new Error(`PDF extraction failed: ${stderr || error.message}`));
-          return;
-        }
-        try {
-          const raw = readFileSync(txtPath, "utf-8");
-          unlinkSync(txtPath);
-          // Strip the PAGES: header line
-          const text = raw.replace(/^PAGES:\d+\n/, "");
-          resolve(text.trim());
-        } catch {
-          reject(new Error("PDF text output file was not created"));
         }
       }
     );
