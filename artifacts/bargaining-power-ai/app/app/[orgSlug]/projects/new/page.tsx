@@ -17,12 +17,6 @@ const US_STATES = [
   ["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"],
 ];
 
-const PENSION_SYSTEMS: Record<string, string> = {
-  IL: "TRS (Illinois)", OH: "STRS Ohio", CA: "CalSTRS", TX: "TRS (Texas)",
-  NY: "NYSTRS", PA: "PSERS", MI: "MPSERS", WI: "WRS", MN: "TRA", NJ: "TPAF",
-  CT: "CTRB", MA: "MTRS",
-};
-
 const currentYear = new Date().getFullYear();
 
 export default function NewProjectPage() {
@@ -31,20 +25,11 @@ export default function NewProjectPage() {
   const [form, setForm] = useState({
     name: "",
     state: "",
-    pension_system: "",
     contract_start_year: String(currentYear),
     contract_end_year: String(currentYear + 3),
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  function handleStateChange(state: string) {
-    setForm((f) => ({
-      ...f,
-      state,
-      pension_system: PENSION_SYSTEMS[state] ?? "",
-    }));
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,7 +47,6 @@ export default function NewProjectPage() {
           name: form.name,
           orgId,
           state: form.state || undefined,
-          pensionSystem: form.pension_system || undefined,
           contractStartYear: parseInt(form.contract_start_year) || undefined,
           contractEndYear: parseInt(form.contract_end_year) || undefined,
         }),
@@ -104,30 +88,18 @@ export default function NewProjectPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>State</label>
-            <select
-              value={form.state}
-              onChange={(e) => handleStateChange(e.target.value)}
-              className={inputCls + " cursor-pointer"}
-            >
-              <option value="">Select state…</option>
-              {US_STATES.map(([code, name]) => (
-                <option key={code} value={code}>{name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Pension System</label>
-            <input
-              type="text"
-              placeholder="e.g., TRS, STRS"
-              value={form.pension_system}
-              onChange={(e) => setForm((f) => ({ ...f, pension_system: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
+        <div>
+          <label className={labelCls}>State</label>
+          <select
+            value={form.state}
+            onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+            className={inputCls + " cursor-pointer"}
+          >
+            <option value="">Select state…</option>
+            {US_STATES.map(([code, name]) => (
+              <option key={code} value={code}>{name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
