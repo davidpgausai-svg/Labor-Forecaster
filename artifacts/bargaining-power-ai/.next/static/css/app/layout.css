@@ -232,11 +232,17 @@
   .mt-1\.5 {
     margin-top: calc(var(--spacing) * 1.5);
   }
+  .mt-2 {
+    margin-top: calc(var(--spacing) * 2);
+  }
   .mt-3 {
     margin-top: calc(var(--spacing) * 3);
   }
   .mt-4 {
     margin-top: calc(var(--spacing) * 4);
+  }
+  .mb-1 {
+    margin-bottom: calc(var(--spacing) * 1);
   }
   .mb-1\.5 {
     margin-bottom: calc(var(--spacing) * 1.5);
@@ -280,6 +286,12 @@
   .table {
     display: table;
   }
+  .h-3 {
+    height: calc(var(--spacing) * 3);
+  }
+  .h-5 {
+    height: calc(var(--spacing) * 5);
+  }
   .h-6 {
     height: calc(var(--spacing) * 6);
   }
@@ -288,6 +300,12 @@
   }
   .min-h-screen {
     min-height: 100vh;
+  }
+  .w-3 {
+    width: calc(var(--spacing) * 3);
+  }
+  .w-5 {
+    width: calc(var(--spacing) * 5);
   }
   .w-6 {
     width: calc(var(--spacing) * 6);
@@ -327,6 +345,9 @@
   }
   .resize-none {
     resize: none;
+  }
+  .resize-y {
+    resize: vertical;
   }
   .grid-cols-1 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
