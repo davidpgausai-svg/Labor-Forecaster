@@ -295,7 +295,9 @@ export default function ProjectPage({
       {hasExtractedCba && (
         <section className="bg-white/5 border border-white/10 rounded-xl p-6">
           <h2 className="font-semibold flex items-center gap-2 mb-4">
-            <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 text-xs flex items-center justify-center font-bold">2</span>
+            <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+            </span>
             Extracted CBA Data
           </h2>
           {cbaUploads.filter((u) => u.extracted_data).map((u) => (
@@ -305,6 +307,27 @@ export default function ProjectPage({
           ))}
         </section>
       )}
+
+      {/* Instructions */}
+      <section className="bg-white/5 border border-white/10 rounded-xl p-6">
+        <h2 className="font-semibold flex items-center gap-2 mb-1">
+          <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-bold">2</span>
+          Instructions for Claude
+        </h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Tell Claude what to model. Add context the PDF won&apos;t capture — pension details, headcount, scenarios, focus areas.
+        </p>
+        <textarea
+          value={userInstructions}
+          onChange={(e) => setUserInstructions(e.target.value)}
+          placeholder={`Examples:\n• The district pays the employee's 9% TRS contribution\n• There are 142 full-time teachers and 18 part-time (0.5 FTE)\n• Model the union's proposal: 4% increase Year 1, 3.5% Year 2, 3% Year 3\n• Use Family tier for 60% of employees, Single for 40%\n• Focus the incremental analysis on Years 1 and 2\n• The BA Step 1 salary is $42,500 — use this as the base\n• This is a 1199SEIU healthcare contract — pension fund rate is 11.3%`}
+          rows={7}
+          className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors resize-y font-mono leading-relaxed"
+        />
+        <p className="text-xs text-slate-600 mt-2">
+          Injected directly into Claude&apos;s prompt. You can fill this in before or after uploading the CBA.
+        </p>
+      </section>
 
       {/* Step 3: Generate Cost Model */}
       <section className="bg-white/5 border border-white/10 rounded-xl p-6">
@@ -316,32 +339,13 @@ export default function ProjectPage({
         </div>
         <p className="text-xs text-slate-500 mb-4">
           {canGenerate
-            ? "CBA data extracted. Claude will analyze the contract, compute multi-year cost projections, and generate an Excel workbook."
-            : "Extract CBA data in Step 1 before generating a cost model."}
+            ? "Ready. Claude will analyze the contract, apply your instructions, and generate a 7-tab Excel workbook."
+            : "Upload and extract your CBA in Step 1 before generating."}
         </p>
 
         {rosterUploads.length === 0 && canGenerate && (
           <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
-            No roster uploaded — Claude will synthesize a representative employee roster based on the CBA data.
-          </div>
-        )}
-
-        {/* Instructions input */}
-        {canGenerate && (
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-              Instructions for Claude
-            </label>
-            <textarea
-              value={userInstructions}
-              onChange={(e) => setUserInstructions(e.target.value)}
-              placeholder={`Add context or corrections the PDF may not capture. Examples:\n• The district pays the employee's 9% TRS contribution\n• There are 142 full-time teachers and 18 part-time\n• Use Family tier for 60% of employees, Single for 40%\n• Focus the incremental analysis on Years 1 and 2\n• The BA Step 1 salary is $42,500 — use this as the base`}
-              rows={5}
-              className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors resize-none font-mono leading-relaxed"
-            />
-            <p className="text-xs text-slate-600 mt-1.5">
-              These instructions are injected directly into Claude&apos;s prompt alongside the extracted CBA data.
-            </p>
+            No roster uploaded — Claude will synthesize a representative employee roster from the CBA data.
           </div>
         )}
 
