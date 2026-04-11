@@ -63,6 +63,7 @@ export default function ProjectPage({
   const [genLoading, setGenLoading] = useState(false);
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [userInstructions, setUserInstructions] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -144,7 +145,11 @@ export default function ProjectPage({
     setGenLoading(true);
     setError("");
     try {
-      const res = await fetch(apiPath(`/api/projects/${id}/generate`), { method: "POST" });
+      const res = await fetch(apiPath(`/api/projects/${id}/generate`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userInstructions: userInstructions.trim() }),
+      });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error ?? "Generation failed");
@@ -308,15 +313,6 @@ export default function ProjectPage({
             <span className={`w-6 h-6 rounded-full text-xs flex items-center justify-center font-bold ${canGenerate ? "bg-blue-500/20 text-blue-400" : "bg-white/5 text-slate-600"}`}>3</span>
             Generate Excel Cost Model
           </h2>
-          {canGenerate && (
-            <button
-              onClick={handleGenerate}
-              disabled={genLoading}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
-            >
-              {genLoading ? "Queuing…" : "Generate Model"}
-            </button>
-          )}
         </div>
         <p className="text-xs text-slate-500 mb-4">
           {canGenerate
@@ -328,6 +324,35 @@ export default function ProjectPage({
           <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
             No roster uploaded — Claude will synthesize a representative employee roster based on the CBA data.
           </div>
+        )}
+
+        {/* Instructions input */}
+        {canGenerate && (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+              Instructions for Claude
+            </label>
+            <textarea
+              value={userInstructions}
+              onChange={(e) => setUserInstructions(e.target.value)}
+              placeholder={`Add context or corrections the PDF may not capture. Examples:\n• The district pays the employee's 9% TRS contribution\n• There are 142 full-time teachers and 18 part-time\n• Use Family tier for 60% of employees, Single for 40%\n• Focus the incremental analysis on Years 1 and 2\n• The BA Step 1 salary is $42,500 — use this as the base`}
+              rows={5}
+              className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors resize-none font-mono leading-relaxed"
+            />
+            <p className="text-xs text-slate-600 mt-1.5">
+              These instructions are injected directly into Claude&apos;s prompt alongside the extracted CBA data.
+            </p>
+          </div>
+        )}
+
+        {canGenerate && (
+          <button
+            onClick={handleGenerate}
+            disabled={genLoading}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors w-full sm:w-auto"
+          >
+            {genLoading ? "Queuing…" : "Generate Excel Model"}
+          </button>
         )}
 
         {/* Model history */}

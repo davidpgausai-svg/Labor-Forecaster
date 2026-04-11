@@ -14,7 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: projectId } = await params;
-  const { assumptions = {} } = await req.json().catch(() => ({ assumptions: {} }));
+  const body = await req.json().catch(() => ({}));
+  const assumptions = body.assumptions ?? {};
+  const userInstructions: string = body.userInstructions ?? "";
 
   const project = await db.query<{ organization_id: string; metadata: Record<string, unknown>; name: string }>(
     "SELECT organization_id, metadata, name FROM bp_projects WHERE id = $1", [projectId]
@@ -69,6 +71,11 @@ ${rosterContent}
 
 ASSUMPTIONS OVERRIDES:
 ${JSON.stringify(assumptions, null, 2)}
+
+USER INSTRUCTIONS:
+${userInstructions
+  ? userInstructions
+  : "No additional instructions provided — use the extracted CBA data and skill files to make all modeling decisions."}
 
 INSTRUCTIONS:
 - Output ONLY executable Python code using openpyxl
