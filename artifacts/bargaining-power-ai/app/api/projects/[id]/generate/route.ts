@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { assertOrgAccess } from "@/lib/orgs";
 import { anthropic, MODELING_MODEL } from "@/lib/anthropic";
 import { getModelingSystemPrompt } from "@/lib/skills";
-import { executePythonModel, saveFile, readFile } from "@/lib/python-executor";
+import { executePythonModel, extractPdfText, saveFile, readFile } from "@/lib/python-executor";
 import db from "@/lib/db";
 import { randomUUID } from "crypto";
 
@@ -65,32 +65,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await db.query("UPDATE bp_projects SET status = 'processing' WHERE id = $1", [projectId]);
 
   try {
-    // Build message content: send each CBA PDF as a base64 document block
-    type ContentBlock =
-      | { type: "text"; text: string }
-      | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string };
-
-    const contentBlocks: ContentBlock[] = [];
+    // Extract text from each CBA PDF using Python (no page-count limit)
+    const contentBlocks: { type: "text"; text: string }[] = [];
 
     for (const upload of cbaUploads.rows) {
       try {
         const buf = readFile(upload.file_path);
+        const text = await extractPdfText(buf);
         contentBlocks.push({
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: "application/pdf",
-            data: buf.toString("base64"),
-          },
-          title: upload.file_name,
+          type: "text",
+          text: `=== CBA DOCUMENT: ${upload.file_name} ===\n\n${text}`,
         });
       } catch {
-        // File missing — skip but don't fail
+        // File missing or extraction failed — skip but don't fail
       }
     }
 
     if (contentBlocks.length === 0) {
-      throw new Error("CBA file(s) could not be read from disk.");
+      throw new Error("CBA file(s) could not be read or extracted from disk.");
     }
 
     contentBlocks.push({

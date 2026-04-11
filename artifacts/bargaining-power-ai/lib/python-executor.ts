@@ -45,6 +45,71 @@ export async function executePythonModel(pythonCode: string): Promise<Buffer> {
   });
 }
 
+export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
+  const jobId = randomUUID();
+  const pdfPath = join("/tmp", `bp_pdf_${jobId}.pdf`);
+  const txtPath = join("/tmp", `bp_txt_${jobId}.txt`);
+
+  writeFileSync(pdfPath, pdfBuffer);
+
+  const script = `
+import sys, json
+
+def extract(pdf_path, txt_path):
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(pdf_path)
+        pages = len(reader.pages)
+        text = ""
+        for page in reader.pages:
+            text += (page.extract_text() or "") + "\\n"
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(f"PAGES:{pages}\\n" + text)
+        return
+    except Exception:
+        pass
+    try:
+        from pdfminer.high_level import extract_text
+        text = extract_text(pdf_path)
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write("PAGES:0\\n" + text)
+        return
+    except Exception:
+        pass
+    raise RuntimeError("No PDF extraction library available (tried pypdf, pdfminer.six)")
+
+extract(sys.argv[1], sys.argv[2])
+`.trim();
+
+  const scriptPath = join("/tmp", `bp_pdfext_${jobId}.py`);
+  writeFileSync(scriptPath, script, "utf-8");
+
+  return new Promise((resolve, reject) => {
+    exec(
+      `python3 ${scriptPath} ${pdfPath} ${txtPath}`,
+      { timeout: 60_000 },
+      (error, _stdout, stderr) => {
+        try { unlinkSync(scriptPath); } catch {}
+        try { unlinkSync(pdfPath); } catch {}
+        if (error) {
+          try { unlinkSync(txtPath); } catch {}
+          reject(new Error(`PDF extraction failed: ${stderr || error.message}`));
+          return;
+        }
+        try {
+          const raw = readFileSync(txtPath, "utf-8");
+          unlinkSync(txtPath);
+          // Strip the PAGES: header line
+          const text = raw.replace(/^PAGES:\d+\n/, "");
+          resolve(text.trim());
+        } catch {
+          reject(new Error("PDF text output file was not created"));
+        }
+      }
+    );
+  });
+}
+
 export function saveFile(buffer: Buffer, filename: string): string {
   ensureUploadDir();
   const dest = join(UPLOAD_DIR, filename);
