@@ -1,0 +1,220 @@
+  Replit Agent Prompt: Deploy Bargaining Power AI                                                                  
+                                                                                                                   
+  You are setting up and running a Next.js 15 application called "Bargaining Power AI" that already exists in this 
+  repository at artifacts/bargaining-power-ai/. The app is fully built and typechecks clean. Your job is to        
+  configure the environment, run the database migration, install the Python dependency, and start the server.    
+                                                                                                                   
+  ---                                                                                                            
+
+  ## WHAT THIS APP DOES
+
+  Bargaining Power AI is a multi-tenant SaaS app. Users upload a teacher union CBA (collective bargaining          
+  agreement) PDF and optionally an employee roster CSV/XLSX. The app uses Claude AI to extract the CBA data and
+  then generate a comprehensive multi-year employer/employee cost model as a downloadable Excel workbook (.xlsx)   
+  built with Python openpyxl.                                                                                    
+
+  Flow:                                                                                                            
+  1. User registers → creates an org account
+  2. User creates a project (CBA name, state, contract years)                                                      
+  3. User uploads CBA PDF → clicks "Extract Data" → Claude Sonnet reads the PDF and extracts salary schedule,      
+  retirement rates, benefits, annual increases into structured JSON                                                
+  4. User clicks "Generate Model" → Claude Opus receives all 7 skill domain files as system prompt + extracted CBA 
+  data → writes Python/openpyxl code → the server executes it with python3 → saves the .xlsx to disk → user        
+  downloads it                                                                                                   
+                                                                                                                   
+  ---                                                                                                            
+
+  ## DIRECTORY STRUCTURE (already exists)
+
+  artifacts/bargaining-power-ai/                                                                                   
+  ├── app/
+  │   ├── (auth)/login/page.tsx          ← login page                                                              
+  │   ├── (auth)/register/page.tsx       ← register + create org                                                 
+  │   ├── api/                                                                                                     
+  │   │   ├── auth/[...nextauth]/route.ts
+  │   │   ├── orgs/[slug]/route.ts        ← org lookup by slug                                                     
+  │   │   ├── projects/route.ts           ← GET list, POST create                                                  
+  │   │   ├── projects/[id]/route.ts      ← GET project + uploads + models                                         
+  │   │   ├── projects/[id]/upload/       ← POST file upload                                                       
+  │   │   ├── projects/[id]/extract/      ← POST Claude Sonnet extraction                                          
+  │   │   ├── projects/[id]/generate/     ← POST Claude Opus + Python execution                                    
+  │   │   └── projects/[id]/download/     ← GET Excel download                                                   
+  │   │   └── register/route.ts           ← POST create user + org                                                 
+  │   ├── app/                                                                                                     
+  │   │   ├── page.tsx                    ← redirects to first org                                                 
+  │   │   └── [orgSlug]/                                                                                           
+  │   │       ├── layout.tsx              ← nav bar with sign out                                                
+  │   │       ├── page.tsx                ← project list dashboard                                                 
+  │   │       └── projects/                                                                                      
+  │   │           ├── new/page.tsx        ← new project form                                                       
+  │   │           └── [id]/page.tsx       ← project detail: upload → extract → generate → download               
+  │   ├── globals.css                                                                                              
+  │   └── layout.tsx
+  ├── lib/                                                                                                         
+  │   ├── db.ts                           ← pg Pool using DATABASE_URL                                           
+  │   ├── schema.sql                      ← 6 tables with bp_ prefix                                               
+  │   ├── migrate.ts                      ← runs schema.sql against the DB                                         
+  │   ├── auth.ts                         ← NextAuth v5 Credentials + JWT                                          
+  │   ├── anthropic.ts                    ← Anthropic SDK client                                                   
+  │   ├── orgs.ts                         ← org helpers + assertOrgAccess guard                                    
+  │   ├── python-executor.ts              ← executes Claude-generated Python code                                  
+  │   └── skills/                         ← 7 domain .md files loaded as system prompt                             
+  │       ├── SKILL.md                                                                                             
+  │       ├── DOMAIN-CBA-INTERPRETATION.md                                                                         
+  │       ├── DOMAIN-RETIREMENT-SYSTEMS.md                                                                         
+  │       ├── DOMAIN-BENEFITS-MODELING.md                                                                        
+  │       ├── DOMAIN-PAYROLL-TAXES.md                                                                              
+  │       ├── OUTPUT-EXCEL-SPEC.md                                                                               
+  │       └── OUTPUT-INCREMENTAL-COST.md                                                                           
+  ├── package.json                        ← Next.js 15, next-auth v5, @anthropic-ai/sdk, pg, bcryptjs
+  ├── tsconfig.json                                                                                                
+  └── next.config.ts                                                                                             
+                                                                                                                   
+  ---                                                                                                            
+                                                                                                                   
+  ## STEP 1: SET ENVIRONMENT VARIABLES                                                                           
+
+  In Replit Secrets, set the following. Do NOT hardcode these in any file:                                         
+   
+  - DATABASE_URL         → The existing Postgres connection string (same one used by the CollBar API server — it's 
+  already in Replit Secrets)                                                                                     
+  - NEXTAUTH_SECRET      → Generate a new random 32-byte secret: run `openssl rand -base64 32` in the shell and    
+  paste the output                                                                                                 
+  - NEXTAUTH_URL         → The public URL of this Replit app. For dev: use the Replit webview URL (e.g.
+  https://bargaining-power-ai.yourname.repl.co). Must be the actual URL, not localhost.                            
+  - ANTHROPIC_API_KEY    → The user's Anthropic API key                                                          
+                                                                                                                   
+  ---                                                                                                            
+                                                                                                                   
+  ## STEP 2: INSTALL PYTHON DEPENDENCY                                                                           
+
+  The app executes Claude-generated Python code that uses openpyxl to build Excel files. Install it system-wide:   
+   
+  ```bash                                                                                                          
+  pip3 install openpyxl                                                                                          
+                                                                                                                   
+  Verify it works:
+  python3 -c "import openpyxl; print('openpyxl OK', openpyxl.__version__)"                                         
+                                                                                                                 
+  ---
+  STEP 3: INSTALL NODE DEPENDENCIES
+                                                                                                                   
+  cd artifacts/bargaining-power-ai
+  pnpm install                                                                                                     
+                                                                                                                 
+  ---
+  STEP 4: RUN THE DATABASE MIGRATION
+                                                                                                                   
+  The app uses 6 Postgres tables all prefixed with bp_ so they coexist safely with the existing CollBar tables. Run
+   the migration once:                                                                                             
+                                                                                                                 
+  cd artifacts/bargaining-power-ai                                                                                 
+  npx tsx lib/migrate.ts                                                                                         
+
+  Expected output: ✅ Bargaining Power AI schema migrated                                                          
+   
+  If you get a connection error, verify DATABASE_URL is set correctly in Secrets and that the Postgres database is 
+  running.                                                                                                       
+                                                                                                                   
+  ---                                                                                                            
+  STEP 5: CREATE THE .uploads DIRECTORY
+                                                                                                                   
+  The app saves uploaded files to a local .uploads/ folder relative to the app's working directory:
+                                                                                                                   
+  mkdir -p artifacts/bargaining-power-ai/.uploads                                                                
+                                                                                                                   
+  ---                                                                                                            
+  STEP 6: START THE APP
+
+  cd artifacts/bargaining-power-ai
+  pnpm dev
+                                                                                                                   
+  The app runs on port 3001. The CollBar API server runs on port 3000 — they do not conflict.                      
+                                                                                                                   
+  Configure the Replit run button to execute: cd artifacts/bargaining-power-ai && pnpm dev                         
+                                                                                                                 
+  ---                                                                                                              
+  STEP 7: VERIFY IT WORKS                                                                                        
+
+  1. Open the app in the Replit webview
+  2. You should see the landing page with "Get Started" and "Sign In" buttons
+  3. Click "Get Started" → fill in name, email, password, organization name → submit                               
+  4. You should be redirected to /app/[your-org-slug] — the project dashboard                                      
+  5. Click "+ New Project" → fill in a name, select a state, set contract years → Create                           
+  6. You should land on the project detail page showing the 3-step flow: Upload → Extract → Generate               
+                                                                                                                   
+  ---                                                                                                              
+  KNOWN ISSUES TO WATCH FOR                                                                                        
+                                                                                                                 
+  Issue 1: NEXTAUTH_URL mismatch
+  If login redirects to the wrong URL or you get a CSRF error, the NEXTAUTH_URL secret doesn't match the actual    
+  Replit webview URL. Update the secret to the exact URL shown in the browser address bar.                         
+                                                                                                                   
+  Issue 2: Python execution timeout                                                                                
+  The generate step calls Claude Opus which takes 60–120 seconds to write the Python, then executes it. The default
+   Next.js route timeout may be too short. If generation times out, add this to next.config.ts:                    
+  export const maxDuration = 180; // seconds                                                                     
+                                                                                                                   
+  Issue 3: File not found after upload                                                                           
+  If the extract step fails with "file not found", the .uploads directory wasn't created or the app's working      
+  directory is different than expected. The upload path is controlled by the UPLOAD_DIR env var (defaults to       
+  .uploads/ relative to process.cwd()). Set UPLOAD_DIR to an absolute path if needed, e.g.:                        
+  UPLOAD_DIR=/home/runner/Labor-Forecaster/artifacts/bargaining-power-ai/.uploads                                  
+                                                                                                                   
+  Issue 4: Claude API document type error
+  The extract route sends PDF files as base64 document blocks to Claude. If you get a model error saying "document 
+  type not supported", the PDF is a scanned image-only document. Claude requires text-layer PDFs. The app will     
+  still try, but extraction quality will be lower.                                                                 
+                                                                                                                   
+  Issue 5: openpyxl not found during generation                                                                  
+  If you see ModuleNotFoundError: No module named 'openpyxl' in the cost model error, run pip3 install openpyxl
+  again and confirm which python3 matches the python3 that pnpm exec would call.                                   
+   
+  ---                                                                                                              
+  HOW THE DUAL-MODEL AI PIPELINE WORKS                                                                           
+                                                                                                                   
+  Extraction (Step 1 — Claude Sonnet):
+  - Route: POST /api/projects/[id]/extract                                                                         
+  - Model: claude-sonnet-4-6                                                                                     
+  - Input: base64-encoded PDF file sent as a document block                                                        
+  - System prompt: DOMAIN-CBA-INTERPRETATION.md (teaches Claude how to read a CBA)                                 
+  - Output: JSON with salary schedule, retirement rates, insurance, annual increases
+  - Stored in: bp_uploads.extracted_data (JSONB)                                                                   
+                                                                                                                   
+  Cost Model Generation (Step 2 — Claude Opus):                                                                    
+  - Route: POST /api/projects/[id]/generate                                                                        
+  - Model: claude-opus-4-6                                                                                       
+  - System prompt: All 7 skill .md files concatenated (SKILL.md + 4 DOMAIN files + 2 OUTPUT files)                 
+  - Input: The extracted CBA JSON + employee roster (or instruction to synthesize one)                           
+  - Output: Complete Python script using openpyxl that builds a 7-tab Excel workbook                               
+  - Execution: The server runs the Python script with child_process.exec('python3 script.py')                      
+  - Result: .xlsx file saved to .uploads/, path stored in bp_cost_models.output_file_path                          
+                                                                                                                   
+  Download:                                                                                                        
+  - Route: GET /api/projects/[id]/download?modelId=[uuid]                                                          
+  - Reads the .xlsx file from disk, streams it as application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+                                                                                                                 
+  ---                                                                                                              
+  DO NOT MODIFY THESE FILES                                                                                      
+                                                                                                                   
+  The following are auto-generated or tightly coupled — do not edit:                                             
+  - lib/skills/*.md (these are the AI system prompt files — any edit changes the model's behavior)                 
+  - lib/api-client-react/ and lib/api-zod/ (these are for the CollBar app, not this one)                           
+                                                                                                                   
+  ---                                                                                                              
+  WHAT GOOD LOOKS LIKE                                                                                           
+                                                                                                                   
+  A successful end-to-end run:                                                                                   
+  1. User uploads a CBA PDF (e.g., a 40-page teacher contract PDF)
+  2. Extraction takes ~10–20 seconds and shows the extracted JSON: district name, salary grid lanes/steps,         
+  retirement system, insurance sharing percentages, annual increases                                      
+  3. User clicks "Generate Model" — status shows "generating" with an amber badge and a message "Claude is building
+   your cost model… this takes 60–120 seconds"                                                                     
+  4. Status flips to "complete" with a green badge and a "Download Excel" button                                   
+  5. Downloaded .xlsx opens in Excel/Google Sheets with 7 tabs: Executive Summary, Assumptions, Salary Schedule, 
+  Employee Roster, Employer Cost - Current, Employee Cost - Current, Incremental Cost Analysis                     
+  6. All cells with formulas (black text), all input assumptions in blue text, all employer totals on dark red     
+  background, all employee net take-home in green                                                                  
+                                                                                                                   
+  If generation succeeds but the Excel looks wrong or is missing tabs, the issue is in the Claude Opus prompt    
+  output. Look at the error_message field in bp_cost_models for the Python traceback.  
