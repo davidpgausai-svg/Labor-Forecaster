@@ -5,6 +5,17 @@ import { join } from "path";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? join(process.cwd(), ".uploads");
 
+let _pythonCmd: string | null = null;
+async function getPython(): Promise<string> {
+  if (_pythonCmd) return _pythonCmd;
+  return new Promise((resolve) => {
+    exec("which python3 2>/dev/null || which python 2>/dev/null", (_err, stdout) => {
+      _pythonCmd = stdout.trim() || "python3";
+      resolve(_pythonCmd);
+    });
+  });
+}
+
 export function ensureUploadDir() {
   if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -22,9 +33,10 @@ export async function executePythonModel(pythonCode: string): Promise<Buffer> {
 
   writeFileSync(scriptPath, adjustedCode, "utf-8");
 
+  const python = await getPython();
   return new Promise((resolve, reject) => {
     exec(
-      `python3 ${scriptPath}`,
+      `"${python}" ${scriptPath}`,
       { timeout: 150_000, maxBuffer: 50 * 1024 * 1024 },
       (error, _stdout, stderr) => {
         try { unlinkSync(scriptPath); } catch {}
@@ -107,9 +119,10 @@ extract(sys.argv[1], sys.argv[2])
   const scriptPath = join("/tmp", `bp_pdfext_${jobId}.py`);
   writeFileSync(scriptPath, script, "utf-8");
 
+  const python = await getPython();
   return new Promise((resolve, reject) => {
     exec(
-      `python3 ${scriptPath} ${pdfPath} ${txtPath}`,
+      `"${python}" "${scriptPath}" "${pdfPath}" "${txtPath}"`,
       { timeout: 60_000 },
       (error, _stdout, stderr) => {
         try { unlinkSync(scriptPath); } catch {}
