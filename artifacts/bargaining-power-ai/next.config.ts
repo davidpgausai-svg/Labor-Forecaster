@@ -8,7 +8,6 @@ devOrigins.push("*.replit.dev", "*.picard.replit.dev", "*.repl.co");
 
 const nextConfig: NextConfig = {
   basePath: BASE_PATH,
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
   experimental: {
     serverActions: { bodySizeLimit: "25mb" },
   },
