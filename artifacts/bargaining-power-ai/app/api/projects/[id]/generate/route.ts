@@ -6,7 +6,6 @@ import { getModelingSystemPrompt } from "@/lib/skills";
 import { executePythonModel, saveFile, readFile } from "@/lib/python-executor";
 import db from "@/lib/db";
 import { randomUUID } from "crypto";
-import { PDFParse } from "pdf-parse";
 
 export const maxDuration = 180;
 
