@@ -1,26 +1,20 @@
 "use client";
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { loginAction } from "./actions";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError("");
-    const res = await signIn("credentials", { ...form, redirect: false });
-    if (res?.error) {
-      setError("Invalid email or password");
-      setLoading(false);
-    } else {
-      router.push("/app");
-    }
+    startTransition(async () => {
+      const err = await loginAction({ email: form.email, password: form.password });
+      if (err) setError(err);
+    });
   }
 
   return (
@@ -50,9 +44,9 @@ export default function LoginPage() {
             />
           </div>
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={isPending}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-2 rounded-lg font-semibold transition-colors">
-            {loading ? "Signing in…" : "Sign In"}
+            {isPending ? "Signing in…" : "Sign In"}
           </button>
         </form>
         <p className="text-center text-slate-500 text-sm mt-4">

@@ -140,3 +140,49 @@ Only: `"draft" | "active" | "final" | "archived"` — enforced by Postgres enum 
   - All endpoints smoke-tested and verified
 - **Task #2 (Frontend)**: PENDING
 - **Task #3 (Reports: PDF + Excel)**: PENDING
+
+---
+
+## Bargaining Power AI (Task #25) — COMPLETE
+
+A separate standalone SaaS app for school district administrators to upload teacher union CBA PDFs and generate Excel cost models.
+
+### Location & Routing
+- **Directory**: `artifacts/bargaining-power-ai/`
+- **Preview path**: `/bpai` (separate from CollBar at `/`)
+- **Port**: 3001
+- **Package**: `@workspace/bargaining-power-ai`
+
+### Stack
+- Next.js 15 App Router + TypeScript
+- NextAuth v5 (Credentials provider, JWT sessions)
+- PostgreSQL (same instance as CollBar, tables prefixed `bp_`)
+- Anthropic SDK: claude-sonnet-4-5 (extraction), claude-opus-4-5 (modeling)
+- openpyxl via Python subprocess for Excel generation
+- Tailwind CSS v4
+
+### Database Tables (prefix: `bp_`)
+- `bp_users` — User accounts with password_hash
+- `bp_orgs` — Multi-tenant organizations/districts
+- `bp_org_members` — User↔org join table with roles
+- `bp_projects` — CBA projects per org
+- `bp_uploads` — File uploads (CBA PDFs + rosters)
+- `bp_cost_models` — Generated Excel model records
+
+### Key Architecture Notes
+1. **basePath `/bpai`**: Next.js basePath is set; all internal routes auto-prefix
+2. **Server Actions for auth**: `signIn`/`signOut` use server actions (NOT `next-auth/react`) to ensure basePath is respected in redirects
+3. **`apiPath()` utility** (`lib/api.ts`): Client components prefix fetch URLs with `NEXT_PUBLIC_BASE_PATH`
+4. **Split auth config**: `lib/auth.config.ts` (Edge-compatible, no Node.js APIs) used by middleware; `lib/auth.ts` adds Credentials provider + DB
+5. **Env vars**: `AUTH_SECRET` (Replit Secret), `ANTHROPIC_API_KEY` (Replit Secret), `DATABASE_URL` (Replit Secret)
+
+### AI Pipeline
+1. Upload PDF → stored in `.uploads/` directory
+2. Extract: Claude Sonnet reads PDF text, outputs structured JSON (salary schedule, benefits, pension)
+3. Generate: Claude Opus generates openpyxl Python code → executed → Excel file saved
+4. Download: Excel file served from `.uploads/` directory
+
+### Running the Migration
+```bash
+cd artifacts/bargaining-power-ai && npx tsx lib/migrate.ts
+```

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
-import { use } from "react";
+import { useTransition, use } from "react";
+import { signOutAction } from "./actions";
 
 export default function OrgLayout({
   children,
@@ -14,10 +14,16 @@ export default function OrgLayout({
 }) {
   const { orgSlug } = use(params);
   const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
+
+  function handleSignOut() {
+    startTransition(async () => {
+      await signOutAction();
+    });
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0e14] text-white flex flex-col">
-      {/* Top nav */}
       <header className="border-b border-white/10 bg-[#0d1117]">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -35,10 +41,11 @@ export default function OrgLayout({
             </nav>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-xs text-slate-500 hover:text-white transition-colors"
+            onClick={handleSignOut}
+            disabled={isPending}
+            className="text-xs text-slate-500 hover:text-white transition-colors disabled:opacity-50"
           >
-            Sign out
+            {isPending ? "Signing out…" : "Sign out"}
           </button>
         </div>
       </header>

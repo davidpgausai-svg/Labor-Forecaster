@@ -1,34 +1,20 @@
 "use client";
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { apiPath } from "@/lib/api";
+import { registerAction } from "./actions";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [form, setForm] = useState({ name: "", email: "", password: "", orgName: "" });
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError("");
-    try {
-      const res = await fetch(apiPath("/api/register"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Registration failed"); setLoading(false); return; }
-      await signIn("credentials", { email: form.email, password: form.password, redirect: false });
-      router.push(`/app/${data.orgSlug}`);
-    } catch {
-      setError("Something went wrong");
-      setLoading(false);
-    }
+    startTransition(async () => {
+      const err = await registerAction(form);
+      if (err) setError(err);
+    });
   }
 
   return (
@@ -56,9 +42,9 @@ export default function RegisterPage() {
             </div>
           ))}
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={isPending}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-2 rounded-lg font-semibold transition-colors">
-            {loading ? "Creating account…" : "Start Free Trial"}
+            {isPending ? "Creating account…" : "Start Free Trial"}
           </button>
         </form>
         <p className="text-center text-slate-500 text-sm mt-4">

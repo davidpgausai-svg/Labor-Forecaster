@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: BASE_PATH,
   },
+  allowedDevOrigins: ["*"],
 };
 
 export default nextConfig;
