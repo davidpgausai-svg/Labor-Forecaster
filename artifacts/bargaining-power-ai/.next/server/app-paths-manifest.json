@@ -1,5 +1,5 @@
 {
-  "/api/projects/[id]/generate/route": "app/api/projects/[id]/generate/route.js",
   "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
-  "/app/[orgSlug]/projects/[id]/page": "app/app/[orgSlug]/projects/[id]/page.js"
+  "/app/[orgSlug]/projects/[id]/page": "app/app/[orgSlug]/projects/[id]/page.js",
+  "/api/projects/[id]/generate/route": "app/api/projects/[id]/generate/route.js"
 }
