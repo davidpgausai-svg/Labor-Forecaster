@@ -8,7 +8,10 @@ function load(filename: string): string {
 }
 
 export function getExtractionSystemPrompt(): string {
-  return load("DOMAIN-CBA-INTERPRETATION.md");
+  return [
+    load("SKILL.md"),
+    load("DOMAIN-CBA-INTERPRETATION.md"),
+  ].join("\n\n---\n\n");
 }
 
 export function getModelingSystemPrompt(): string {

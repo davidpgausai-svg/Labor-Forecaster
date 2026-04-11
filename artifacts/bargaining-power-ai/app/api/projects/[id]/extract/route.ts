@@ -44,35 +44,67 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } as { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } },
         {
           type: "text",
-          text: `Extract the following from this CBA and return as JSON only (no markdown, no preamble):
+          text: `First, classify this CBA as one of: "k12", "healthcare", "building_trades", "hospitality", or "other".
+
+Then extract ALL compensation-relevant data and return as a single JSON object only (no markdown, no preamble, no explanation).
+
+Use this structure — populate the fields relevant to the sector and leave irrelevant sections null:
+
 {
-  "district_name": "",
+  "sector": "k12 | healthcare | building_trades | hospitality | other",
+  "employer_name": "",
   "union_name": "",
   "contract_start": "",
   "contract_end": "",
   "contract_years": 0,
   "state": "",
-  "salary_schedule": {
-    "lanes": [],
-    "steps": {}
+
+  "k12": {
+    "salary_schedule": { "lanes": [], "steps": {} },
+    "contract_days": [],
+    "pay_distribution_months": 12,
+    "annual_increases": [],
+    "stipend_schedule": null,
+    "retirement": {
+      "system": "",
+      "employee_rate": 0,
+      "employer_rate": 0,
+      "district_pays_employee": false,
+      "social_security_exempt": true,
+      "this_employee_rate": 0,
+      "this_employer_rate": 0
+    },
+    "insurance": {
+      "medical_sharing": {},
+      "dental_sharing": {},
+      "vision_sharing": {},
+      "life_coverage_amount": 0,
+      "ltd_provided": false,
+      "hsa_contribution_single": 0,
+      "hsa_contribution_family": 0
+    }
   },
-  "contract_days": [],
-  "pay_distribution_months": 12,
-  "annual_increases": [],
-  "retirement": {
-    "system": "",
-    "employee_rate": 0,
-    "employer_rate": 0,
-    "district_pays_employee": false,
-    "social_security_exempt": true
+
+  "healthcare": {
+    "rate_table": [],
+    "annual_increases": [],
+    "longevity_provisions": [],
+    "funds": {
+      "benefit_fund": { "type": "pmpy | pct_wages", "rate": 0, "notes": "" },
+      "pension_fund": { "rate_pct": 0, "employee_contribution": 0, "notes": "" },
+      "training_fund": { "rate_pct": 0 },
+      "job_security_fund": { "rate_pct": 0, "balance_cap": null },
+      "child_care_fund": { "rate_pct": 0 },
+      "other_funds": []
+    },
+    "employee_health_premium": 0,
+    "social_security_exempt": false,
+    "hours_per_week": 35,
+    "specialty_pay": []
   },
-  "insurance": {
-    "medical_sharing": {},
-    "dental_sharing": {},
-    "life_coverage": 0,
-    "ltd_provided": false
-  },
-  "stipend_schedule": null
+
+  "lump_sum_payments": [],
+  "red_flags": []
 }`,
         },
       ],

@@ -398,31 +398,123 @@ export default function ProjectPage({
 }
 
 function ExtractedDataView({ data }: { data: Record<string, unknown> }) {
-  const fields = [
-    ["Union Name", "union_name"],
-    ["District Name", "district_name"],
+  const sector = data.sector as string | undefined;
+  const sectorLabel =
+    sector === "k12" ? "K-12 School District"
+    : sector === "healthcare" ? "Healthcare / Private Union"
+    : sector === "building_trades" ? "Building Trades"
+    : sector === "hospitality" ? "Hospitality / Service"
+    : sector ?? "Unknown";
+
+  const sectorColor =
+    sector === "k12" ? "text-blue-400 bg-blue-400/10 border-blue-400/20"
+    : sector === "healthcare" ? "text-purple-400 bg-purple-400/10 border-purple-400/20"
+    : "text-slate-400 bg-white/5 border-white/10";
+
+  const topFields: [string, string][] = [
+    ["Employer", "employer_name"],
+    ["Union", "union_name"],
     ["State", "state"],
-    ["Contract Term", "contract_term"],
-    ["Pension System", "pension_system"],
-    ["Number of Teachers", "teacher_count"],
-    ["Salary Schedule Type", "salary_schedule_type"],
-    ["Schedule Increases", "schedule_increases"],
-    ["Benefits", "benefits_summary"],
+    ["Contract Start", "contract_start"],
+    ["Contract End", "contract_end"],
+    ["Contract Years", "contract_years"],
   ];
 
+  const k12 = data.k12 as Record<string, unknown> | undefined;
+  const hc = data.healthcare as Record<string, unknown> | undefined;
+
   return (
-    <div className="grid grid-cols-2 gap-x-8 gap-y-2">
-      {fields.map(([label, key]) => {
-        const val = data[key];
-        if (!val) return null;
-        const display = typeof val === "object" ? JSON.stringify(val) : String(val);
-        return (
-          <div key={key}>
-            <p className="text-xs text-slate-500">{label}</p>
-            <p className="text-sm text-white mt-0.5 truncate" title={display}>{display}</p>
-          </div>
-        );
-      })}
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <span className={`text-xs border px-2 py-0.5 rounded-full font-medium ${sectorColor}`}>
+          {sectorLabel}
+        </span>
+        {(data.red_flags as unknown[])?.length > 0 && (
+          <span className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
+            {(data.red_flags as unknown[]).length} flag{(data.red_flags as unknown[]).length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+        {topFields.map(([label, key]) => {
+          const val = data[key];
+          if (val == null || val === "") return null;
+          return (
+            <div key={key}>
+              <p className="text-xs text-slate-500">{label}</p>
+              <p className="text-sm text-white mt-0.5">{String(val)}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {sector === "k12" && k12 && (
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2 pt-2 border-t border-white/5">
+          {!!k12.retirement && (
+            <div>
+              <p className="text-xs text-slate-500">Pension System</p>
+              <p className="text-sm text-white mt-0.5">
+                {String((k12.retirement as Record<string, unknown>).system || "—")}
+                {(k12.retirement as Record<string, unknown>).district_pays_employee
+                  ? " (district-paid EE share)"
+                  : ""}
+              </p>
+            </div>
+          )}
+          {!!k12.annual_increases && (
+            <div>
+              <p className="text-xs text-slate-500">Annual Increases</p>
+              <p className="text-sm text-white mt-0.5 truncate">
+                {JSON.stringify(k12.annual_increases)}
+              </p>
+            </div>
+          )}
+          {!!k12.contract_days && (
+            <div>
+              <p className="text-xs text-slate-500">Contract Days</p>
+              <p className="text-sm text-white mt-0.5">{JSON.stringify(k12.contract_days)}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {sector === "healthcare" && hc && (
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2 pt-2 border-t border-white/5">
+          {!!hc.funds && (
+            <>
+              <div>
+                <p className="text-xs text-slate-500">Pension Fund Rate</p>
+                <p className="text-sm text-white mt-0.5">
+                  {String((hc.funds as Record<string, unknown> & { pension_fund?: { rate_pct?: number } }).pension_fund?.rate_pct ?? "—")}%
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Employee Health Premium</p>
+                <p className="text-sm text-white mt-0.5">
+                  ${String(hc.employee_health_premium ?? 0)}/yr
+                </p>
+              </div>
+            </>
+          )}
+          {!!hc.annual_increases && (
+            <div>
+              <p className="text-xs text-slate-500">Annual Increases</p>
+              <p className="text-sm text-white mt-0.5 truncate">
+                {JSON.stringify(hc.annual_increases)}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(data.lump_sum_payments as unknown[])?.length > 0 && (
+        <div className="pt-2 border-t border-white/5">
+          <p className="text-xs text-amber-400 font-medium">
+            Lump sum payments detected (non-recurring, non-pensionable) — modeled separately
+          </p>
+        </div>
+      )}
     </div>
   );
 }
