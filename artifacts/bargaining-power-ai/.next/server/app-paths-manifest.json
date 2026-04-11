@@ -1,5 +1,7 @@
 {
   "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
+  "/api/projects/[id]/uploads/[uploadId]/route": "app/api/projects/[id]/uploads/[uploadId]/route.js",
+  "/api/projects/[id]/generate/route": "app/api/projects/[id]/generate/route.js",
   "/page": "app/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
   "/app/[orgSlug]/page": "app/app/[orgSlug]/page.js",

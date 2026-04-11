@@ -65,6 +65,16 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/projects/[id]/extract/route.js"
+    ],
+    "/api/projects/[id]/uploads/[uploadId]/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/projects/[id]/uploads/[uploadId]/route.js"
+    ],
+    "/api/projects/[id]/generate/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/projects/[id]/generate/route.js"
     ]
   }
 }
