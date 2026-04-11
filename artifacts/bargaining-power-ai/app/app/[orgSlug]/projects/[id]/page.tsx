@@ -312,10 +312,10 @@ export default function ProjectPage({
       <section className="bg-white/5 border border-white/10 rounded-xl p-6">
         <h2 className="font-semibold flex items-center gap-2 mb-1">
           <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-bold">2</span>
-          Instructions for Claude
+          Instructions for Collbar
         </h2>
         <p className="text-xs text-slate-500 mb-4">
-          Tell Claude what to model. Add context the PDF won&apos;t capture — pension details, headcount, scenarios, focus areas.
+          Tell Collbar what to model. Add context the PDF won&apos;t capture — pension details, headcount, scenarios, focus areas.
         </p>
         <textarea
           value={userInstructions}
@@ -325,7 +325,7 @@ export default function ProjectPage({
           className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors resize-y font-mono leading-relaxed"
         />
         <p className="text-xs text-slate-600 mt-2">
-          Injected directly into Claude&apos;s prompt. You can fill this in before or after uploading the CBA.
+          Injected directly into Collbar&apos;s engine. You can fill this in before or after uploading the CBA.
         </p>
       </section>
 
@@ -339,13 +339,13 @@ export default function ProjectPage({
         </div>
         <p className="text-xs text-slate-500 mb-4">
           {canGenerate
-            ? "Ready. Claude will analyze the contract, apply your instructions, and generate a 7-tab Excel workbook."
+            ? "Ready. Collbar will analyze the contract, apply your instructions, and generate a 7-tab Excel workbook."
             : "Upload and extract your CBA in Step 1 before generating."}
         </p>
 
         {rosterUploads.length === 0 && canGenerate && (
           <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
-            No roster uploaded — Claude will synthesize a representative employee roster from the CBA data.
+            No roster uploaded — Collbar will synthesize a representative employee roster from the CBA data.
           </div>
         )}
 
@@ -377,7 +377,7 @@ export default function ProjectPage({
                   )}
                   {m.status === "generating" && (
                     <p className="text-xs text-amber-400 mt-1 animate-pulse">
-                      Claude is building your cost model… this takes 60–120 seconds.
+                      Collbar is building your cost model… this takes 60–120 seconds.
                     </p>
                   )}
                   {m.summary && Object.keys(m.summary).length > 0 && (
