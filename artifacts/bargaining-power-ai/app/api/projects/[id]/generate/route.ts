@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 180;
 import { auth } from "@/lib/auth";
 import { anthropic, MODELING_MODEL } from "@/lib/anthropic";
 import { getModelingSystemPrompt } from "@/lib/skills";

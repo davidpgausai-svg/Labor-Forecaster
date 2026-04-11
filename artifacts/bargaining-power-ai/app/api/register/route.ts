@@ -33,17 +33,17 @@ export async function POST(req: NextRequest) {
 
   // Generate unique slug
   let slug = slugify(orgName);
-  const slugCheck = await db.query("SELECT id FROM bp_organizations WHERE slug = $1", [slug]);
+  const slugCheck = await db.query("SELECT id FROM bp_orgs WHERE slug = $1", [slug]);
   if (slugCheck.rows.length > 0) slug = `${slug}-${Date.now()}`;
 
   const orgRes = await db.query<{ id: string }>(
-    "INSERT INTO bp_organizations (name, slug) VALUES ($1, $2) RETURNING id",
+    "INSERT INTO bp_orgs (name, slug) VALUES ($1, $2) RETURNING id",
     [orgName, slug]
   );
   const orgId = orgRes.rows[0].id;
 
   await db.query(
-    "INSERT INTO bp_user_organizations (user_id, organization_id, role, accepted_at) VALUES ($1, $2, $3, NOW())",
+    "INSERT INTO bp_org_members (user_id, organization_id, role, accepted_at) VALUES ($1, $2, $3, NOW())",
     [userId, orgId, "owner"]
   );
 

@@ -4,5 +4,5 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-export const EXTRACTION_MODEL = "claude-sonnet-4-6";
-export const MODELING_MODEL = "claude-opus-4-6";
+export const EXTRACTION_MODEL = "claude-sonnet-4-5";
+export const MODELING_MODEL = "claude-opus-4-5";

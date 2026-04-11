@@ -2,7 +2,7 @@ import db from "./db";
 
 export async function getOrgBySlug(slug: string) {
   const r = await db.query<{ id: string; name: string; slug: string; plan: string }>(
-    "SELECT id, name, slug, plan FROM bp_organizations WHERE slug = $1",
+    "SELECT id, name, slug, plan FROM bp_orgs WHERE slug = $1",
     [slug]
   );
   return r.rows[0] ?? null;
@@ -11,8 +11,8 @@ export async function getOrgBySlug(slug: string) {
 export async function getUserOrgs(userId: string) {
   const r = await db.query<{ id: string; name: string; slug: string; role: string }>(
     `SELECT o.id, o.name, o.slug, uo.role
-     FROM bp_organizations o
-     JOIN bp_user_organizations uo ON uo.organization_id = o.id
+     FROM bp_orgs o
+     JOIN bp_org_members uo ON uo.organization_id = o.id
      WHERE uo.user_id = $1
      ORDER BY o.name`,
     [userId]
@@ -22,7 +22,7 @@ export async function getUserOrgs(userId: string) {
 
 export async function assertOrgAccess(userId: string, orgId: string) {
   const r = await db.query<{ role: string }>(
-    "SELECT role FROM bp_user_organizations WHERE user_id = $1 AND organization_id = $2",
+    "SELECT role FROM bp_org_members WHERE user_id = $1 AND organization_id = $2",
     [userId, orgId]
   );
   if (!r.rows[0]) throw new Error("Forbidden");

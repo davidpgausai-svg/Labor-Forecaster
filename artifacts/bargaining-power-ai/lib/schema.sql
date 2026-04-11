@@ -1,7 +1,7 @@
 -- Bargaining Power AI schema
 -- Runs on the same Postgres instance as CollBar (different table prefix: bp_)
 
-CREATE TABLE IF NOT EXISTS bp_organizations (
+CREATE TABLE IF NOT EXISTS bp_orgs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   slug VARCHAR(100) UNIQUE NOT NULL,
@@ -24,10 +24,10 @@ CREATE TABLE IF NOT EXISTS bp_users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS bp_user_organizations (
+CREATE TABLE IF NOT EXISTS bp_org_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES bp_users(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES bp_organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES bp_orgs(id) ON DELETE CASCADE,
   role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
   invited_by UUID REFERENCES bp_users(id),
   accepted_at TIMESTAMPTZ,
@@ -37,11 +37,11 @@ CREATE TABLE IF NOT EXISTS bp_user_organizations (
 
 CREATE TABLE IF NOT EXISTS bp_projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES bp_organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES bp_orgs(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'processing', 'complete', 'error')),
   state VARCHAR(2),
-  pension_system VARCHAR(20),
+  pension_system VARCHAR(50),
   contract_start_year INTEGER,
   contract_end_year INTEGER,
   metadata JSONB DEFAULT '{}',
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS bp_projects (
 CREATE TABLE IF NOT EXISTS bp_uploads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES bp_projects(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES bp_organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES bp_orgs(id) ON DELETE CASCADE,
   file_name VARCHAR(500) NOT NULL,
   file_type VARCHAR(20) CHECK (file_type IN ('cba', 'roster', 'proposal', 'other')),
   file_path VARCHAR(1000) NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS bp_uploads (
 CREATE TABLE IF NOT EXISTS bp_cost_models (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES bp_projects(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES bp_organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES bp_orgs(id) ON DELETE CASCADE,
   version INTEGER DEFAULT 1,
   status VARCHAR(20) DEFAULT 'queued' CHECK (status IN ('queued', 'generating', 'complete', 'error')),
   assumptions JSONB DEFAULT '{}',
@@ -86,5 +86,5 @@ CREATE INDEX IF NOT EXISTS idx_bp_uploads_project ON bp_uploads(project_id);
 CREATE INDEX IF NOT EXISTS idx_bp_uploads_org ON bp_uploads(organization_id);
 CREATE INDEX IF NOT EXISTS idx_bp_cost_models_project ON bp_cost_models(project_id);
 CREATE INDEX IF NOT EXISTS idx_bp_cost_models_org ON bp_cost_models(organization_id);
-CREATE INDEX IF NOT EXISTS idx_bp_user_orgs_user ON bp_user_organizations(user_id);
-CREATE INDEX IF NOT EXISTS idx_bp_user_orgs_org ON bp_user_organizations(organization_id);
+CREATE INDEX IF NOT EXISTS idx_bp_org_members_user ON bp_org_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_bp_org_members_org ON bp_org_members(organization_id);
