@@ -6,6 +6,7 @@ import { getModelingSystemPrompt } from "@/lib/skills";
 import { executePythonModel, saveFile, readFile } from "@/lib/python-executor";
 import db from "@/lib/db";
 import { randomUUID } from "crypto";
+import { PDFParse } from "pdf-parse";
 
 export const maxDuration = 180;
 
@@ -65,27 +66,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await db.query("UPDATE bp_projects SET status = 'processing' WHERE id = $1", [projectId]);
 
   try {
-    // Build message content: CBA document(s) first, then text instructions
-    type ContentBlock =
-      | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title: string }
-      | { type: "text"; text: string };
-
-    const contentBlocks: ContentBlock[] = [];
+    // Build message content: extract text from each CBA PDF, then append instructions
+    const contentBlocks: { type: "text"; text: string }[] = [];
 
     for (const upload of cbaUploads.rows) {
       try {
         const buf = readFile(upload.file_path);
+        const parser = new PDFParse({ data: new Uint8Array(buf) });
+        const [infoResult, textResult] = await Promise.all([
+          parser.getInfo(),
+          parser.getText(),
+        ]);
+        await parser.destroy();
+        const pageCount = infoResult.total;
+        const text = textResult.text.trim();
         contentBlocks.push({
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: "application/pdf",
-            data: buf.toString("base64"),
-          },
-          title: upload.file_name,
+          type: "text",
+          text: `=== CBA DOCUMENT: ${upload.file_name} (${pageCount} pages) ===\n\n${text}`,
         });
       } catch {
-        // File missing — skip but don't fail
+        // File missing or parse failed — skip but don't fail
       }
     }
 
@@ -117,7 +117,7 @@ OUTPUT REQUIREMENTS:
       model: MODELING_MODEL,
       max_tokens: 16000,
       system: getModelingSystemPrompt(),
-      messages: [{ role: "user", content: contentBlocks }],
+      messages: [{ role: "user", content: contentBlocks as { type: "text"; text: string }[] }],
     });
 
     const content = response.content[0];
