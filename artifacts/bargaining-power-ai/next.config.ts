@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/bpai";
 
+const devOrigins: string[] = [];
+if (process.env.REPLIT_DEV_DOMAIN) devOrigins.push(process.env.REPLIT_DEV_DOMAIN);
+devOrigins.push("*.replit.dev", "*.picard.replit.dev", "*.repl.co");
+
 const nextConfig: NextConfig = {
   basePath: BASE_PATH,
   experimental: {
@@ -10,7 +14,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_BASE_PATH: BASE_PATH,
   },
-  allowedDevOrigins: ["*"],
+  allowedDevOrigins: devOrigins,
 };
 
 export default nextConfig;
