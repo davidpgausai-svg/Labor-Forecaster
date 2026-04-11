@@ -53,30 +53,53 @@ export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
   writeFileSync(pdfPath, pdfBuffer);
 
   const script = `
-import sys, json
+import sys, subprocess
+
+def try_install(pkg):
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", pkg],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception:
+        return False
 
 def extract(pdf_path, txt_path):
+    # Try pypdf
     try:
         import pypdf
-        reader = pypdf.PdfReader(pdf_path)
-        pages = len(reader.pages)
-        text = ""
-        for page in reader.pages:
-            text += (page.extract_text() or "") + "\\n"
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(f"PAGES:{pages}\\n" + text)
-        return
-    except Exception:
-        pass
+    except ImportError:
+        try_install("pypdf")
+        try:
+            import pypdf
+        except ImportError:
+            pypdf = None
+
+    if pypdf is not None:
+        try:
+            reader = pypdf.PdfReader(pdf_path)
+            pages = len(reader.pages)
+            text = ""
+            for page in reader.pages:
+                text += (page.extract_text() or "") + "\\n"
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(f"PAGES:{pages}\\n" + text)
+            return
+        except Exception as e:
+            pass
+
+    # Try pdfminer.six
     try:
         from pdfminer.high_level import extract_text
-        text = extract_text(pdf_path)
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write("PAGES:0\\n" + text)
-        return
-    except Exception:
-        pass
-    raise RuntimeError("No PDF extraction library available (tried pypdf, pdfminer.six)")
+    except ImportError:
+        try_install("pdfminer.six")
+        try:
+            from pdfminer.high_level import extract_text
+        except ImportError:
+            raise RuntimeError("No PDF extraction library available (tried pypdf, pdfminer.six)")
+
+    text = extract_text(pdf_path)
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write("PAGES:0\\n" + text)
 
 extract(sys.argv[1], sys.argv[2])
 `.trim();

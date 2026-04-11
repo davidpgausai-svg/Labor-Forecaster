@@ -69,20 +69,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const contentBlocks: { type: "text"; text: string }[] = [];
 
     for (const upload of cbaUploads.rows) {
-      try {
-        const buf = readFile(upload.file_path);
-        const text = await extractPdfText(buf);
-        contentBlocks.push({
-          type: "text",
-          text: `=== CBA DOCUMENT: ${upload.file_name} ===\n\n${text}`,
-        });
-      } catch {
-        // File missing or extraction failed — skip but don't fail
-      }
-    }
-
-    if (contentBlocks.length === 0) {
-      throw new Error("CBA file(s) could not be read or extracted from disk.");
+      const buf = readFile(upload.file_path);
+      const text = await extractPdfText(buf);
+      contentBlocks.push({
+        type: "text",
+        text: `=== CBA DOCUMENT: ${upload.file_name} ===\n\n${text}`,
+      });
     }
 
     contentBlocks.push({
