@@ -1,9 +1,1 @@
-{
-  "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
-  "/api/projects/[id]/generate/route": "app/api/projects/[id]/generate/route.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/page": "app/page.js",
-  "/app/page": "app/app/page.js",
-  "/app/[orgSlug]/page": "app/app/[orgSlug]/page.js",
-  "/app/[orgSlug]/projects/[id]/page": "app/app/[orgSlug]/projects/[id]/page.js"
-}
+{}
