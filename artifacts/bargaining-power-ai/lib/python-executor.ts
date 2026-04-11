@@ -1,9 +1,8 @@
 import { exec } from "child_process";
+import { inflateSync } from "zlib";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string; numpages: number }>;
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? join(process.cwd(), ".uploads");
 
@@ -22,9 +21,68 @@ export function ensureUploadDir() {
   if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
-  const result = await pdfParse(pdfBuffer);
-  return result.text.trim();
+/**
+ * Extracts text from a PDF buffer using Node.js builtins only (zlib + regex).
+ * Works for standard text-based PDFs. No npm packages, no Python required.
+ */
+export function extractPdfText(buf: Buffer): string {
+  const binary = buf.toString("binary");
+  const allContent: string[] = [];
+
+  // Split on stream markers and attempt zlib decompression on each
+  const parts = binary.split(/stream\r?\n/);
+  for (let i = 1; i < parts.length; i++) {
+    const endIdx = parts[i].indexOf("\nendstream");
+    if (endIdx === -1) continue;
+    const raw = parts[i].substring(0, endIdx);
+    try {
+      const decompressed = inflateSync(Buffer.from(raw, "binary")).toString("binary");
+      allContent.push(decompressed);
+    } catch {
+      allContent.push(raw);
+    }
+  }
+  // Also scan the raw structure for any uncompressed inline text
+  allContent.push(binary);
+
+  const texts: string[] = [];
+
+  for (const content of allContent) {
+    // Single string: (text) Tj
+    const tjRe = /\(([^\\)]*(?:\\.[^\\)]*)*)\)\s*(?:Tj|'|")/g;
+    let m: RegExpExecArray | null;
+    while ((m = tjRe.exec(content)) !== null) {
+      const t = decodePdfStr(m[1]).trim();
+      if (t.length > 1) texts.push(t);
+    }
+
+    // Array: [(text) -num (text)] TJ
+    const tjArrRe = /\[((?:[^\[\]]|\((?:[^()\\]|\\.)*\))*)\]\s*TJ/g;
+    while ((m = tjArrRe.exec(content)) !== null) {
+      const strRe = /\(([^)]*)\)/g;
+      let s: RegExpExecArray | null;
+      const parts2: string[] = [];
+      while ((s = strRe.exec(m[1])) !== null) {
+        const t = decodePdfStr(s[1]).trim();
+        if (t) parts2.push(t);
+      }
+      if (parts2.length) texts.push(parts2.join(""));
+    }
+  }
+
+  if (texts.length === 0) {
+    throw new Error("No text extracted — PDF may be a scanned image. Upload a text-based PDF.");
+  }
+
+  return texts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function decodePdfStr(s: string): string {
+  return s
+    .replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t")
+    .replace(/\\\(/g, "(").replace(/\\\)/g, ")").replace(/\\\\/g, "\\")
+    .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, " ");
 }
 
 export async function executePythonModel(pythonCode: string): Promise<Buffer> {

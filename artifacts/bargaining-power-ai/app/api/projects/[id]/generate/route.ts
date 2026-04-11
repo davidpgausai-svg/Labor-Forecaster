@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     for (const upload of cbaUploads.rows) {
       const buf = readFile(upload.file_path);
-      const text = await extractPdfText(buf);
+      const text = extractPdfText(buf);
       contentBlocks.push({
         type: "text",
         text: `=== CBA DOCUMENT: ${upload.file_name} ===\n\n${text}`,
