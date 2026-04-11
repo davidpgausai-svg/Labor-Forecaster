@@ -65,27 +65,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await db.query("UPDATE bp_projects SET status = 'processing' WHERE id = $1", [projectId]);
 
   try {
-    // Build message content: extract text from each CBA PDF, then append instructions
-    const contentBlocks: { type: "text"; text: string }[] = [];
+    // Build message content: send each CBA PDF as a base64 document block
+    type ContentBlock =
+      | { type: "text"; text: string }
+      | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string };
+
+    const contentBlocks: ContentBlock[] = [];
 
     for (const upload of cbaUploads.rows) {
       try {
         const buf = readFile(upload.file_path);
-        const parser = new PDFParse({ data: new Uint8Array(buf) });
-        const [infoResult, textResult] = await Promise.all([
-          parser.getInfo(),
-          parser.getText(),
-        ]);
-        await parser.destroy();
-        const pageCount = infoResult.total;
-        const text = textResult.text.trim();
         contentBlocks.push({
-          type: "text",
-          text: `=== CBA DOCUMENT: ${upload.file_name} (${pageCount} pages) ===\n\n${text}`,
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: buf.toString("base64"),
+          },
+          title: upload.file_name,
         });
       } catch {
-        // File missing or parse failed — skip but don't fail
+        // File missing — skip but don't fail
       }
+    }
+
+    if (contentBlocks.length === 0) {
+      throw new Error("CBA file(s) could not be read from disk.");
     }
 
     contentBlocks.push({
@@ -116,7 +121,7 @@ OUTPUT REQUIREMENTS:
       model: MODELING_MODEL,
       max_tokens: 16000,
       system: getModelingSystemPrompt(),
-      messages: [{ role: "user", content: contentBlocks as { type: "text"; text: string }[] }],
+      messages: [{ role: "user", content: contentBlocks }],
     });
 
     const content = response.content[0];
