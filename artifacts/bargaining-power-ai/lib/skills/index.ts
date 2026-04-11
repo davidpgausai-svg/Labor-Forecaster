@@ -21,7 +21,12 @@ export function getModelingSystemPrompt(): string {
     load("DOMAIN-RETIREMENT-SYSTEMS.md"),
     load("DOMAIN-BENEFITS-MODELING.md"),
     load("DOMAIN-PAYROLL-TAXES.md"),
+    load("DOMAIN-LEAVE-COSTS.md"),
+    load("DOMAIN-WORKFORCE-SIMULATION.md"),
     load("OUTPUT-EXCEL-SPEC.md"),
     load("OUTPUT-INCREMENTAL-COST.md"),
+    load("MERGE-PATCHES.md"),
+    load("OUTPUT-SCENARIO-COMPARISON.md"),
+    load("OUTPUT-REPORT-CUSTOMIZATION.md"),
   ].join("\n\n---\n\n");
 }
