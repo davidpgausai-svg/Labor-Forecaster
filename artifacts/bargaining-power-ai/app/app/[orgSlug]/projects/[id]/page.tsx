@@ -61,7 +61,6 @@ export default function ProjectPage({
   const [loading, setLoading] = useState(true);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
-  const [extractingId, setExtractingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [userInstructions, setUserInstructions] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -120,28 +119,7 @@ export default function ProjectPage({
     }
   }
 
-  async function handleExtract(uploadId: string) {
-    setExtractingId(uploadId);
-    setError("");
-    try {
-      const res = await fetch(apiPath(`/api/projects/${id}/extract`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error ?? "Extraction failed");
-      }
-      await fetchProject();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Extraction failed");
-    } finally {
-      setExtractingId(null);
-    }
-  }
-
-  async function handleGenerate() {
+async function handleGenerate() {
     setGenLoading(true);
     setError("");
     try {
@@ -168,9 +146,8 @@ export default function ProjectPage({
 
   const cbaUploads = uploads.filter((u) => u.file_type === "cba");
   const rosterUploads = uploads.filter((u) => u.file_type === "roster");
-  const hasExtractedCba = cbaUploads.some((u) => u.processed && u.extracted_data);
   const latestModel = models[0] ?? null;
-  const canGenerate = hasExtractedCba && (!latestModel || latestModel.status === "error" || latestModel.status === "complete");
+  const canGenerate = cbaUploads.length > 0 && (!latestModel || latestModel.status === "error" || latestModel.status === "complete");
 
   if (loading) {
     return (
@@ -264,21 +241,9 @@ export default function ProjectPage({
                     {u.file_type.toUpperCase()} · {formatBytes(u.file_size ?? 0)} · {new Date(u.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                  {u.processed ? (
-                    <span className="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full">
-                      Extracted
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleExtract(u.id)}
-                      disabled={extractingId === u.id}
-                      className="text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-3 py-1 rounded-md transition-colors"
-                    >
-                      {extractingId === u.id ? "Extracting…" : "Extract Data"}
-                    </button>
-                  )}
-                </div>
+                <span className="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full ml-4 flex-shrink-0">
+                  Ready
+                </span>
               </div>
             ))}
             <button
@@ -290,23 +255,6 @@ export default function ProjectPage({
           </div>
         )}
       </section>
-
-      {/* Step 2: Extracted Data Preview */}
-      {hasExtractedCba && (
-        <section className="bg-white/5 border border-white/10 rounded-xl p-6">
-          <h2 className="font-semibold flex items-center gap-2 mb-4">
-            <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center">
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-            </span>
-            Extracted CBA Data
-          </h2>
-          {cbaUploads.filter((u) => u.extracted_data).map((u) => (
-            <div key={u.id} className="space-y-3">
-              <ExtractedDataView data={u.extracted_data!} />
-            </div>
-          ))}
-        </section>
-      )}
 
       {/* Instructions */}
       <section className="bg-white/5 border border-white/10 rounded-xl p-6">
@@ -339,8 +287,8 @@ export default function ProjectPage({
         </div>
         <p className="text-xs text-slate-500 mb-4">
           {canGenerate
-            ? "Ready. Collbar will analyze the contract, apply your instructions, and generate a 7-tab Excel workbook."
-            : "Upload and extract your CBA in Step 1 before generating."}
+            ? "Ready. Collbar will read the full CBA, apply your instructions, and generate a 7-tab Excel workbook."
+            : "Upload a CBA PDF in Step 1 before generating."}
         </p>
 
         {rosterUploads.length === 0 && canGenerate && (
