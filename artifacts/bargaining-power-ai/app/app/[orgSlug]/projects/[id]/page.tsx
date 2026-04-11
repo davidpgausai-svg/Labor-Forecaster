@@ -60,6 +60,7 @@ export default function ProjectPage({
   const [models, setModels] = useState<CostModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [error, setError] = useState("");
   const [userInstructions, setUserInstructions] = useState("");
@@ -137,6 +138,23 @@ async function handleGenerate() {
       setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setGenLoading(false);
+    }
+  }
+
+  async function handleDeleteUpload(uploadId: string) {
+    setDeletingId(uploadId);
+    setError("");
+    try {
+      const res = await fetch(apiPath(`/api/projects/${id}/uploads/${uploadId}`), { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "Delete failed");
+      }
+      setUploads((prev) => prev.filter((u) => u.id !== uploadId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -241,9 +259,28 @@ async function handleGenerate() {
                     {u.file_type.toUpperCase()} · {formatBytes(u.file_size ?? 0)} · {new Date(u.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <span className="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full ml-4 flex-shrink-0">
-                  Ready
-                </span>
+                <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                  <span className="text-xs text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full">
+                    Ready
+                  </span>
+                  <button
+                    onClick={() => handleDeleteUpload(u.id)}
+                    disabled={deletingId === u.id}
+                    title="Delete file"
+                    className="text-slate-500 hover:text-red-400 transition-colors disabled:opacity-30"
+                  >
+                    {deletingId === u.id ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
             <button
